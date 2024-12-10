@@ -557,11 +557,11 @@ class PciBusDriver(LabeledComponent):
             is_bridge = (class_code >> 8) == BRIDGE_CLASS
             if bdf not in existing_bdfs:
                 pci_device_info = PciDeviceInfo(
-                    bdf,
-                    vendor_id,
-                    device_id,
-                    class_code,
-                    is_bridge,
+                    bdf=bdf,
+                    vendor_id=vendor_id,
+                    device_id=device_id,
+                    class_code=class_code,
+                    is_bridge=is_bridge,
                 )
                 if parent_device_info:
                     parent_device_info.children.append(pci_device_info)
