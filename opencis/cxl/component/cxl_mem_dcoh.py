@@ -336,7 +336,7 @@ class CxlMemDcoh(PacketProcessor):
         _stop_process = False
 
         while not _stop_process:
-            await sleep(0.1)
+            await sleep(0)
             # fetch device request packet
             if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_INIT:
                 if not self._cache_to_coh_agent_fifo.request.empty():

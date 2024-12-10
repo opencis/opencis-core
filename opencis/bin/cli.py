@@ -8,7 +8,7 @@
 import click
 import os
 import sys
-import threading
+import multiprocessing
 import logging
 
 from importlib import import_module
@@ -112,71 +112,72 @@ def start(
             show_linenumber=show_linenumber,
         )
 
-    threads = []
+    processes = []
     if pcap_file:
-        from multiprocessing import Process
-
-        pcap_proc = Process(target=start_capture, args=(ctx, pcap_file))
+        pcap_proc = multiprocessing.Process(target=start_capture, args=(ctx, pcap_file))
+        processes.append(pcap_proc)
         pcap_proc.start()
 
     if "fm" in comp:
-        t_fm = threading.Thread(target=start_fabric_manager, args=(ctx,))
-        threads.append(t_fm)
-        t_fm.start()
+        p_fm = multiprocessing.Process(target=start_fabric_manager, args=(ctx,))
+        processes.append(p_fm)
+        p_fm.start()
 
     if "switch" in comp:
-        t_switch = threading.Thread(target=start_switch, args=(ctx, config_file))
-        threads.append(t_switch)
-        t_switch.start()
+        p_switch = multiprocessing.Process(target=start_switch, args=(ctx, config_file))
+        processes.append(p_switch)
+        p_switch.start()
 
     if "t1accel-group" in comp:
-        accel = import_module("opencis.bin.accelerator")
-        t_at1group = threading.Thread(
+        accel = import_module("opencxl.bin.accelerator")
+        p_at1group = multiprocessing.Process(
             target=start_accel_group, args=(ctx, config_file, accel.ACCEL_TYPE.T1)
         )
-        threads.append(t_at1group)
-        t_at1group.start()
+        processes.append(p_at1group)
+        p_at1group.start()
 
     if "t2accel-group" in comp:
-        accel = import_module("opencis.bin.accelerator")
-        t_at2group = threading.Thread(
+        accel = import_module("opencxl.bin.accelerator")
+        p_at2group = multiprocessing.Process(
             target=start_accel_group, args=(ctx, config_file, accel.ACCEL_TYPE.T2)
         )
-        threads.append(t_at2group)
-        t_at2group.start()
+        processes.append(p_at2group)
+        p_at2group.start()
 
     if "sld" in comp:
-        t_sld = threading.Thread(target=start_sld, args=(ctx,))
-        threads.append(t_sld)
-        t_sld.start()
+        p_sld = multiprocessing.Process(target=start_sld, args=(ctx,))
+        processes.append(p_sld)
+        p_sld.start()
     if "sld-group" in comp:
-        t_sgroup = threading.Thread(target=start_sld_group, args=(ctx, config_file))
-        threads.append(t_sgroup)
-        t_sgroup.start()
+        p_sgroup = multiprocessing.Process(target=start_sld_group, args=(ctx, config_file))
+        processes.append(p_sgroup)
+        p_sgroup.start()
 
     if "mld" in comp:
-        t_mld = threading.Thread(target=start_mld, args=(ctx,))
-        threads.append(t_mld)
-        t_mld.start()
+        p_mld = multiprocessing.Process(target=start_mld, args=(ctx,))
+        processes.append(p_mld)
+        p_mld.start()
     if "mld-group" in comp:
-        t_mgroup = threading.Thread(target=start_mld_group, args=(ctx, config_file))
-        threads.append(t_mgroup)
-        t_mgroup.start()
+        p_mgroup = multiprocessing.Process(target=start_mld_group, args=(ctx, config_file))
+        processes.append(p_mgroup)
+        p_mgroup.start()
 
     if "host" in comp or "host-group" in comp:
         hm_mode = False  # TODO: re-enable HostManager hm_mode = not no_hm
         if hm_mode:
-            t_hm = threading.Thread(target=start_host_manager, args=(ctx,))
-            threads.append(t_hm)
-            t_hm.start()
+            p_hm = multiprocessing.Process(target=start_host_manager, args=(ctx,))
+            processes.append(p_hm)
+            p_hm.start()
         if "host" in comp:
-            t_host = threading.Thread(target=start_host, args=(ctx,))
-            threads.append(t_host)
-            t_host.start()
+            p_host = multiprocessing.Process(target=start_host, args=(ctx,))
+            processes.append(p_host)
+            p_host.start()
         elif "host-group" in comp:
-            t_hgroup = threading.Thread(target=start_host_group, args=(ctx, config_file, hm_mode))
-            threads.append(t_hgroup)
-            t_hgroup.start()
+            p_hgroup = multiprocessing.Process(
+                target=start_host_group, args=(ctx, config_file, hm_mode)
+            )
+            processes.append(p_hgroup)
+            p_hgroup.start()
 
 
 # helper functions

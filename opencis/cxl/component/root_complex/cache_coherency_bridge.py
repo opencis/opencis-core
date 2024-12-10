@@ -374,7 +374,7 @@ class CacheCoherencyBridge(RunnableComponent):
         _fc_host_run = False
 
         while not _stop_process:
-            await sleep(0.1)
+            await sleep(0)
             # flow control for host/device packets
             # link state machine and function to the current request
             if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_INIT:
