@@ -1,26 +1,39 @@
-import argparse
-from signal import *
-import os
+"""
+ Copyright (c) 2024, Eeum, Inc.
 
+ This software is licensed under the terms of the Revised BSD License.
+ See LICENSE for details.
+"""
+
+import argparse
+from signal import SIGCONT, SIGINT, SIGIO, SIG_BLOCK, SIG_UNBLOCK, pthread_sigmask, signal, pause
+
+import os
 
 from opencis.util.logger import logger
 
+run_progress = 0
+pids = {}
+RUN_LIST = {}
+
 
 def clean_shutdown(signum=None, frame=None):
+    # pylint: disable=unused-argument, global-statement
     pthread_sigmask(SIG_BLOCK, [SIGINT])
+
     global pids
     pids = dict(reversed(pids.items()))
     for _, pid in pids.items():
         os.kill(pid, SIGINT)
         os.waitpid(pid, 0)
-    quit()
+    os._exit(0)
 
 
 def run_next_app(signum=None, frame=None):
+    # pylint: disable=unused-argument, global-statement
     pthread_sigmask(SIG_BLOCK, [SIGCONT])
 
-    global pids, run_progress
-
+    global run_progress
     if run_progress >= len(RUN_LIST):
         # signal the host that IO is ready
         host_pid = pids["host"]
@@ -44,7 +57,8 @@ def run_next_app(signum=None, frame=None):
         pthread_sigmask(SIG_UNBLOCK, [SIGCONT])
 
 
-if __name__ == "__main__":
+def main():
+    # pylint: disable=global-statement
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-p",
@@ -82,11 +96,12 @@ if __name__ == "__main__":
 
     if not os.path.exists(train_data_path) or not os.path.isdir(train_data_path):
         logger.info(f"Path {train_data_path} does not exist, or is not a folder.")
-        quit(1)
+        os._exit(0)
 
     host_file = f"./host-t{accel_type}.py"
     accel_file = f"./accel-t{accel_type}.py"
 
+    global RUN_LIST
     RUN_LIST = [
         ("switch", "./switch.py", (sw_port, num_accels)),
         ("host", host_file, (sw_port, num_accels, train_data_path)),
@@ -96,11 +111,11 @@ if __name__ == "__main__":
     signal(SIGCONT, run_next_app)
     signal(SIGINT, clean_shutdown)
 
-    global pids, run_progress
-    pids = {}
-    run_progress = 0
-
     run_next_app()
 
     while True:
         pause()
+
+
+if __name__ == "__main__":
+    main()

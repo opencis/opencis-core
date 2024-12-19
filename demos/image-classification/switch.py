@@ -1,26 +1,30 @@
 #!/usr/bin/env python
+"""
+ Copyright (c) 2024, Eeum, Inc.
 
-from signal import *
+ This software is licensed under the terms of the Revised BSD License.
+ See LICENSE for details.
+"""
+
 import asyncio
-import sys, os
+import os
+import sys
+from signal import SIGCONT, SIGINT
 
 from opencis.cxl.component.cxl_component import PORT_TYPE, PortConfig
 from opencis.cxl.component.physical_port_manager import PhysicalPortManager
 from opencis.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencis.cxl.component.virtual_switch_manager import VirtualSwitchConfig, VirtualSwitchManager
 
+# pylint: disable=duplicate-code
 sw_conn_manager = None
 physical_port_manager = None
 virtual_switch_manager = None
-
 start_tasks = []
 
 
 async def shutdown(signame=None):
-    global sw_conn_manager
-    global physical_port_manager
-    global virtual_switch_manager
-    global start_tasks
+    # pylint: disable=unused-argument
     try:
         stop_tasks = [
             asyncio.create_task(sw_conn_manager.stop(), name="sw_conn_manager"),
@@ -36,7 +40,7 @@ async def shutdown(signame=None):
 
 
 async def main():
-    # install signal handlers
+    # pylint: disable=global-statement
     lp = asyncio.get_event_loop()
     lp.add_signal_handler(SIGINT, lambda signame="SIGINT": asyncio.create_task(shutdown(signame)))
 

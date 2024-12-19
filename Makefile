@@ -14,6 +14,7 @@ test:
 
 lint:
 	poetry run pylint opencis
+	poetry run pylint demos
 	poetry run pylint tests
 
 format:

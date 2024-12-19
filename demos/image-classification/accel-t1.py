@@ -1,9 +1,17 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
+"""
+ Copyright (c) 2024, Eeum, Inc.
+
+ This software is licensed under the terms of the Revised BSD License.
+ See LICENSE for details.
+"""
 
 import logging
-from signal import *
+from signal import SIGCONT, SIGINT
 import asyncio
-import sys, os
+import os
+import sys
+
 from opencis.apps.accelerator import MyType1Accelerator
 from opencis.util.logger import logger
 
@@ -14,25 +22,22 @@ stop_signal = asyncio.Event()
 
 
 async def shutdown(signame=None):
-    global device
-    global start_tasks
-    global stop_signal
+    # pylint: disable=unused-argument
     try:
         device.set_stop_flag()
-        stop_signal.set()
         stop_tasks = [
             asyncio.create_task(device.stop()),
         ]
         await asyncio.gather(*stop_tasks)
-        await asyncio.gather(*start_tasks)
+        stop_signal.set()
     except Exception as exc:
-        logger.debug("[ACCEL]", exc.__traceback__)
+        logger.debug(f"[ACCEL] {exc.__traceback__}")
     finally:
-        os._exit(0)
+        sys.exit(0)
 
 
 async def main():
-    # install signal handlers
+    # pylint: disable=global-statement, duplicate-code
     lp = asyncio.get_event_loop()
     lp.add_signal_handler(SIGINT, lambda signame="SIGINT": asyncio.create_task(shutdown(signame)))
 
@@ -43,9 +48,6 @@ async def main():
     logger.debug(f"[ACCEL] listening on port {sw_portno} and physical port {portidx}")
 
     global device
-    global start_tasks
-    global stop_signal
-
     device = MyType1Accelerator(
         port_index=portidx,
         port=sw_portno,
@@ -54,6 +56,7 @@ async def main():
         train_data_path=train_data_path,
     )
 
+    global start_tasks
     start_tasks = [
         asyncio.create_task(device.run()),
     ]
@@ -67,6 +70,7 @@ async def main():
     logger.debug("[ACCEL] ready!")
 
     await stop_signal.wait()
+    await asyncio.gather(*start_tasks)
 
 
 if __name__ == "__main__":

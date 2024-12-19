@@ -25,6 +25,9 @@ class CPU(RunnableComponent):
         self._sys_sw_app = sys_sw_app
         self._user_app = user_app
 
+    def create_message(self, message):
+        return self._create_message(message)
+
     async def load(self, addr: int, size: int) -> int:
         if size < 64:
             data = await self._cxl_mem_hub.load(addr, size)

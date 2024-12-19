@@ -1,17 +1,26 @@
 #!/usr/bin/env python
+"""
+ Copyright (c) 2024, Eeum, Inc.
 
-from signal import *
+ This software is licensed under the terms of the Revised BSD License.
+ See LICENSE for details.
+"""
+
 import asyncio
-import sys, os
+from signal import SIGCONT, SIGINT
+import os
+import sys
 
 from opencis.util.logger import logger
 from opencis.apps.accelerator import MyType2Accelerator
 from opencis.util.number_const import MB
 
+device: MyType2Accelerator = None
+start_tasks = []
+
 
 async def shutdown(signame=None):
-    global device
-    global start_tasks
+    # pylint: disable=unused-argument
     try:
         stop_tasks = [
             asyncio.create_task(device.stop()),
@@ -25,7 +34,7 @@ async def shutdown(signame=None):
 
 
 async def main():
-    # install signal handlers
+    # pylint: disable=global-statement, duplicate-code
     lp = asyncio.get_event_loop()
     lp.add_signal_handler(SIGINT, lambda signame="SIGINT": asyncio.create_task(shutdown(signame)))
 

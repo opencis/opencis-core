@@ -99,6 +99,9 @@ class CxlMemoryHub(RunnableComponent):
         self._cache_controller = CacheController(cache_controller_config)
         self._irq_handler = config.irq_handler
 
+    def create_message(self, message):
+        return self._create_message(message)
+
     def get_memory_ranges(self):
         return self._cache_controller.get_memory_ranges()
 

@@ -1,15 +1,20 @@
 #!/usr/bin/env python
+"""
+ Copyright (c) 2024, Eeum, Inc.
 
-from signal import *
+ This software is licensed under the terms of the Revised BSD License.
+ See LICENSE for details.
+"""
+
 import asyncio
-import sys
-import asyncio
+from dataclasses import dataclass, field
+import json
 import glob
 import os
-import json
+import sys
 from random import sample
-from dataclasses import dataclass, field
-from typing import List, Dict
+from signal import SIGCONT, SIGINT, SIGIO
+from typing import Dict
 
 from opencis.util.logger import logger
 from opencis.cxl.component.cxl_host import CxlHost
@@ -20,6 +25,9 @@ from opencis.cxl.component.irq_manager import Irq
 from opencis.drivers.cxl_bus_driver import CxlBusDriver
 from opencis.drivers.cxl_mem_driver import CxlMemDriver
 from opencis.drivers.pci_bus_driver import PciBusDriver
+
+
+# pylint: disable=global-statement, duplicate-code
 
 
 @dataclass
@@ -41,14 +49,25 @@ class AccelInfo:
     training_done: Dict[int, bool] = field(default_factory=dict)
 
 
+accel_info = AccelInfo()
+host_irq_handler = None
+total_samples = 0
+validation_results = []
+sampled_file_categories = []
+cpu = None
+mem_hub = None
+config = None
+start_signal = None
+stop_signal = None
+host = None
+start_tasks = None
+
+
 async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
     pci_cfg_base_addr = config.pci_cfg_base_addr
     pci_mmio_base_addr = config.pci_mmio_base_addr
     cxl_hpa_base_addr = config.cxl_hpa_base_addr
     sys_mem_base_addr = config.sys_mem_base_addr
-
-    global accel_info
-    accel_info = AccelInfo()
 
     # PCI Device
     root_complex = cxl_memory_hub.get_root_complex()
@@ -133,8 +152,8 @@ async def do_img_classification_type2():
         category_name = c.split(os.path.sep)[-1]
         sampled_file_categories += [category_name] * config.sample_from_each_category
         for s in sample_pics:
-            f = open(s, "rb")
-            pic_data = f.read()
+            with open(s, "rb") as f:
+                pic_data = f.read()
             pic_data_int = int.from_bytes(pic_data, "little")
             pic_data_len = len(pic_data)
             pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
@@ -168,7 +187,6 @@ async def do_img_classification_type2():
                 # Currently we don't send the picture information to the device
                 # and to prevent race condition, we need to send pics synchronously
             pic_id += 1
-            f.close()
 
     merge_validation_results()
     stop_signal.set()
@@ -228,9 +246,9 @@ async def my_img_classification_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
     # Pass init-info mem location to the remote using MMIO
     CSV_DATA_MEM_OFFSET = 0x4000
 
-    logger.info(cpu._create_message("Host main process waiting..."))
+    logger.info(cpu.create_message("Host main process waiting..."))
     await start_signal.wait()
-    logger.info(cpu._create_message("Host main process running!"))
+    logger.info(cpu.create_message("Host main process running!"))
 
     with open(f"{config.train_data_path}/noisy_imagenette.csv", "rb") as f:
         csv_data = f.read()
@@ -239,7 +257,7 @@ async def my_img_classification_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
     csv_data_len_rounded = (((csv_data_len - 1) // 64) + 1) * 64
 
     for dev_id in range(config.accel_count):
-        logger.info(cpu._create_message(f"Sending Metadata to dev {dev_id}"))
+        logger.info(cpu.create_message(f"Sending Metadata to dev {dev_id}"))
         write_addr = to_accel_mem_addr(dev_id, CSV_DATA_MEM_OFFSET)
         await cpu.store(write_addr, csv_data_len_rounded, csv_data_int, prog_bar=True)
 
@@ -265,6 +283,7 @@ async def my_img_classification_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
 
 
 async def shutdown(signame=None):
+    # pylint: disable=unused-argument
     try:
         stop_tasks = [
             asyncio.create_task(host.stop()),
@@ -278,6 +297,7 @@ async def shutdown(signame=None):
 
 
 async def run_demo(signame=None):
+    # pylint: disable=unused-argument
     start_signal.set()
     await stop_signal.wait()
     os.kill(os.getppid(), SIGINT)

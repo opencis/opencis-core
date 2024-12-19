@@ -1,16 +1,21 @@
 #!/usr/bin/env python
+"""
+ Copyright (c) 2024, Eeum, Inc.
 
-from signal import *
+ This software is licensed under the terms of the Revised BSD License.
+ See LICENSE for details.
+"""
+
 import asyncio
-import sys
-import asyncio
+from dataclasses import dataclass, field
+import json
 import glob
 import os
-import json
-from tqdm.auto import tqdm
+from signal import SIGCONT, SIGINT, SIGIO
+import sys
 from random import sample
-from dataclasses import dataclass, field
-from typing import List, Dict
+from typing import Dict
+from tqdm.auto import tqdm
 
 from opencis.util.logger import logger
 from opencis.cxl.component.cxl_host import CxlHost
@@ -23,6 +28,7 @@ from opencis.drivers.cxl_mem_driver import CxlMemDriver
 from opencis.drivers.pci_bus_driver import PciBusDriver
 
 
+# pylint: disable=global-statement, duplicate-code
 @dataclass
 class ImageClassificationConfigs:
     train_data_path: str
@@ -40,6 +46,20 @@ class AccelInfo:
     hpa_base_addr: Dict[int, int] = field(default_factory=dict)
     mmio_base_addr: Dict[int, int] = field(default_factory=dict)
     training_done: Dict[int, bool] = field(default_factory=dict)
+
+
+accel_info = AccelInfo()
+host_irq_handler = None
+total_samples = 0
+validation_results = []
+sampled_file_categories = []
+cpu = None
+mem_hub = None
+config = None
+start_signal = None
+stop_signal = None
+host = None
+start_tasks = None
 
 
 async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
@@ -127,14 +147,14 @@ async def do_img_classification_type1():
     )
     with tqdm(total=total_samples, desc="Picture", position=0) as pbar_cat:
         for c in categories:
-            logger.debug(cpu._create_message(f"Validating category: {c}"))
+            logger.debug(cpu.create_message(f"Validating category: {c}"))
             category_pics = glob.glob(f"{c}/*.JPEG")
             sample_pics = sample(category_pics, config.samples_from_each_category)
             category_name = c.split(os.path.sep)[-1]
             sampled_file_categories += [category_name] * config.samples_from_each_category
             for s in sample_pics:
-                f = open(s, "rb")
-                pic_data = f.read()
+                with open(s, "rb") as f:
+                    pic_data = f.read()
                 pic_data_int = int.from_bytes(pic_data, "little")
                 pic_data_len = len(pic_data)
                 pic_data_len_rounded = (((pic_data_len - 1) // 64) + 1) * 64
@@ -276,6 +296,7 @@ async def my_img_classification_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
 
 
 async def shutdown(signame=None):
+    # pylint: disable=unused-argument
     try:
         stop_tasks = [
             asyncio.create_task(host.stop()),
@@ -289,6 +310,7 @@ async def shutdown(signame=None):
 
 
 async def run_demo(signame=None):
+    # pylint: disable=unused-argument
     start_signal.set()
     await stop_signal.wait()
     os.kill(os.getppid(), SIGINT)
