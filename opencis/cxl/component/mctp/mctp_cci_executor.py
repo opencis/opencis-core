@@ -86,7 +86,7 @@ class MctpCciExecutor(RunnableComponent):
         while True:
             # Wait for incoming packets from the MCTP connection
             packet = await self._mctp_connection.controller_to_ep.get()
-            if packet == None:
+            if packet is None:
                 logger.debug(self._create_message("Stopped processing incoming request"))
                 break
 
@@ -135,7 +135,7 @@ class MctpCciExecutor(RunnableComponent):
         while True:
             # Wait for incoming packets from the MCTP connection
             packet = await downstream_connection.cci_fifo.target_to_host.get()
-            if packet == None:
+            if packet is None:
                 logger.debug(self._create_message("Stopped processing outcoming request"))
                 break
 

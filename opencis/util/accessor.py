@@ -1,3 +1,11 @@
+"""
+ Copyright (c) 2024, Eeum, Inc.
+
+ This software is licensed under the terms of the Revised BSD License.
+ See LICENSE for details.
+"""
+
+
 class FileAccessor:
     def __init__(self, filename: str, size: int):
         self.filename = filename

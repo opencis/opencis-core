@@ -6,6 +6,7 @@
 """
 
 from dataclasses import dataclass, field
+
 from opencis.cxl.component.cci_executor import (
     CciBackgroundCommand,
     CciRequest,

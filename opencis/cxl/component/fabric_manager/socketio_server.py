@@ -212,7 +212,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
             return response
 
     async def _get_switch_identity(self) -> IdentifySwitchDeviceResponsePayload:
-        if self._switch_identity == None:
+        if self._switch_identity is None:
             (_, response) = await self._mctp_client.identify_switch_device()
             if not response:
                 raise Exception("Failed to get switch identity")

@@ -33,8 +33,7 @@ class LabeledComponent:
             if callable(self._label):
                 return self._label(class_name)
             return f"{class_name}:{self._label}"
-        else:
-            return class_name
+        return class_name
 
     def _create_message(self, message):
         return f"[{self.get_message_label()}] {message}"

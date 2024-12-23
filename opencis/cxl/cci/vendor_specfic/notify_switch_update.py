@@ -6,11 +6,12 @@
 """
 
 from dataclasses import dataclass, field, fields
+import struct
 from typing import ClassVar, List, Tuple
+
 from opencis.cxl.component.virtual_switch.virtual_switch import (
     PPB_BINDING_STATUS,
 )
-import struct
 from opencis.cxl.component.cci_executor import CciRequest
 from opencis.cxl.cci.common import CCI_VENDOR_SPECIFIC_OPCODE
 

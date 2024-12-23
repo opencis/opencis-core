@@ -42,7 +42,7 @@ class PciDevice(RunnableComponent):
         label: Optional[str] = None,
     ):
         super().__init__()
-        if identity == None:
+        if identity is None:
             identity = PciComponentIdentity(
                 vendor_id=EEUM_VID,
                 device_id=SW_EP_DID,

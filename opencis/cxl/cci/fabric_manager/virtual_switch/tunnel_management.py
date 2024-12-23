@@ -6,6 +6,7 @@
 """
 
 from typing import Optional, cast
+
 from opencis.cxl.component.physical_port_manager import PhysicalPortManager
 from opencis.cxl.component.virtual_switch_manager import VirtualSwitchManager
 from opencis.cxl.cci.common import (

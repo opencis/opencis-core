@@ -40,7 +40,7 @@ class MyLogger(logging.getLoggerClass()):
         if show_linenumber:
             m_fmt += "(%(filename)s:%(lineno)d)"
 
-        if len(h_fmt):
+        if h_fmt:
             fmt = h_fmt + " | " + m_fmt
         else:
             fmt = m_fmt
@@ -100,7 +100,7 @@ class MyLogger(logging.getLoggerClass()):
             if not d:
                 return
             # non-printable ascii values to '.'
-            data_ascii = "".join([chr(b) if (b > 32 and b < 128) else "." for b in d])
+            data_ascii = "".join([chr(b) if (32 < b < 128) else "." for b in d])
             data_bytes = " ".join(f"{i:02x}" for i in d)
             line = f"{addr:08x}:  {data_bytes:47}  |{data_ascii:16}|"
             self._log(self._name_to_level[loglevel], line, args, **kwargs)

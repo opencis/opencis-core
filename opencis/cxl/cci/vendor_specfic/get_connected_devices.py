@@ -5,9 +5,11 @@
  See LICENSE for details.
 """
 
-from dataclasses import dataclass, asdict
-from typing import List, TypedDict
+from dataclasses import dataclass
 from struct import pack, unpack, calcsize
+from typing import List, TypedDict
+from yaml import dump
+
 from opencis.cxl.component.cci_executor import (
     CciForegroundCommand,
     CciRequest,
@@ -15,7 +17,6 @@ from opencis.cxl.component.cci_executor import (
 )
 from opencis.cxl.component.physical_port_manager import PhysicalPortManager
 from opencis.cxl.cci.common import CCI_VENDOR_SPECIFIC_OPCODE
-from yaml import dump
 
 
 class DeviceInfoDict(TypedDict):
@@ -119,7 +120,8 @@ class GetConnectedDevicesResponsePayload:
 
         if len(data) != expected_length:
             raise ValueError(
-                f"Incorrect byte length for GetConnectedDevicesResponsePayload: Expected {expected_length}, got {len(data)}"
+                "Incorrect byte length for GetConnectedDevicesResponsePayload: "
+                f"Expected {expected_length}, got {len(data)}"
             )
 
         devices = []

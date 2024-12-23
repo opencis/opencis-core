@@ -5,6 +5,9 @@
  See LICENSE for details.
 """
 
+from enum import IntEnum
+from typing import List
+
 from opencis.cxl.features.mailbox import (
     CxlMailboxContext,
     CxlMailboxCommandBase,
@@ -12,12 +15,9 @@ from opencis.cxl.features.mailbox import (
 )
 from opencis.cxl.features.event_manager import EventManager
 from opencis.util.unaligned_bit_structure import (
-    ShareableByteArray,
     UnalignedBitStructure,
     ByteField,
 )
-from typing import List
-from enum import IntEnum
 
 
 class EVENT_LOG_TYPE(IntEnum):

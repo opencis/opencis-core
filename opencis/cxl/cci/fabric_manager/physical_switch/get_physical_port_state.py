@@ -5,7 +5,11 @@
  See LICENSE for details.
 """
 
-from typing import List, Dict, TypedDict
+from dataclasses import dataclass, field
+from enum import IntEnum
+from typing import List, Dict
+from yaml import dump
+
 from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE, CCI_RETURN_CODE
 from opencis.cxl.component.cci_executor import (
     CciForegroundCommand,
@@ -16,15 +20,9 @@ from opencis.cxl.component.switch_connection_manager import (
     SwitchConnectionManager,
     PORT_TYPE,
 )
-from dataclasses import dataclass, field
-from enum import IntEnum
-from pprint import pformat
-from yaml import dump
-
 from opencis.cxl.device.config.logical_device import (
     LogicalDeviceConfig,
     MultiLogicalDeviceConfig,
-    SingleLogicalDeviceConfig,
 )
 
 

@@ -5,9 +5,9 @@
  See LICENSE for details.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from struct import pack, unpack
-from typing import ClassVar
+
 from opencis.cxl.component.cci_executor import (
     CciBackgroundCommand,
     CciRequest,

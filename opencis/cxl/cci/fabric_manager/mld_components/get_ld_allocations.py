@@ -6,18 +6,15 @@
 """
 
 from dataclasses import dataclass, field
-from struct import pack, unpack
-from typing import ClassVar, List, TypedDict
+from typing import List, TypedDict
+
+# from opencis.util.logger import logger
+from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
 from opencis.cxl.component.cci_executor import (
-    CciBackgroundCommand,
     CciForegroundCommand,
     CciRequest,
     CciResponse,
-    ProgressCallback,
 )
-
-from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE, CCI_RETURN_CODE
-from opencis.util.logger import logger
 
 
 class GetLdAllocationsRequestPayloadDict(TypedDict):

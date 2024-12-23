@@ -8,19 +8,17 @@
 from typing import (
     List,
     Dict,
-    Tuple,
-    Any,
     Type,
     Union,
     Optional,
-    Callable,
     cast,
     TypedDict,
 )
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from enum import Enum, auto
-from opencis.util.logger import logger
 import inspect
+
+from opencis.util.logger import logger
 
 
 class FIELD_ATTR(Enum):
@@ -389,19 +387,23 @@ class UnalignedBitStructure:
         for f_idx, f in enumerate(fields):
             if f.start != last_offset + 1:
                 raise Exception(
-                    f"'{self._class_name}.{f.name}': DataField.start isn't aligned to the previous field"
+                    f"'{self._class_name}.{f.name}': "
+                    "DataField.start isn't aligned to the previous field"
                 )
             if isinstance(f, DynamicByteField) is False and f.end < f.start:
                 raise Exception(
-                    f"'{self._class_name}.{f.name}': DataField.end cannot be less than DataField.start"
+                    f"'{self._class_name}.{f.name}': "
+                    "DataField.end cannot be less than DataField.start"
                 )
             if isinstance(f, DynamicByteField) and f.length < 0:
                 raise Exception(
-                    f"'{self._class_name}.{f.name}': A byte field with negative length is nonsensical"
+                    f"'{self._class_name}.{f.name}': "
+                    "A byte field with negative length is nonsensical"
                 )
             if isinstance(f, DynamicByteField) and f_idx != len(fields) - 1:
                 raise Exception(
-                    f"'{self._class_name}.{f.name}: DynamicByteFields must be the last field in their respective packets"
+                    f"'{self._class_name}.{f.name}: "
+                    "DynamicByteFields must be the last field in their respective packets"
                 )
 
             if not isinstance(f, DynamicByteField):
@@ -530,10 +532,10 @@ class UnalignedBitStructure:
         self._add_field_name(field.name)
         if self._dynamic_field is not None:
             raise Exception(
-                f"'{self._class_name}' instance already contains a dynamic field: {self._dynamic_field.name}"
+                f"'{self._class_name}' instance already "
+                f"contains a dynamic field: {self._dynamic_field.name}"
             )
-        else:
-            self._dynamic_field = field
+        self._dynamic_field = field
 
         def make_setter(field: DynamicByteFieldInstance):
             def setter(self: "UnalignedBitStructure", value: int):
@@ -600,7 +602,7 @@ class UnalignedBitStructure:
     def _read_fields_to_dict(self) -> Dict:
         data = {}
         for field in self._fields:
-            if not (type(field) == BitField or type(field) == ByteField):
+            if not isinstance(field, (BitField, ByteField)):
                 continue
             if field.attribute == FIELD_ATTR.RESERVED:
                 continue
@@ -688,7 +690,7 @@ class BitMaskedBitStructure(UnalignedBitStructure):
     def _create_byte_field_mask(self, field: ByteField):
         bitmask = 0
         bitmask_bytes = len(self._bitmask_bytes)
-        if field.mask != None:
+        if field.mask is not None:
             bitmask = field.mask
 
         elif not field.is_readonly():
@@ -696,18 +698,20 @@ class BitMaskedBitStructure(UnalignedBitStructure):
 
         if field.start >= len(self._bitmask_bytes):
             raise Exception(
-                f"{self._class_name}.{field.name}: start({field.start:x}) is greater than bitmask size({bitmask_bytes:x})"
+                f"{self._class_name}.{field.name}: start({field.start:x}) "
+                f"is greater than bitmask size({bitmask_bytes:x})"
             )
         if field.end >= len(self._bitmask_bytes):
             raise Exception(
-                f"{self._class_name}.{field.name}: end({field.end:x}) is greater than bitmask size({bitmask_bytes:x})"
+                f"{self._class_name}.{field.name}: end({field.end:x}) "
+                f"is greater than bitmask size({bitmask_bytes:x})"
             )
 
         self._bitmask_bytes.write_bytes(field.start, field.end, bitmask)
 
     def _create_structure_field_mask(self, field: StructureField):
         struct = getattr(self, field.name)
-        if field.mask != None:
+        if field.mask is not None:
             struct._bitmask_bytes.write_bytes(0, len(struct) - 1, field.mask)
             self._bitmask_bytes.write_bytes(field.start, field.end, field.mask)
         else:
@@ -760,7 +764,7 @@ class BitMaskedBitStructure(UnalignedBitStructure):
         for field in self._fields:
             if isinstance(field, DynamicByteFieldInstance):
                 continue
-            if field.start <= offset and offset <= field.end:
+            if field.start <= offset <= field.end:
                 selected_field = field
                 break
 
@@ -837,7 +841,7 @@ class BitMaskedBitStructure(UnalignedBitStructure):
             #     raise Exception("Only ByteField is expected")
 
     def get_byte_and_bit_field_string(
-        name: str, value: int, mask: int, indent: int, leading_zeros: int
+        self, name: str, value: int, mask: int, indent: int, leading_zeros: int
     ) -> str:
         indent_str = " " * indent
         value_str = format(value, f"0{leading_zeros}x")
