@@ -1,8 +1,14 @@
-from sortedcontainers import SortedDict
-from readerwriterlock import rwlock
+"""
+ Copyright (c) 2024, Eeum, Inc.
+
+ This software is licensed under the terms of the Revised BSD License.
+ See LICENSE for details.
+"""
 
 from ctypes import Structure, POINTER, c_uint8, byref, pointer, addressof, cast, memmove, memset
 from typing import Iterable
+from sortedcontainers import SortedDict
+from readerwriterlock import rwlock
 
 PAGE_SZ = 4096
 SENTINEL = 0xFE
@@ -132,8 +138,8 @@ class Simple64BitEmulator:
 
 if __name__ == "__main__":
     emulator = Simple64BitEmulator()
-    buf = bytearray([ord("h"), ord("e"), ord("l"), ord("l"), ord("o")])
-    buf2 = bytearray(7)
-    emulator.write(0xDEADBEEF, memoryview(buf))
-    emulator.read(0xDEADBEEE, memoryview(buf2))
-    print(buf2)
+    buffer = bytearray([ord("h"), ord("e"), ord("l"), ord("l"), ord("o")])
+    buffer2 = bytearray(7)
+    emulator.write(0xDEADBEEF, memoryview(buffer))
+    emulator.read(0xDEADBEEE, memoryview(buffer2))
+    print(buffer2)

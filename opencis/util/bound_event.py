@@ -14,8 +14,8 @@ class BoundEvent:
         self._lock = Lock()
         self.res = None
 
-    def __await__(self):
-        return self.ev.wait().__await__()
+    # def __await__(self):
+    #     return self.ev.wait().__await__()
 
     async def set_result(self, result):
         async with self._lock:
