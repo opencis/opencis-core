@@ -6,9 +6,9 @@
 """
 
 import asyncio
-import click
 from enum import Enum
 from typing import List
+import click
 
 from opencis.util.logger import logger
 from opencis.cxl.environment import parse_cxl_environment

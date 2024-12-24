@@ -5,13 +5,15 @@
  See LICENSE for details.
 """
 
-import click
 import os
 import sys
 import multiprocessing
 import logging
-
 from importlib import import_module
+import click
+from pylibpcap.pcap import Sniff, wpcap
+from pylibpcap.exception import LibpcapError
+
 from opencis.util.logger import logger
 from opencis.bin import fabric_manager
 from opencis.bin import get_info
@@ -28,6 +30,7 @@ def cli():
 
 
 def validate_component(ctx, param, components):
+    # pylint: disable=unused-argument
     valid_components = [
         "fm",
         "switch",
@@ -49,6 +52,7 @@ def validate_component(ctx, param, components):
 
 
 def validate_log_level(ctx, param, level):
+    # pylint: disable=unused-argument
     valid_levels = list(logging.getLevelNamesMapping().keys())
     if level:
         level = level.upper()
@@ -183,20 +187,19 @@ def start(
 # helper functions
 def start_capture(ctx, pcap_file):
     def capture(pcap_file):
-        from pylibpcap.pcap import Sniff, wpcap
-        from pylibpcap.exception import LibpcapError
 
         logger.info(f"Capturing in pid: {os.getpid()}")
         if os.path.exists(pcap_file):
             os.remove(pcap_file)
 
         filter_str = (
-            "((tcp port 8000) or (tcp port 8100) or (tcp port 8200) or (tcp port 8300) or (tcp port 8400))"
-            + " and (((ip[2:2] - ((ip[0] & 0xf) << 2)) - ((tcp[12] & 0xf0) >> 2)) != 0)"
+            "((tcp port 8000) or (tcp port 8100) or (tcp port 8200) "
+            "or (tcp port 8300) or (tcp port 8400)) "
+            "and (((ip[2:2] - ((ip[0] & 0xf) << 2)) - ((tcp[12] & 0xf0) >> 2)) != 0)"
         )
         try:
             sniffobj = Sniff(iface="lo", count=-1, promisc=1, filters=filter_str)
-            for plen, t, buf in sniffobj.capture():
+            for _, _, buf in sniffobj.capture():
                 wpcap(buf, pcap_file)
                 logger.hexdump("TRACE", buf)
         except KeyboardInterrupt:
@@ -254,12 +257,6 @@ def start_mld_group(ctx, config_file):
 def start_accel_group(ctx, config_file, dev_type):
     accel = import_module("opencis.bin.accelerator")
     ctx.invoke(accel.start_group, config_file=config_file, dev_type=dev_type)
-
-
-@cli.command(name="stop")
-def foo():
-    """Stop components"""
-    pass
 
 
 cli.add_command(cxl_host.host_group)

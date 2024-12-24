@@ -20,6 +20,8 @@ import inspect
 
 from opencis.util.logger import logger
 
+# pylint: disable=redefined-outer-name
+
 
 class FIELD_ATTR(Enum):
     RO = auto()

@@ -5,11 +5,12 @@
  See LICENSE for details.
 """
 
-import click
 import asyncio
-from opencis.util.logger import logger
 from typing import List
 import humanfriendly
+import click
+
+from opencis.util.logger import logger
 from opencis.cxl.environment import parse_cxl_environment
 from opencis.apps.single_logical_device import SingleLogicalDevice
 

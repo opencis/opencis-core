@@ -104,7 +104,7 @@ class MctpCciExecutor(RunnableComponent):
             ]
             if opcode in opcodes_for_ld:
                 # Pass down to MLD
-                ld_index = cci_packet_tmc.cci_header.port_index
+                # ld_index = cci_packet_tmc.cci_header.port_index
                 message_tag = cci_packet.header.message_tag
                 self._message_tag_list[message_tag] = port_index
 
