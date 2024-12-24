@@ -5,13 +5,15 @@
  See LICENSE for details.
 """
 
-from ctypes import Structure, POINTER, c_uint8, byref, pointer, addressof, cast, memmove, memset
+from ctypes import Structure, c_uint8, byref, memmove, memset
 from typing import Iterable
 from sortedcontainers import SortedDict
 from readerwriterlock import rwlock
 
 PAGE_SZ = 4096
 SENTINEL = 0xFE
+
+# pylint: disable=protected-access
 
 
 def round_down_to_page_boundary(addr: int) -> int:

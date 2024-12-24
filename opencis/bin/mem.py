@@ -53,7 +53,7 @@ def cxl_mem_read(port: int, addr: int, util_host: str, util_port: int):
         logger.info(f"CXL-Host[Port{port}]: {e}")
         return
     logger.info(f"CXL-Host[Port{port}]: CXL.mem Read success")
-    logger.info(f"Data:")
+    logger.info("Data:")
     res = f"{res:x}"
     data = list(map(lambda x: int(x, 16), [res[i : i + 2] for i in range(0, len(res), 2)]))
     logger.hexdump("INFO", data)

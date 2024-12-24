@@ -40,7 +40,6 @@ def start_group(config_file):
     for device_config in cxl_env.multi_logical_device_configs:
         mld = MultiLogicalDevice(
             port_index=device_config.port_index,
-            ld_count=device_config.ld_count,
             memory_sizes=device_config.memory_sizes,
             memory_files=device_config.memory_files,
             serial_numbers=device_config.serial_numbers,
@@ -60,5 +59,5 @@ def start(port, memfile, memsize):
     if memfile is None:
         memfile = f"mld-mem{port}.bin"
     memsize = humanfriendly.parse_size(memsize, binary=True)
-    mld = MultiLogicalDevice([port], [memsize], [memfile])
+    mld = MultiLogicalDevice(port, memsize, memfile, serial_numbers=[])
     asyncio.run(mld.run())
