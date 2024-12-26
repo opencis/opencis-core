@@ -60,7 +60,7 @@ def start_group(config_file: str, hm_mode: bool = True):
 
 
 def start_host_manager():
-    logger.info(f"Starting CXL HostManager")
+    logger.info("Starting CXL HostManager")
     host_manager = CxlHostManager()
     asyncio.run(host_manager.run())
     asyncio.run(host_manager.wait_for_ready())

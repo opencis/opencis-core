@@ -18,7 +18,6 @@ from opencis.bin.common import BASED_INT
 @click.group(name="fm")
 def fabric_manager_group():
     """Command group for Fabric Manager."""
-    pass
 
 
 @fabric_manager_group.command(name="start")

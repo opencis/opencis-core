@@ -16,7 +16,6 @@ from opencis.bin.common import BASED_INT
 @click.group(name="mem")
 def mem_group():
     """Command group for CXL.mem Commands"""
-    pass
 
 
 @mem_group.command(name="write")

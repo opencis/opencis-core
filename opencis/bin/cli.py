@@ -75,7 +75,7 @@ def validate_log_level(ctx, param, level):
 @click.option("--log-file", help="<Log File> output path.")
 @click.option("--pcap-file", help="<Packet Capture File> output path.")
 @click.option("--log-level", callback=validate_log_level, help="Specify log level.")
-@click.option("--no-hm", is_flag=True, default=False, help="Do not start HostManager.")
+@click.option("--no-hm", is_flag=True, default=True, help="Do not start HostManager.")
 @click.option("--show-timestamp", is_flag=True, default=False, help="Show timestamp.")
 @click.option("--show-loglevel", is_flag=True, default=False, help="Show log level.")
 @click.option("--show-linenumber", is_flag=True, default=False, help="Show line number.")
@@ -167,7 +167,7 @@ def start(
         p_mgroup.start()
 
     if "host" in comp or "host-group" in comp:
-        hm_mode = False  # TODO: re-enable HostManager hm_mode = not no_hm
+        hm_mode = not no_hm
         if hm_mode:
             p_hm = multiprocessing.Process(target=start_host_manager, args=(ctx,))
             processes.append(p_hm)
@@ -218,8 +218,8 @@ def start_capture(ctx, pcap_file):
     ctx.invoke(capture, pcap_file=pcap_file)
 
 
-def start_host_manager(ctx):
-    ctx.invoke(cxl_simple_host.start_host_manager)
+def start_host_manager():
+    pass
 
 
 def start_fabric_manager(ctx):

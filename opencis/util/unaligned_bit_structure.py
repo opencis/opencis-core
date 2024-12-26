@@ -20,7 +20,7 @@ import inspect
 
 from opencis.util.logger import logger
 
-# pylint: disable=redefined-outer-name
+# pylint: disable=redefined-outer-name, protected-access
 
 
 class FIELD_ATTR(Enum):
@@ -457,6 +457,7 @@ class UnalignedBitStructure:
 
     @staticmethod
     def get_size_from_options(options: Optional[TypedDict]) -> int:
+        # pylint: disable=unused-argument
         return 0
 
     # This must be followed by packet.system_header.payload_length = len(packet)
@@ -871,8 +872,8 @@ class BitMaskedBitStructure(UnalignedBitStructure):
                 leading_zeros = (field.end - field.start + 4) // 4
                 value = self._data.read_bits(field.start, bit_width)
                 mask = self._bitmask_bytes.read_bits(field.start, bit_width)
-                string += BitMaskedBitStructure.get_byte_and_bit_field_string(
-                    field.name, value, mask, indent, leading_zeros
+                string = BitMaskedBitStructure.get_byte_and_bit_field_string(
+                    self, field.name, value, mask, indent, leading_zeros=leading_zeros
                 )
             elif isinstance(field, ByteField):
                 if field.attribute == FIELD_ATTR.RESERVED:
@@ -881,7 +882,7 @@ class BitMaskedBitStructure(UnalignedBitStructure):
                 value = self._data.read_bytes(field.start, field.end)
                 mask = self._bitmask_bytes.read_bytes(field.start, field.end)
                 string += BitMaskedBitStructure.get_byte_and_bit_field_string(
-                    field.name, value, mask, indent, leading_zeros
+                    self, field.name, value, mask, indent, leading_zeros
                 )
             elif isinstance(field, StructureField):
                 indent_str = " " * indent

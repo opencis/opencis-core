@@ -41,6 +41,7 @@ class MctpConnectionManager(RunnableComponent):
         self._server_task = None
 
     async def _run(self):
+        # pylint: disable=bare-except
         try:
             logger.info(self._create_message(f"Creating TCP server at port {self._port}"))
             server = await self._create_server()
