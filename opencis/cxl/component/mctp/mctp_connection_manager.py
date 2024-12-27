@@ -17,6 +17,8 @@ from opencis.cxl.component.mctp.mctp_packet_processor import (
 )
 from opencis.util.component import RunnableComponent
 
+# pylint: disable=duplicate-code
+
 
 @dataclass
 class MctpPort:

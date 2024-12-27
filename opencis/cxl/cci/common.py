@@ -10,6 +10,7 @@ from enum import Enum, IntEnum
 
 
 class CCI_RETURN_CODE(IntEnum):
+    # pylint: disable=duplicate-code
     SUCCESS = 0x0000
     BACKGROUND_COMMAND_STARTED = 0x0001
     INVALID_INPUT = 0x0002

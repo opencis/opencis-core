@@ -18,6 +18,8 @@ from opencis.util.logger import logger
 from opencis.util.component import LabeledComponent
 from opencis.cxl.transport.common import BasePacket
 
+# pylint: disable=duplicate-code
+
 
 class MctpPacketReader(LabeledComponent):
     def __init__(self, reader: StreamReader, label: Optional[str] = None):

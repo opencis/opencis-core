@@ -26,6 +26,9 @@ https://chat.openai.com/share/ee6dbdd9-c8d3-466e-b1ee-1d332b5b0ac2
 """
 
 
+# pylint: disable=duplicate-code
+
+
 @dataclass
 class UnbindVppbRequestPayload:
     vcs_id: int = field(default=0)

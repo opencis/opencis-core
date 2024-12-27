@@ -16,6 +16,8 @@ from opencis.drivers.pci_bus_driver import PciBusDriver
 from opencis.drivers.cxl_bus_driver import CxlBusDriver
 from opencis.drivers.cxl_mem_driver import CxlMemDriver
 
+# pylint: disable=duplicate-code
+
 
 class TestRunner:
     def __init__(self, apps: List[RunnableComponent]):

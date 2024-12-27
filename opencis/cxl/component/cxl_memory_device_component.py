@@ -11,6 +11,7 @@ import os
 import time
 from typing import TypedDict, List, Optional
 
+from opencis.util.accessor import FileAccessor
 from opencis.util.logger import logger
 from opencis.util.number_const import KB
 from opencis.util.unaligned_bit_structure import (
@@ -86,27 +87,6 @@ class CharDriverAccessor:
         data = os.read(fd, size)
         os.close(fd)
         return int.from_bytes(data, "little")
-
-
-class FileAccessor:
-    def __init__(self, filename: str, _: int):
-        self.filename = filename
-        with open(filename, "wb") as file:
-            file.write(b"\x00" * 1024)
-            file.flush()
-
-    async def write(self, offset: int, data: int, size: int):
-        # TODO: Check for OOB and use asyncio
-        with open(self.filename, "r+b") as file:
-            file.seek(offset)
-            file.write(data.to_bytes(size, byteorder="little"))
-
-    async def read(self, offset: int, size: int) -> int:
-        # TODO: Check for OOB and use asyncio
-        with open(self.filename, "rb") as file:
-            file.seek(offset)
-            data = file.read(size)
-            return int.from_bytes(data, byteorder="little")
 
 
 class MemoryDeviceIdentity(UnalignedBitStructure):
@@ -249,7 +229,9 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
         elif memory_file == "":
             self._memory_accessor = None
         else:
-            self._memory_accessor = FileAccessor(memory_file, self._identity.get_total_capacity())
+            self._memory_accessor = FileAccessor(
+                memory_file, self._identity.get_total_capacity() // SIZE_256MB
+            )
 
         self._cache_info: List[CXLCacheCacheLineInfo] = []
         self._cache_lines = cache_lines

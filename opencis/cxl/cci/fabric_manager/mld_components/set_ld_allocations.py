@@ -16,6 +16,8 @@ from opencis.cxl.component.cci_executor import (
 )
 from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
 
+# pylint: disable=duplicate-code
+
 
 @dataclass
 class SetLdAllocationsRequestPayload:

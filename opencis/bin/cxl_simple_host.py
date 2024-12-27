@@ -13,6 +13,8 @@ from opencis.cxl.component.cxl_component import PORT_TYPE
 from opencis.apps.cxl_simple_host import CxlSimpleHost, CxlHostManager, CxlHostUtilClient
 from opencis.bin.common import BASED_INT
 
+# pylint: disable=duplicate-code
+
 
 @click.group(name="host")
 def host_group():

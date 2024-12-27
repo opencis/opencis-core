@@ -18,6 +18,7 @@ class EventStatus(TypedDict):
 
 
 class InterruptPolicy(TypedDict):
+    # pylint: disable=duplicate-code
     informational_event_log_interrupt_settings: int
     warning_event_log_interrupt_settings: int
     failure_event_log_interrupt_settings: int

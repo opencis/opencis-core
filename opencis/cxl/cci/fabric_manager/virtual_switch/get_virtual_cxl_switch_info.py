@@ -23,6 +23,8 @@ from opencis.cxl.component.virtual_switch.virtual_switch import (
     PPB_BINDING_STATUS,
 )
 
+# pylint: disable=duplicate-code
+
 
 class VCS_STATE(IntEnum):
     DISABLED = 0x00

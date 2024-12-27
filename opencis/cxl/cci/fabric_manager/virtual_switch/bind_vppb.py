@@ -30,6 +30,8 @@ https://chat.openai.com/share/470bd62a-eaa4-4218-aa3e-4353276a16fd
 
 """
 
+# pylint: disable=duplicate-code
+
 
 @dataclass
 class BindVppbRequestPayload:

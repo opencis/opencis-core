@@ -14,6 +14,8 @@ from opencis.util.logger import logger
 from opencis.util.component import RunnableComponent
 from opencis.drivers.pci_bus_driver import PciBusDriver
 
+# pylint: disable=duplicate-code
+
 
 class TestRunner:
     def __init__(self, apps: List[RunnableComponent]):
