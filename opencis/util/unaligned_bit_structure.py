@@ -602,7 +602,7 @@ class UnalignedBitStructure:
         for key, value in data.items():
             setattr(self, key, value)
 
-    def _read_fields_to_dict(self) -> Dict:
+    def read_fields_to_dict(self) -> Dict:
         data = {}
         for field in self._fields:
             if not isinstance(field, (BitField, ByteField)):

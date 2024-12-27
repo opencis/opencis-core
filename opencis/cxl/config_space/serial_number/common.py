@@ -98,5 +98,6 @@ class DeviceSNCapability(BitMaskedBitStructure):
 
         super().__init__(data, parent_name)
 
-    def get_size() -> int:
+    @staticmethod
+    def get_size(fields=None) -> int:
         return 12

@@ -16,7 +16,6 @@ from opencis.cxl.environment import parse_cxl_environment, CxlEnvironment
 @click.group(name="switch")
 def switch_group():
     """Command group for CXL Switch."""
-    pass
 
 
 @switch_group.command(name="start")

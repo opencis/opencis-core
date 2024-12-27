@@ -1,12 +1,17 @@
+"""
+ Copyright (c) 2024, Eeum, Inc.
+
+ This software is licensed under the terms of the Revised BSD License.
+ See LICENSE for details.
+"""
+
 import asyncio
 from opencis.cxl.environment import parse_cxl_environment
 from opencis.apps.single_logical_device import SingleLogicalDevice
-from opencis.apps.cxl_host import (
+from opencis.cxl.component.cxl_host import (
     CxlHost,
-    CxlHostConfig,
     RootPortClientConfig,
     ROOT_PORT_SWITCH_TYPE,
-    RootComplexMemoryControllerConfig,
 )
 from opencis.util.logger import logger
 from opencis.util.component import RunnableComponent

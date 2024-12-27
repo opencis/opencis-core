@@ -1,10 +1,15 @@
+"""
+ Copyright (c) 2024, Eeum, Inc.
+
+ This software is licensed under the terms of the Revised BSD License.
+ See LICENSE for details.
+"""
+
 import asyncio
-from opencis.apps.cxl_host import (
+from opencis.cxl.component.cxl_host import (
     CxlHost,
-    CxlHostConfig,
     RootPortClientConfig,
     ROOT_PORT_SWITCH_TYPE,
-    RootComplexMemoryControllerConfig,
 )
 from opencis.apps.pci_device import PciDevice
 from opencis.util.logger import logger

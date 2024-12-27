@@ -18,7 +18,6 @@ from opencis.apps.single_logical_device import SingleLogicalDevice
 @click.group(name="sld")
 def sld_group():
     """Command group for managing single logical devices."""
-    pass
 
 
 async def run_devices(slds: List[SingleLogicalDevice]):

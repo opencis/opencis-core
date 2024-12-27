@@ -14,7 +14,6 @@ from opencis.bin import socketio_client
 @click.group(name="get-info")
 def get_info_group():
     """Command group for component info"""
-    pass
 
 
 @get_info_group.command(name="port")

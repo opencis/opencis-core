@@ -90,7 +90,7 @@ class SetLdAllocationsCommand(CciBackgroundCommand):
     ):
         super().__init__(self.OPCODE)
 
-    async def _execute(self, request: CciRequest) -> CciResponse:
+    async def _execute(self, request: CciRequest, callback) -> CciResponse:
         pass
 
     @classmethod

@@ -18,7 +18,6 @@ from opencis.apps.multi_logical_device import MultiLogicalDevice
 @click.group(name="mld")
 def mld_group():
     """Command group for managing single logical devices."""
-    pass
 
 
 async def run_devices(mlds: List[MultiLogicalDevice]):

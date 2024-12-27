@@ -17,7 +17,6 @@ from opencis.bin.common import BASED_INT
 @click.group(name="host")
 def host_group():
     """Command group for managing CXL Host"""
-    pass
 
 
 @host_group.command(name="reinit")
