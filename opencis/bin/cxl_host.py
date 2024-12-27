@@ -40,7 +40,7 @@ async def run_host_group(ports):
     await asyncio.gather(*tasks)
 
 
-def start_group(config_file: str, hm_mode: bool = True):
+def start_group(config_file: str, _: bool = True):
     logger.info(f"Starting CXL Host Group - Config: {config_file}")
     try:
         environment = parse_cxl_environment(config_file)

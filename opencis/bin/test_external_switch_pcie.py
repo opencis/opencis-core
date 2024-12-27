@@ -6,16 +6,13 @@
 """
 
 import asyncio
-from opencis.cxl.component.cxl_host import (
-    CxlHost,
-    RootPortClientConfig,
-    ROOT_PORT_SWITCH_TYPE,
-)
+from typing import List, cast
+
+from opencis.cxl.component.cxl_host import CxlHost
 from opencis.apps.pci_device import PciDevice
 from opencis.util.logger import logger
 from opencis.util.component import RunnableComponent
 from opencis.drivers.pci_bus_driver import PciBusDriver
-from typing import List, cast
 
 
 class TestRunner:
@@ -39,9 +36,9 @@ class TestRunner:
         logger.info("Waiting for Apps to be ready")
         await self.wait_for_ready()
         host = cast(CxlHost, self._apps[0])
-        bus_driver = PciBusDriver(host.get_root_complex())
+        pci_bus_driver = PciBusDriver(host.get_root_complex())
         logger.info("Starting PCI bus driver init")
-        await bus_driver.init()
+        await pci_bus_driver.init(mmio_base_address=0)
         logger.info("Completed PCI bus driver init")
 
 
@@ -63,22 +60,22 @@ def main():
     apps = []
 
     # Add Host
-    switch_host = "0.0.0.0"
-    switch_port = 8000
-    host_config = CxlHostConfig(
-        host_name="CXLHost",
-        root_bus=0,
-        root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
-        root_ports=[
-            RootPortClientConfig(port_index=0, switch_host=switch_host, switch_port=switch_port)
-        ],
-        memory_ranges=[],
-        memory_controller=RootComplexMemoryControllerConfig(
-            memory_size=0x10000, memory_filename="memory_dram.bin"
-        ),
-    )
-    host = CxlHost(host_config)
-    apps.append(host)
+    # switch_host = "0.0.0.0"
+    # switch_port = 8000
+    # host_config = CxlHostConfig(
+    #     host_name="CXLHost",
+    #     root_bus=0,
+    #     root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
+    #     root_ports=[
+    #         RootPortClientConfig(port_index=0, switch_host=switch_host, switch_port=switch_port)
+    #     ],
+    #     memory_ranges=[],
+    #     memory_controller=RootComplexMemoryControllerConfig(
+    #         memory_size=0x10000, memory_filename="memory_dram.bin"
+    #     ),
+    # )
+    # host = CxlHost(host_config)
+    # apps.append(host)
 
     # Add PCI devices
     for port in range(1, 5):

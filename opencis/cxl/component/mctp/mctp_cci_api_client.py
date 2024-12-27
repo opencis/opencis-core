@@ -107,9 +107,7 @@ class MctpCciApiClient(RunnableComponent):
         self._condition.release()
         return response
 
-    async def _send_request(
-        self, request: CciMessagePacket, port_index=0, ld_id=0
-    ) -> CciMessagePacket:
+    async def _send_request(self, request: CciMessagePacket, port_index=0, _=0) -> CciMessagePacket:
         request.header.message_tag = self._get_next_tag()
         opcode_name = get_opcode_string(request.header.command_opcode)
         req_tag = request.header.message_tag
