@@ -5,6 +5,9 @@
  See LICENSE for details.
 """
 
+from enum import IntEnum
+from typing import List
+
 from opencis.cxl.features.mailbox import (
     CxlMailboxContext,
     CxlMailboxCommandBase,
@@ -12,12 +15,9 @@ from opencis.cxl.features.mailbox import (
 )
 from opencis.cxl.features.event_manager import EventManager
 from opencis.util.unaligned_bit_structure import (
-    ShareableByteArray,
     UnalignedBitStructure,
     ByteField,
 )
-from typing import List
-from enum import IntEnum
 
 
 class EVENT_LOG_TYPE(IntEnum):
@@ -80,6 +80,7 @@ class GetEventRecordsOutput(UnalignedBitStructure):
 
     @staticmethod
     def get_size(event_records: List[bytes]):
+        # pylint: disable=arguments-renamed
         return 0x20 + EVENT_RECORD_SIZE * len(event_records)
 
 
@@ -259,7 +260,7 @@ class SetEventInterruptPolicy(CxlMailboxCommandBase):
 
         input_buffer = context.payloads.create_shared(payload_length)
         input: UnalignedBitStructure = policy_class(input_buffer)
-        interrupt_policy = input._read_fields_to_dict()
+        interrupt_policy = input.read_fields_to_dict()
         self.event_manager.set_interrupt_policy(interrupt_policy)
         context.command["payload_length"] = 0
         return True

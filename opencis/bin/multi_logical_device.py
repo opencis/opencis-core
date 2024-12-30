@@ -5,11 +5,12 @@
  See LICENSE for details.
 """
 
-import click
 import asyncio
-from opencis.util.logger import logger
 from typing import List
 import humanfriendly
+import click
+
+from opencis.util.logger import logger
 from opencis.cxl.environment import parse_cxl_environment
 from opencis.apps.multi_logical_device import MultiLogicalDevice
 
@@ -17,7 +18,6 @@ from opencis.apps.multi_logical_device import MultiLogicalDevice
 @click.group(name="mld")
 def mld_group():
     """Command group for managing single logical devices."""
-    pass
 
 
 async def run_devices(mlds: List[MultiLogicalDevice]):
@@ -39,7 +39,6 @@ def start_group(config_file):
     for device_config in cxl_env.multi_logical_device_configs:
         mld = MultiLogicalDevice(
             port_index=device_config.port_index,
-            ld_count=device_config.ld_count,
             memory_sizes=device_config.memory_sizes,
             memory_files=device_config.memory_files,
             serial_numbers=device_config.serial_numbers,
@@ -59,5 +58,5 @@ def start(port, memfile, memsize):
     if memfile is None:
         memfile = f"mld-mem{port}.bin"
     memsize = humanfriendly.parse_size(memsize, binary=True)
-    mld = MultiLogicalDevice([port], [memsize], [memfile])
+    mld = MultiLogicalDevice(port, memsize, memfile, serial_numbers=[])
     asyncio.run(mld.run())

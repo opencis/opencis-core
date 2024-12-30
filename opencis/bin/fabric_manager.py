@@ -18,14 +18,13 @@ from opencis.bin.common import BASED_INT
 @click.group(name="fm")
 def fabric_manager_group():
     """Command group for Fabric Manager."""
-    pass
 
 
 @fabric_manager_group.command(name="start")
 @click.option("--use-test-runner", is_flag=True, help="Run with the test runner.")
 def start(use_test_runner):
     """Run the Fabric Manager."""
-    logger.info(f"Starting CXL FabricManager")
+    logger.info("Starting CXL FabricManager")
     fabric_manager = CxlFabricManager(use_test_runner=use_test_runner)
     asyncio.run(fabric_manager.run())
 
@@ -73,5 +72,11 @@ def get_ld_allocation(port_index: int, start_ld_id: int, ld_allocation_list_limi
 # @click.argument("number_of_lds", nargs=1, type=BASED_INT)
 # @click.argument("start_ld_id", nargs=1, type=BASED_INT)
 # @click.argument("ld_allocation_list", nargs=1, type=BASED_INT)
-# def set_ld_allocation(port_index: int, number_of_lds: int, start_ld_id: int, ld_allocation_list: int):
-#     asyncio.run(socketio_client.set_ld_allocation(port_index, number_of_lds, start_ld_id, ld_allocation_list))
+# def set_ld_allocation(
+#     port_index: int, number_of_lds: int, start_ld_id: int, ld_allocation_list: int
+# ):
+#     asyncio.run(
+#         socketio_client.set_ld_allocation(
+#             port_index, number_of_lds, start_ld_id, ld_allocation_list
+#         )
+#     )

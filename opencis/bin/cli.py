@@ -5,13 +5,15 @@
  See LICENSE for details.
 """
 
-import click
 import os
 import sys
 import multiprocessing
 import logging
-
 from importlib import import_module
+import click
+from pylibpcap.pcap import Sniff, wpcap
+from pylibpcap.exception import LibpcapError
+
 from opencis.util.logger import logger
 from opencis.bin import fabric_manager
 from opencis.bin import get_info
@@ -28,6 +30,7 @@ def cli():
 
 
 def validate_component(ctx, param, components):
+    # pylint: disable=unused-argument
     valid_components = [
         "fm",
         "switch",
@@ -49,6 +52,7 @@ def validate_component(ctx, param, components):
 
 
 def validate_log_level(ctx, param, level):
+    # pylint: disable=unused-argument
     valid_levels = list(logging.getLevelNamesMapping().keys())
     if level:
         level = level.upper()
@@ -71,7 +75,6 @@ def validate_log_level(ctx, param, level):
 @click.option("--log-file", help="<Log File> output path.")
 @click.option("--pcap-file", help="<Packet Capture File> output path.")
 @click.option("--log-level", callback=validate_log_level, help="Specify log level.")
-@click.option("--no-hm", is_flag=True, default=False, help="Do not start HostManager.")
 @click.option("--show-timestamp", is_flag=True, default=False, help="Show timestamp.")
 @click.option("--show-loglevel", is_flag=True, default=False, help="Show log level.")
 @click.option("--show-linenumber", is_flag=True, default=False, help="Show line number.")
@@ -82,7 +85,6 @@ def start(
     log_level,
     log_file,
     pcap_file,
-    no_hm,
     show_timestamp,
     show_loglevel,
     show_linenumber,
@@ -163,19 +165,18 @@ def start(
         p_mgroup.start()
 
     if "host" in comp or "host-group" in comp:
-        hm_mode = False  # TODO: re-enable HostManager hm_mode = not no_hm
-        if hm_mode:
-            p_hm = multiprocessing.Process(target=start_host_manager, args=(ctx,))
-            processes.append(p_hm)
-            p_hm.start()
+        # TODO: Re-enable HostManager
+        # hm_mode = not no_hm
+        # if hm_mode:
+        #     p_hm = multiprocessing.Process(target=start_host_manager, args=(ctx,))
+        #     processes.append(p_hm)
+        #     p_hm.start()
         if "host" in comp:
             p_host = multiprocessing.Process(target=start_host, args=(ctx,))
             processes.append(p_host)
             p_host.start()
         elif "host-group" in comp:
-            p_hgroup = multiprocessing.Process(
-                target=start_host_group, args=(ctx, config_file, hm_mode)
-            )
+            p_hgroup = multiprocessing.Process(target=start_host_group, args=(ctx, config_file))
             processes.append(p_hgroup)
             p_hgroup.start()
 
@@ -183,20 +184,19 @@ def start(
 # helper functions
 def start_capture(ctx, pcap_file):
     def capture(pcap_file):
-        from pylibpcap.pcap import Sniff, wpcap
-        from pylibpcap.exception import LibpcapError
 
         logger.info(f"Capturing in pid: {os.getpid()}")
         if os.path.exists(pcap_file):
             os.remove(pcap_file)
 
         filter_str = (
-            "((tcp port 8000) or (tcp port 8100) or (tcp port 8200) or (tcp port 8300) or (tcp port 8400))"
-            + " and (((ip[2:2] - ((ip[0] & 0xf) << 2)) - ((tcp[12] & 0xf0) >> 2)) != 0)"
+            "((tcp port 8000) or (tcp port 8100) or (tcp port 8200) "
+            "or (tcp port 8300) or (tcp port 8400)) "
+            "and (((ip[2:2] - ((ip[0] & 0xf) << 2)) - ((tcp[12] & 0xf0) >> 2)) != 0)"
         )
         try:
             sniffobj = Sniff(iface="lo", count=-1, promisc=1, filters=filter_str)
-            for plen, t, buf in sniffobj.capture():
+            for _, _, buf in sniffobj.capture():
                 wpcap(buf, pcap_file)
                 logger.hexdump("TRACE", buf)
         except KeyboardInterrupt:
@@ -215,8 +215,8 @@ def start_capture(ctx, pcap_file):
     ctx.invoke(capture, pcap_file=pcap_file)
 
 
-def start_host_manager(ctx):
-    ctx.invoke(cxl_simple_host.start_host_manager)
+def start_host_manager():
+    pass
 
 
 def start_fabric_manager(ctx):
@@ -231,8 +231,8 @@ def start_host(ctx):
     ctx.invoke(cxl_host.start)
 
 
-def start_host_group(ctx, config_file, hm_mode):
-    ctx.invoke(cxl_host.start_group, config_file=config_file, hm_mode=hm_mode)
+def start_host_group(ctx, config_file):
+    ctx.invoke(cxl_host.start_group, config_file=config_file)
 
 
 def start_sld(ctx, config_file):
@@ -254,12 +254,6 @@ def start_mld_group(ctx, config_file):
 def start_accel_group(ctx, config_file, dev_type):
     accel = import_module("opencis.bin.accelerator")
     ctx.invoke(accel.start_group, config_file=config_file, dev_type=dev_type)
-
-
-@cli.command(name="stop")
-def foo():
-    """Stop components"""
-    pass
 
 
 cli.add_command(cxl_host.host_group)

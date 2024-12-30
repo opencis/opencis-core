@@ -5,12 +5,14 @@
  See LICENSE for details.
 """
 
+from asyncio import Condition
+from typing import cast, Any, Tuple, Optional, Callable, Dict, Coroutine
+
 from opencis.cxl.component.mctp.mctp_connection import MctpConnection
 from opencis.cxl.transport.transaction import (
     CciMessagePacket,
     CciMessageHeaderPacket,
     CCI_MCTP_MESSAGE_CATEGORY,
-    CciBasePacket,
     CciPayloadPacket,
 )
 from opencis.cxl.cci.common import get_opcode_string
@@ -51,8 +53,6 @@ from opencis.cxl.cci.vendor_specfic import (
 from opencis.cxl.cci.common import CCI_RETURN_CODE
 from opencis.cxl.component.cci_executor import CciRequest
 from opencis.util.component import RunnableComponent
-from typing import cast, Any, Tuple, Optional, Callable, Dict, Coroutine
-from asyncio import Condition
 from opencis.util.logger import logger
 
 CreateRequestFuncType = Callable[[Optional[Any]], CciRequest]
@@ -71,7 +71,7 @@ class MctpCciApiClient(RunnableComponent):
     async def _process_incoming_packets(self):
         while True:
             raw_response = await self._mctp_connection.ep_to_controller.get()
-            if raw_response == None:
+            if raw_response is None:
                 break
 
             response_tmc1 = cast(CciPayloadPacket, raw_response)
@@ -81,7 +81,7 @@ class MctpCciApiClient(RunnableComponent):
                 logger.debug(
                     self._create_message(f"Received request (notification) packet {opcode_str}")
                 )
-                if self._notification_handler != None:
+                if self._notification_handler is not None:
                     await self._notification_handler(response)
             else:
                 logger.debug(self._create_message("Received response packet"))
@@ -107,9 +107,7 @@ class MctpCciApiClient(RunnableComponent):
         self._condition.release()
         return response
 
-    async def _send_request(
-        self, request: CciMessagePacket, port_index=0, ld_id=0
-    ) -> CciMessagePacket:
+    async def _send_request(self, request: CciMessagePacket, port_index=0, _=0) -> CciMessagePacket:
         request.header.message_tag = self._get_next_tag()
         opcode_name = get_opcode_string(request.header.command_opcode)
         req_tag = request.header.message_tag
@@ -246,9 +244,9 @@ class MctpCciApiClient(RunnableComponent):
         return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
         if wait_for_completion:
             return_code = await self._wait_for_background_operation()
-        has_error = not (
-            return_code == CCI_RETURN_CODE.SUCCESS
-            or return_code == CCI_RETURN_CODE.BACKGROUND_COMMAND_STARTED
+        has_error = return_code not in (
+            CCI_RETURN_CODE.SUCCESS,
+            CCI_RETURN_CODE.BACKGROUND_COMMAND_STARTED,
         )
         if has_error:
             return (return_code, None)
@@ -264,9 +262,9 @@ class MctpCciApiClient(RunnableComponent):
         return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
         if wait_for_completion:
             return_code = await self._wait_for_background_operation()
-        has_error = not (
-            return_code == CCI_RETURN_CODE.SUCCESS
-            or return_code == CCI_RETURN_CODE.BACKGROUND_COMMAND_STARTED
+        has_error = return_code not in (
+            CCI_RETURN_CODE.SUCCESS,
+            CCI_RETURN_CODE.BACKGROUND_COMMAND_STARTED,
         )
         if has_error:
             return (return_code, None)

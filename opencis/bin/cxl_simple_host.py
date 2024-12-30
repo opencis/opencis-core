@@ -13,11 +13,12 @@ from opencis.cxl.component.cxl_component import PORT_TYPE
 from opencis.apps.cxl_simple_host import CxlSimpleHost, CxlHostManager, CxlHostUtilClient
 from opencis.bin.common import BASED_INT
 
+# pylint: disable=duplicate-code
+
 
 @click.group(name="host")
 def host_group():
     """Command group for managing CXL Host"""
-    pass
 
 
 @host_group.command(name="reinit")
@@ -60,7 +61,7 @@ def start_group(config_file: str, hm_mode: bool = True):
 
 
 def start_host_manager():
-    logger.info(f"Starting CXL HostManager")
+    logger.info("Starting CXL HostManager")
     host_manager = CxlHostManager()
     asyncio.run(host_manager.run())
     asyncio.run(host_manager.wait_for_ready())

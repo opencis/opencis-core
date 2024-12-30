@@ -11,6 +11,8 @@ import struct
 from opencis.cxl.component.cci_executor import CciRequest
 from opencis.cxl.cci.common import CCI_VENDOR_SPECIFIC_OPCODE
 
+# pylint: disable=duplicate-code
+
 
 @dataclass
 class NotifyPortUpdateRequestPayload:

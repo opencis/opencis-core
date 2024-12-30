@@ -7,16 +7,16 @@
 
 from dataclasses import dataclass, field
 from struct import pack, unpack
-from typing import ClassVar
+
+# from opencis.util.logger import logger
 from opencis.cxl.component.cci_executor import (
     CciBackgroundCommand,
     CciRequest,
     CciResponse,
-    CciForegroundCommand,
 )
+from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
 
-from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE, CCI_RETURN_CODE
-from opencis.util.logger import logger
+# pylint: disable=duplicate-code
 
 
 @dataclass
@@ -92,7 +92,7 @@ class SetLdAllocationsCommand(CciBackgroundCommand):
     ):
         super().__init__(self.OPCODE)
 
-    async def _execute(self, request: CciRequest) -> CciResponse:
+    async def _execute(self, request: CciRequest, callback) -> CciResponse:
         pass
 
     @classmethod

@@ -5,9 +5,9 @@
  See LICENSE for details.
 """
 
-import socketio
 import asyncio
 import sys
+import socketio
 from yaml import dump
 
 # Standard Python client setup for Socket.IO
@@ -21,13 +21,13 @@ def handle_port_updated():
 
 
 @sio.on("vcs:updated")
-def handle_port_updated():
+def handle_vcs_updated():
     print("[Notification]")
     print("port:updated")
 
 
 @sio.on("device:updated")
-def handle_port_updated():
+def handle_device_updated():
     print("[Notification]")
     print("device:updated")
 
@@ -48,13 +48,13 @@ async def send(event, param=None):
         sema.set_custom_value(result)
         sema.release()
 
-    print(f"[Request]")
+    print("[Request]")
     print(event)
     await sio.emit(event, param, callback=callback_handler)
     await sema.acquire()
     result = sema.custom_value
 
-    print(f"[Response]")
+    print("[Response]")
     print_result(result)
     return result
 

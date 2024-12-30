@@ -17,17 +17,13 @@ from opencis.cxl.component.virtual_switch_manager import (
     VirtualSwitchConfig,
 )
 from opencis.cxl.component.cxl_component import PortConfig, PORT_TYPE
-from opencis.cxl.component.root_complex.root_port_client_manager import RootPortClientConfig
-from opencis.apps.cxl_host import (
-    CxlHost,
-    CxlHostConfig,
-    ROOT_PORT_SWITCH_TYPE,
-    RootComplexMemoryControllerConfig,
-)
+from opencis.cxl.component.cxl_host import CxlHost
 from opencis.apps.single_logical_device import SingleLogicalDevice
 from opencis.drivers.pci_bus_driver import PciBusDriver
 from opencis.drivers.cxl_bus_driver import CxlBusDriver
 from opencis.drivers.cxl_mem_driver import CxlMemDriver
+
+# pylint: disable=duplicate-code
 
 
 class TestRunner:
@@ -53,7 +49,7 @@ class TestRunner:
         host = cast(CxlHost, self._apps[3])
         pci_bus_driver = PciBusDriver(host.get_root_complex())
         logger.info("Starting PCI bus driver init")
-        await pci_bus_driver.init()
+        await pci_bus_driver.init(mmio_base_address=0)
         logger.info("Completed PCI bus driver init")
         cxl_bus_driver = CxlBusDriver(pci_bus_driver, host.get_root_complex())
         logger.info("Starting CXL bus driver init")
@@ -122,33 +118,38 @@ def main():
     apps.append(physical_port_manager)
 
     switch_configs = [
-        VirtualSwitchConfig(upstream_port_index=0, vppb_counts=4, initial_bounds=[1, 2, 3, 4])
+        VirtualSwitchConfig(
+            upstream_port_index=0,
+            vppb_counts=4,
+            initial_bounds=[1, 2, 3, 4],
+            irq_host="0.0.0.0",
+            irq_port=8500,
+        )
     ]
     virtual_switch_manager = VirtualSwitchManager(
-        switch_configs=switch_configs, physical_port_manager=physical_port_manager
+        switch_configs=switch_configs, physical_port_manager=physical_port_manager, allocated_ld=[]
     )
     apps.append(virtual_switch_manager)
 
+    # TODO: Migrate to pytest
     # 256 MB
-    memory_size = 0x10000000
-    host_config = CxlHostConfig(
-        host_name="CXLHost",
-        root_bus=0,
-        root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
-        root_ports=[RootPortClientConfig(0, "0.0.0.0", 8000)],
-        memory_controller=RootComplexMemoryControllerConfig(
-            memory_size=memory_size, memory_filename="memory_dram.bin"
-        ),
-        memory_ranges=[],
-    )
-    host = CxlHost(host_config)
-    apps.append(host)
+    # host_config = CxlHostConfig(
+    #     host_name="CXLHost",
+    #     root_bus=0,
+    #     root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
+    #     root_ports=[RootPortClientConfig(0, "0.0.0.0", 8000)],
+    #     memory_ranges=[],
+    # )
+    # host = CxlHost(host_config)
+    # apps.append(host)
 
+    memory_size = 0x10000000
     memex_t3_1 = SingleLogicalDevice(
         port_index=1,
         memory_size=memory_size,
         memory_file=f"mem{switch_port + 1}.bin",
         port=switch_port,
+        serial_number="AAAAAAAAA",
     )
     apps.append(memex_t3_1)
     memex_t3_2 = SingleLogicalDevice(
@@ -156,6 +157,7 @@ def main():
         memory_size=memory_size,
         memory_file=f"mem{switch_port + 2}.bin",
         port=switch_port,
+        serial_number="BBBBBBBB",
     )
     apps.append(memex_t3_2)
     memex_t3_3 = SingleLogicalDevice(
@@ -163,6 +165,7 @@ def main():
         memory_size=memory_size,
         memory_file=f"mem{switch_port + 3}.bin",
         port=switch_port,
+        serial_number="CCCCCCCC",
     )
     apps.append(memex_t3_3)
     memex_t3_4 = SingleLogicalDevice(
@@ -170,6 +173,7 @@ def main():
         memory_size=memory_size,
         memory_file=f"mem{switch_port + 4}.bin",
         port=switch_port,
+        serial_number="DDDDDDDD",
     )
     apps.append(memex_t3_4)
 

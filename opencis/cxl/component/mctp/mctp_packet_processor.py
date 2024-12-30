@@ -6,15 +6,15 @@
 """
 
 from asyncio import StreamReader, StreamWriter, create_task, gather
+from enum import Enum, auto
+from typing import Optional
+
+from opencis.util.logger import logger
 from opencis.cxl.component.mctp.mctp_connection import MctpConnection
 from opencis.cxl.component.mctp.mctp_packet_reader import (
     MctpPacketReader,
-    CciMessagePacket,
 )
 from opencis.util.component import RunnableComponent
-from typing import Optional, cast
-from enum import Enum, auto
-from opencis.util.logger import logger
 
 
 class MCTP_PACKET_PROCESSOR_TYPE(Enum):
@@ -61,7 +61,7 @@ class MctpPacketProcessor(RunnableComponent):
         logger.debug(self._create_message("Starting outgoing packet processor"))
         while True:
             packet = await self._outgoing.get()
-            if packet == None:
+            if packet is None:
                 break
             self._writer.write(bytes(packet))
             await self._writer.drain()

@@ -5,12 +5,13 @@
  See LICENSE for details.
 """
 
+from abc import abstractmethod
+from asyncio import Condition
 from enum import Enum, auto
-from abc import ABC, abstractmethod
-from asyncio import create_task, gather, Condition
-from typing import Optional, Union, Callable, TypeAlias
-from opencis.util.logger import logger
 import traceback
+from typing import Optional, Union, Callable, TypeAlias
+
+from opencis.util.logger import logger
 
 Label: TypeAlias = Union[str, Callable[[str], str]]
 
@@ -28,12 +29,11 @@ class LabeledComponent:
 
     def get_message_label(self) -> str:
         class_name = self.__class__.__name__
-        if self._label and callable(self._label):
-            return self._label(class_name)
-        elif self._label:
+        if self._label:
+            if callable(self._label):
+                return self._label(class_name)
             return f"{class_name}:{self._label}"
-        else:
-            return class_name
+        return class_name
 
     def _create_message(self, message):
         return f"[{self.get_message_label()}] {message}"

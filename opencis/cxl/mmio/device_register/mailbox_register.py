@@ -104,7 +104,7 @@ class MailboxControlRegister(BitMaskedBitStructure):
     def write_bytes(self, start_offset: int, end_offset: int, value: int):
         super().write_bytes(start_offset, end_offset, value)
         if self.cxl_mailbox:
-            control = self._read_fields_to_dict()
+            control = self.read_fields_to_dict()
             self.cxl_mailbox.set_control(control)
 
 
@@ -134,7 +134,7 @@ class MailboxCommandRegister(BitMaskedBitStructure):
     def write_bytes(self, start_offset: int, end_offset: int, value: int):
         super().write_bytes(start_offset, end_offset, value)
         if self.cxl_mailbox:
-            command = self._read_fields_to_dict()
+            command = self.read_fields_to_dict()
             self.cxl_mailbox.set_command(command)
 
     def read_bytes(self, start_offset: int, end_offset: int) -> int:

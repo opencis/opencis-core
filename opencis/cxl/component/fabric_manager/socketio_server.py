@@ -5,9 +5,14 @@
  See LICENSE for details.
 """
 
-import socketio
 import asyncio
+from functools import partial
+from pprint import pformat
+from typing import TypedDict, Any
+import socketio
 from aiohttp import web
+
+from opencis.util.logger import logger
 from opencis.cxl.component.short_msg_conn import ShortMsgBase, ShortMsgConn
 from opencis.util.component import RunnableComponent
 from opencis.cxl.component.mctp.mctp_cci_api_client import (
@@ -25,10 +30,6 @@ from opencis.cxl.cci.common import (
     CCI_VENDOR_SPECIFIC_OPCODE,
     get_opcode_string,
 )
-from typing import TypedDict, Optional, Any
-from pprint import pformat
-from opencis.util.logger import logger
-from functools import partial
 
 
 class CommandResponse(TypedDict):
@@ -110,7 +111,8 @@ class HostFMConnManager:
         root_port = await self.get_usp_by_vcs_id(vcs_id)
         req = HostFMMsg.create(device_vppb, root_port, False, True)
         logger.info(
-            f"Host bind notification root_port {root_port}, device_vppb {device_vppb}, val {req.real_val}"
+            f"Host bind notification root_port {root_port}, "
+            f"device_vppb {device_vppb}, val {req.real_val}"
         )
         await self._host_fm_conn_server.send_irq_request(req, root_port)
 
@@ -118,7 +120,8 @@ class HostFMConnManager:
         root_port = await self.get_usp_by_vcs_id(vcs_id)
         req = HostFMMsg.create(device_vppb, root_port, False, False)
         logger.info(
-            f"Host unbind notification root_port {root_port}, device_vppb {device_vppb}, val {req.real_val}"
+            f"Host unbind notification root_port {root_port}, "
+            f"device_vppb {device_vppb}, val {req.real_val}"
         )
         await self._host_fm_conn_server.send_irq_request(req, root_port)
 
@@ -208,11 +211,11 @@ class FabricManagerSocketIoServer(RunnableComponent):
             elif event_type == "mld:setAllocation":
                 response = await self._set_ld_allocation(data)
             logger.info(self._create_message(f"Response: {pformat(response)}"))
-            logger.debug(self._create_message(f"Completed SocketIO Request"))
+            logger.debug(self._create_message("Completed SocketIO Request"))
             return response
 
     async def _get_switch_identity(self) -> IdentifySwitchDeviceResponsePayload:
-        if self._switch_identity == None:
+        if self._switch_identity is None:
             (_, response) = await self._mctp_client.identify_switch_device()
             if not response:
                 raise Exception("Failed to get switch identity")
@@ -226,8 +229,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
         (return_code, response) = await self._mctp_client.get_physical_port_state(request)
         if response:
             return CommandResponse(error="", result=response.to_dict()["portInfoList"])
-        else:
-            return CommandResponse(error=return_code.name)
+        return CommandResponse(error=return_code.name)
 
     async def _get_virtual_switches(self) -> CommandResponse:
         switch_identity = await self._get_switch_identity()
@@ -238,15 +240,13 @@ class FabricManagerSocketIoServer(RunnableComponent):
         (return_code, response) = await self._mctp_client.get_virtual_cxl_switch_info(request)
         if response:
             return CommandResponse(error="", result=response.to_dict()["vcsInfoList"])
-        else:
-            return CommandResponse(error=return_code.name)
+        return CommandResponse(error=return_code.name)
 
     async def _get_devices(self) -> CommandResponse:
         (return_code, response) = await self._mctp_client.get_connected_devices()
         if response:
             return CommandResponse(error="", result=response.to_dict()["devices"])
-        else:
-            return CommandResponse(error=return_code.name)
+        return CommandResponse(error=return_code.name)
 
     async def _bind_vppb(self, data) -> CommandResponse:
         ld_id = data.get("ldId")
@@ -264,8 +264,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
                 data["vppbId"], data["virtualCxlSwitchId"]
             )
             return CommandResponse(error="", result=response.name)
-        else:
-            return CommandResponse(error="", result=return_code.name)
+        return CommandResponse(error="", result=return_code.name)
 
     async def _unbind_vppb(self, data) -> CommandResponse:
         request = UnbindVppbRequestPayload(
@@ -278,15 +277,13 @@ class FabricManagerSocketIoServer(RunnableComponent):
         (return_code, response) = await self._mctp_client.unbind_vppb(request)
         if response is not None:
             return CommandResponse(error="", result=response.name)
-        else:
-            return CommandResponse(error="", result=return_code.name)
+        return CommandResponse(error="", result=return_code.name)
 
     async def _get_ld_info(self, data) -> CommandResponse:
         (return_code, response) = await self._mctp_client.get_ld_info(data["port_index"])
         if response:
             return CommandResponse(error="", result=response.to_dict())
-        else:
-            return CommandResponse(error=return_code.name)
+        return CommandResponse(error=return_code.name)
 
     async def _get_ld_allocation(self, data) -> CommandResponse:
         request = GetLdAllocationsRequestPayload(
@@ -298,8 +295,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
         )
         if response:
             return CommandResponse(error="", result=response.to_dict())
-        else:
-            return CommandResponse(error=return_code.name)
+        return CommandResponse(error=return_code.name)
 
     async def _set_ld_allocation(self, data) -> CommandResponse:
         request = SetLdAllocationsRequestPayload(
@@ -315,8 +311,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
                 error="",
                 result=[response.number_of_lds, response.start_ld_id, response.ld_allocation_list],
             )
-        else:
-            return CommandResponse(error=return_code.name)
+        return CommandResponse(error=return_code.name)
 
     async def _send_update_physical_ports_notification(self):
         # Emitting event without arguments

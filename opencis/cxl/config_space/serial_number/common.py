@@ -57,11 +57,11 @@ class DeviceSNHeader(BitMaskedBitStructure):
             sn = options["serial_number"]
             try:
                 sn_int = int(sn, base=16)
-            except:
+            except Exception as e:
                 raise Exception(
                     f"Failed to convert device SN: {sn} into an int. "
                     "Check if it is a valid hex string."
-                )
+                ) from e
         sn_low = sn_int & 0xFFFFFFFF
         sn_high = (sn_int >> 32) & 0xFFFFFFFF
         self._fields = [
@@ -98,5 +98,6 @@ class DeviceSNCapability(BitMaskedBitStructure):
 
         super().__init__(data, parent_name)
 
-    def get_size() -> int:
+    @staticmethod
+    def get_size(fields=None) -> int:
         return 12

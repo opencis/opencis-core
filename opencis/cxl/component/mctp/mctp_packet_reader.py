@@ -6,22 +6,19 @@
 """
 
 from asyncio import StreamReader, create_task
+from typing import Optional
+
 from opencis.cxl.transport.transaction import (
     CciMessageHeaderPacket,
     CciMessagePacket,
     CciHeaderPacket,
-    CciBasePacket,
     CciPayloadPacket,
 )
-
-from opencis.util.component import LabeledComponent
-from typing import Optional
 from opencis.util.logger import logger
-from opencis.cxl.transport.common import (
-    BasePacket,
-    SYSTEM_HEADER_END,
-    PAYLOAD_TYPE,
-)
+from opencis.util.component import LabeledComponent
+from opencis.cxl.transport.common import BasePacket
+
+# pylint: disable=duplicate-code
 
 
 class MctpPacketReader(LabeledComponent):
@@ -37,9 +34,9 @@ class MctpPacketReader(LabeledComponent):
         try:
             self._task = create_task(self._get_packet_in_task())
             packet = await self._task
-        except:
+        except Exception as e:
             logger.debug(self._create_message("Aborted"))
-            raise Exception("PacketReader is aborted")
+            raise Exception("PacketReader is aborted") from e
         finally:
             self._task = None
         return packet
@@ -49,7 +46,7 @@ class MctpPacketReader(LabeledComponent):
             return
         logger.debug(self._create_message("Aborting"))
         self._aborted = True
-        if self._task != None:
+        if self._task is not None:
             self._task.cancel()
 
     async def _get_packet_in_task(self):

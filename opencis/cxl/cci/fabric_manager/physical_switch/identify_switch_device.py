@@ -5,6 +5,8 @@
  See LICENSE for details.
 """
 
+from dataclasses import dataclass
+
 from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
 from opencis.cxl.component.cci_executor import (
     CciRequest,
@@ -13,8 +15,6 @@ from opencis.cxl.component.cci_executor import (
 )
 from opencis.cxl.component.physical_port_manager import PhysicalPortManager
 from opencis.cxl.component.virtual_switch_manager import VirtualSwitchManager
-from typing import List
-from dataclasses import dataclass
 
 """
 

@@ -5,11 +5,12 @@
  See LICENSE for details.
 """
 
-import click
 import asyncio
-from opencis.util.logger import logger
 from typing import List
 import humanfriendly
+import click
+
+from opencis.util.logger import logger
 from opencis.cxl.environment import parse_cxl_environment
 from opencis.apps.single_logical_device import SingleLogicalDevice
 
@@ -17,7 +18,6 @@ from opencis.apps.single_logical_device import SingleLogicalDevice
 @click.group(name="sld")
 def sld_group():
     """Command group for managing single logical devices."""
-    pass
 
 
 async def run_devices(slds: List[SingleLogicalDevice]):

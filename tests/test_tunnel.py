@@ -59,7 +59,6 @@ async def test_multi_logical_device_ld_id():
     cxl_connections = [CxlConnection() for _ in range(num_ld)]
     mld = MultiLogicalDevice(
         port_index=1,
-        ld_count=num_ld,
         memory_sizes=[ld_size] * num_ld,
         memory_files=[f"mld_mem{i}.bin" for i in range(num_ld)],
         serial_numbers=["CCCCCCCCCCCCCCCC"] * num_ld,

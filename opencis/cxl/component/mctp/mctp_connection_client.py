@@ -30,6 +30,7 @@ class MctpConnectionClient(RunnableComponent):
         self._reconnect_delay = reconnect_delay
         self._mctp_connection = MctpConnection()
         self._packet_processor = None
+        self._running = False
 
     async def _connect(self):
         return await asyncio.open_connection(self._host, self._port)
@@ -57,16 +58,16 @@ class MctpConnectionClient(RunnableComponent):
             except Exception as e:
                 if not self._auto_reconnect:
                     logger.warning(self._create_message(str(e)))
-            finally:
-                if self._packet_processor is not None:
-                    break  # Normal termination
 
-                if not self._auto_reconnect:
-                    logger.error(self._create_message("Connection attempt failed"))
-                    break
+            if self._packet_processor is not None:
+                break  # Normal termination
 
-                logger.warning(self._create_message("Attempting to reconnect"))
-                await asyncio.sleep(self._reconnect_delay)
+            if not self._auto_reconnect:
+                logger.error(self._create_message("Connection attempt failed"))
+                break
+
+            logger.warning(self._create_message("Attempting to reconnect"))
+            await asyncio.sleep(self._reconnect_delay)
 
     async def _stop(self):
         self._running = False

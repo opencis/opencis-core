@@ -10,6 +10,7 @@ from enum import Enum, IntEnum
 
 
 class CCI_RETURN_CODE(IntEnum):
+    # pylint: disable=duplicate-code
     SUCCESS = 0x0000
     BACKGROUND_COMMAND_STARTED = 0x0001
     INVALID_INPUT = 0x0002
@@ -113,20 +114,26 @@ class CCI_VENDOR_SPECIFIC_OPCODE(IntEnum):
 
 def get_opcode_string(opcode: int) -> str:
     if (
-        opcode >= CCI_GENERIC_COMMAND_OPCODE.IDENTIFY
-        and opcode <= CCI_GENERIC_COMMAND_OPCODE.PERFORM_MAINTENANCE
+        CCI_GENERIC_COMMAND_OPCODE.IDENTIFY
+        <= opcode
+        <= CCI_GENERIC_COMMAND_OPCODE.PERFORM_MAINTENANCE
     ):
         return CCI_GENERIC_COMMAND_OPCODE(opcode).name
+
     if (
-        opcode >= CCI_FM_API_COMMAND_OPCODE.IDENTIFY_SWITCH_DEVICE
-        and opcode <= CCI_FM_API_COMMAND_OPCODE.INITIATE_DYNAMIC_CAPACITY_RELEASE
+        CCI_FM_API_COMMAND_OPCODE.IDENTIFY_SWITCH_DEVICE
+        <= opcode
+        <= CCI_FM_API_COMMAND_OPCODE.INITIATE_DYNAMIC_CAPACITY_RELEASE
     ):
         return CCI_FM_API_COMMAND_OPCODE(opcode).name
+
     if (
-        opcode >= CCI_VENDOR_SPECIFIC_OPCODE.NOTIFY_PORT_UPDATE
-        and opcode <= CCI_VENDOR_SPECIFIC_OPCODE.TUNNEL_MANAGEMENT_COMMAND
+        CCI_VENDOR_SPECIFIC_OPCODE.NOTIFY_PORT_UPDATE
+        <= opcode
+        <= CCI_VENDOR_SPECIFIC_OPCODE.TUNNEL_MANAGEMENT_COMMAND
     ):
         return CCI_VENDOR_SPECIFIC_OPCODE(opcode).name
+
     return "Unknown Command"
 
 

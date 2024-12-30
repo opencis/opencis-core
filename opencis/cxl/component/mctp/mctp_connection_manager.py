@@ -5,18 +5,19 @@
  See LICENSE for details.
 """
 
-from typing import Dict, Optional, cast
+import asyncio
 from dataclasses import dataclass, field
-from opencis.cxl.component.cxl_connection import CxlConnection
+from typing import Optional
+
+from opencis.util.logger import logger
 from opencis.cxl.component.mctp.mctp_connection import MctpConnection
 from opencis.cxl.component.mctp.mctp_packet_processor import (
     MctpPacketProcessor,
     MCTP_PACKET_PROCESSOR_TYPE,
 )
 from opencis.util.component import RunnableComponent
-from typing import List
-from opencis.util.logger import logger
-import asyncio
+
+# pylint: disable=duplicate-code
 
 
 @dataclass
@@ -42,6 +43,7 @@ class MctpConnectionManager(RunnableComponent):
         self._server_task = None
 
     async def _run(self):
+        # pylint: disable=bare-except
         try:
             logger.info(self._create_message(f"Creating TCP server at port {self._port}"))
             server = await self._create_server()
@@ -55,11 +57,10 @@ class MctpConnectionManager(RunnableComponent):
             logger.debug(self._create_message(f"Exception: {str(e)}"))
         except:
             logger.info(self._create_message("Stopped TCP server"))
-
-            if self._switch_port.packet_processor != None:
-                logger.info(self._create_message(f"Stopping PacketProcessor for Switch Port"))
+            if self._switch_port.packet_processor is not None:
+                logger.info(self._create_message("Stopping PacketProcessor for Switch Port"))
                 await self._switch_port.packet_processor.stop()
-                logger.info(self._create_message(f"Stopped PacketProcessor for Switch Port"))
+                logger.info(self._create_message("Stopped PacketProcessor for Switch Port"))
 
     async def _stop(self):
         logger.info(self._create_message("Canceling TCP server task"))
@@ -74,7 +75,7 @@ class MctpConnectionManager(RunnableComponent):
                         self._create_message("Connection already exists for Switch Port")
                     )
                 else:
-                    logger.info(self._create_message(f"Binding incoming connection to Switch Port"))
+                    logger.info(self._create_message("Binding incoming connection to Switch Port"))
                     self._switch_port.connected = True
                     await self._start_packet_processor(reader, writer)
             except Exception as e:
@@ -96,7 +97,7 @@ class MctpConnectionManager(RunnableComponent):
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
     ):
-        logger.info(self._create_message(f"Starting PacketProcessor for Switch Port"))
+        logger.info(self._create_message("Starting PacketProcessor for Switch Port"))
         packet_processor = MctpPacketProcessor(
             reader,
             writer,

@@ -5,6 +5,8 @@
  See LICENSE for details.
 """
 
+from typing import List
+
 from opencis.cxl.features.mailbox import (
     CxlMailboxContext,
     CxlMailboxCommandBase,
@@ -22,7 +24,6 @@ from opencis.cxl.features.log_manager import (
     SupportedLogEntry,
     LogManager,
 )
-from typing import List
 
 #
 #   GetEventRecordsInput command (Opcode 0400h)
@@ -59,6 +60,7 @@ class GetSupportedLogsOutput(UnalignedBitStructure):
 
     @staticmethod
     def get_size(entries: List[SupportedLogEntry]):
+        # pylint: disable=arguments-renamed
         return 0x08 + len(entries) * SupportedLogEntry.get_size()
 
 
@@ -76,8 +78,8 @@ class GetSupportedLogs(CxlMailboxCommandBase):
 
         supported_logs = self.log_manager.get_supported_logs()
         output_length = GetSupportedLogsOutput.get_size(supported_logs)
-        output_buffer = context.payloads.create_shared(output_length)
-        output = GetSupportedLogsOutput(output_buffer, supported_logs)
+        # output_buffer = context.payloads.create_shared(output_length)
+        # output = GetSupportedLogsOutput(output_buffer, supported_logs)
         context.command["payload_length"] = output_length
         return True
 

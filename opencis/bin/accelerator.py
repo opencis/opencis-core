@@ -6,9 +6,9 @@
 """
 
 import asyncio
-import click
 from enum import Enum
 from typing import List
+import click
 
 from opencis.util.logger import logger
 from opencis.cxl.environment import parse_cxl_environment
@@ -23,7 +23,6 @@ class ACCEL_TYPE(Enum):
 @click.group(name="accel")
 def accel_group():
     """Command group for managing logical devices."""
-    pass
 
 
 async def run_devices(accels: List[MyType1Accelerator | MyType2Accelerator]):
@@ -55,6 +54,6 @@ def start_group(config_file, dev_type):
                 port=cxl_env.switch_config.port,
             )
         else:
-            Exception("Invalid Aceelerator Type")
+            raise Exception("Invalid Aceelerator Type")
         accels.append(accel)
     asyncio.run(run_devices(accels))

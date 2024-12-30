@@ -5,9 +5,9 @@
  See LICENSE for details.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from struct import pack, unpack
-from typing import ClassVar
+
 from opencis.cxl.component.cci_executor import (
     CciBackgroundCommand,
     CciRequest,
@@ -29,6 +29,8 @@ The following dataclass is genearted by ChatGPT (GPT-4)
 https://chat.openai.com/share/470bd62a-eaa4-4218-aa3e-4353276a16fd
 
 """
+
+# pylint: disable=duplicate-code
 
 
 @dataclass

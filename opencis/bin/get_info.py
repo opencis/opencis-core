@@ -1,16 +1,19 @@
+"""
+ Copyright (c) 2024, Eeum, Inc.
+
+ This software is licensed under the terms of the Revised BSD License.
+ See LICENSE for details.
+"""
+
 import asyncio
 import click
 
-from opencis.util.logger import logger
-from opencis.apps.fabric_manager import CxlFabricManager
 from opencis.bin import socketio_client
-from opencis.bin.common import BASED_INT
 
 
 @click.group(name="get-info")
 def get_info_group():
     """Command group for component info"""
-    pass
 
 
 @get_info_group.command(name="port")

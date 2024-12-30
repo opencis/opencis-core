@@ -20,7 +20,6 @@ class MultiLogicalDevice(RunnableComponent):
     def __init__(
         self,
         port_index: int,
-        ld_count: int,
         memory_sizes: List[int],
         memory_files: List[str],
         serial_numbers: List[str],
@@ -38,10 +37,7 @@ class MultiLogicalDevice(RunnableComponent):
         assert len(memory_sizes) == len(
             memory_files
         ), "memory_sizes, and memory_files must have the same length"
-        assert ld_count == len(
-            serial_numbers
-        ), "ld_count must be equal to the number of serial_numbers"
-        assert ld_count == len(memory_sizes), "ld_count must be equal to the number of memory_sizes"
+        ld_count = len(memory_sizes)
 
         assert (
             not test_mode or cxl_connections is not None

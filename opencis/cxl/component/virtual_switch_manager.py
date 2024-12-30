@@ -31,7 +31,7 @@ class VirtualSwitchManager(RunnableComponent):
         self,
         switch_configs: List[VirtualSwitchConfig],
         physical_port_manager: PhysicalPortManager,
-        allocated_ld,
+        allocated_ld: List[int],
         bi_enable_override_for_test: Optional[int] = None,
         bi_forward_override_for_test: Optional[int] = None,
     ):

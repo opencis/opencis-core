@@ -17,10 +17,10 @@ class BasedInt(click.ParamType):
         try:
             if value[:2].lower() == "0x":
                 return int(value[2:], 16)
-            else:
-                return int(value, 10)
+            return int(value, 10)
         except ValueError:
             logger.error(f"{value!r} is not a valid integer")
+        return None
 
 
 BASED_INT = BasedInt()

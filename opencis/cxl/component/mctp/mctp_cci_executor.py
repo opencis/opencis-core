@@ -86,7 +86,7 @@ class MctpCciExecutor(RunnableComponent):
         while True:
             # Wait for incoming packets from the MCTP connection
             packet = await self._mctp_connection.controller_to_ep.get()
-            if packet == None:
+            if packet is None:
                 logger.debug(self._create_message("Stopped processing incoming request"))
                 break
 
@@ -104,7 +104,7 @@ class MctpCciExecutor(RunnableComponent):
             ]
             if opcode in opcodes_for_ld:
                 # Pass down to MLD
-                ld_index = cci_packet_tmc.cci_header.port_index
+                # ld_index = cci_packet_tmc.cci_header.port_index
                 message_tag = cci_packet.header.message_tag
                 self._message_tag_list[message_tag] = port_index
 
@@ -135,7 +135,7 @@ class MctpCciExecutor(RunnableComponent):
         while True:
             # Wait for incoming packets from the MCTP connection
             packet = await downstream_connection.cci_fifo.target_to_host.get()
-            if packet == None:
+            if packet is None:
                 logger.debug(self._create_message("Stopped processing outcoming request"))
                 break
 

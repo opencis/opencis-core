@@ -33,7 +33,7 @@ async def shutdown(signame=None):
     except Exception as exc:
         logger.debug(f"[ACCEL] {exc.__traceback__}")
     finally:
-        sys.exit(0)
+        os._exit(0)
 
 
 async def main():

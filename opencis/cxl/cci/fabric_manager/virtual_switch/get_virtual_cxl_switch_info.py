@@ -5,6 +5,11 @@
  See LICENSE for details.
 """
 
+from dataclasses import dataclass, field, fields
+from enum import IntEnum
+from typing import List, TypedDict
+from yaml import dump
+
 from opencis.cxl.component.cci_executor import (
     CciRequest,
     CciResponse,
@@ -17,10 +22,8 @@ from opencis.cxl.component.virtual_switch_manager import (
 from opencis.cxl.component.virtual_switch.virtual_switch import (
     PPB_BINDING_STATUS,
 )
-from dataclasses import dataclass, field, fields
-from typing import List, Dict, TypedDict
-from enum import IntEnum
-from yaml import dump
+
+# pylint: disable=duplicate-code
 
 
 class VCS_STATE(IntEnum):
