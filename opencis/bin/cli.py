@@ -75,7 +75,6 @@ def validate_log_level(ctx, param, level):
 @click.option("--log-file", help="<Log File> output path.")
 @click.option("--pcap-file", help="<Packet Capture File> output path.")
 @click.option("--log-level", callback=validate_log_level, help="Specify log level.")
-@click.option("--no-hm", is_flag=True, default=True, help="Do not start HostManager.")
 @click.option("--show-timestamp", is_flag=True, default=False, help="Show timestamp.")
 @click.option("--show-loglevel", is_flag=True, default=False, help="Show log level.")
 @click.option("--show-linenumber", is_flag=True, default=False, help="Show line number.")
@@ -86,7 +85,6 @@ def start(
     log_level,
     log_file,
     pcap_file,
-    no_hm,
     show_timestamp,
     show_loglevel,
     show_linenumber,
@@ -167,19 +165,18 @@ def start(
         p_mgroup.start()
 
     if "host" in comp or "host-group" in comp:
-        hm_mode = not no_hm
-        if hm_mode:
-            p_hm = multiprocessing.Process(target=start_host_manager, args=(ctx,))
-            processes.append(p_hm)
-            p_hm.start()
+        # TODO: Re-enable HostManager
+        # hm_mode = not no_hm
+        # if hm_mode:
+        #     p_hm = multiprocessing.Process(target=start_host_manager, args=(ctx,))
+        #     processes.append(p_hm)
+        #     p_hm.start()
         if "host" in comp:
             p_host = multiprocessing.Process(target=start_host, args=(ctx,))
             processes.append(p_host)
             p_host.start()
         elif "host-group" in comp:
-            p_hgroup = multiprocessing.Process(
-                target=start_host_group, args=(ctx, config_file, hm_mode)
-            )
+            p_hgroup = multiprocessing.Process(target=start_host_group, args=(ctx, config_file))
             processes.append(p_hgroup)
             p_hgroup.start()
 
@@ -234,8 +231,8 @@ def start_host(ctx):
     ctx.invoke(cxl_host.start)
 
 
-def start_host_group(ctx, config_file, hm_mode):
-    ctx.invoke(cxl_host.start_group, config_file=config_file, hm_mode=hm_mode)
+def start_host_group(ctx, config_file):
+    ctx.invoke(cxl_host.start_group, config_file=config_file)
 
 
 def start_sld(ctx, config_file):
