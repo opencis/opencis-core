@@ -6,7 +6,7 @@
 """
 
 from typing import Optional, Tuple, List
-from asyncio import create_task, gather
+from asyncio import create_task, gather, sleep
 from dataclasses import dataclass
 from enum import Enum, auto
 from math import log2
@@ -123,10 +123,10 @@ class CacheController(RunnableComponent):
 
         self._memory_ranges: List[MemoryRange] = []
 
-        self._init_cache()
+        self.init_cache()
         logger.debug(self._create_message(f"{config.component_name} LLC Generated"))
 
-    def _init_cache(self) -> None:
+    def init_cache(self) -> None:
         # simple cache structure
         self._cache = [
             [CacheBlock() for assoc in range(self._cache_assoc_size)]

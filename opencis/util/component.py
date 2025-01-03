@@ -5,8 +5,9 @@
  See LICENSE for details.
 """
 
+import asyncio
 from abc import abstractmethod
-from asyncio import Condition
+from asyncio import Condition, create_task
 from enum import Enum, auto
 import traceback
 from typing import Optional, Union, Callable, TypeAlias
@@ -76,6 +77,11 @@ class RunnableComponent(LabeledComponent):
             logger.error(self._create_message(f"Unexpected Exception: {str(e)}"))
             logger.error(traceback.format_exc())
             raise e
+
+    async def run_wait_ready(self) -> asyncio.Task:
+        task = create_task(self.run())
+        await self.wait_for_ready()
+        return task
 
     async def stop(self):
         if not self._ready_waited:
