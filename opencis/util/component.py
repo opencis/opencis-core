@@ -5,7 +5,6 @@
  See LICENSE for details.
 """
 
-import asyncio
 from abc import abstractmethod
 from asyncio import Condition, create_task
 from enum import Enum, auto
@@ -78,7 +77,7 @@ class RunnableComponent(LabeledComponent):
             logger.error(traceback.format_exc())
             raise e
 
-    async def run_wait_ready(self) -> asyncio.Task:
+    async def run_wait_ready(self):
         task = create_task(self.run())
         await self.wait_for_ready()
         return task
