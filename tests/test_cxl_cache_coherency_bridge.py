@@ -18,6 +18,9 @@ from opencis.cxl.transport.transaction import (
     CxlCacheH2DDataPacket,
     CxlCacheH2DReqPacket,
     CxlCacheH2DRspPacket,
+    CxlCacheCacheH2DRspPacket,
+    CxlCacheCacheH2DDataPacket,
+    CxlCacheCacheD2HDataPacket,
     CxlCacheCacheD2HReqPacket,
     CxlCacheCacheD2HRspPacket,
     CXL_CACHE_H2DREQ_OPCODE,
@@ -29,11 +32,6 @@ from opencis.cxl.transport.transaction import (
 from opencis.cxl.component.root_complex.cache_coherency_bridge import (
     CacheCoherencyBridge,
     CacheCoherencyBridgeConfig,
-)
-from opencis.cxl.component.cache_controller import (
-    CacheController,
-    CacheControllerConfig,
-    MEM_ADDR_TYPE,
 )
 from opencis.cxl.transport.memory_fifo import (
     MemoryFifoPair,
@@ -67,19 +65,27 @@ def cxl_cache_coh_bridge():
     return CacheCoherencyBridge(config)
 
 
+async def flush_memory_read(ccb: CacheCoherencyBridge):
+    mem_req = await ccb._memory_producer_fifos.request.get()
+    assert mem_req.type == MEMORY_REQUEST_TYPE.READ
+    mem_resp = MemoryResponse(MEMORY_RESPONSE_STATUS.OK, 0xDEADBEEF)
+    await ccb._memory_producer_fifos.response.put(mem_resp)
+
+
+async def flush_memory_write(ccb: CacheCoherencyBridge):
+    mem_req = await ccb._memory_producer_fifos.request.get()
+    assert mem_req.type == MEMORY_REQUEST_TYPE.WRITE
+    mem_resp = MemoryResponse(MEMORY_RESPONSE_STATUS.OK)
+    await ccb._memory_producer_fifos.response.put(mem_resp)
+
+
 async def send_cache_req_read(
     ccb: CacheCoherencyBridge,
     req: CacheRequest,
 ) -> MemoryResponse:
     data = 0xDEADBEEF
     await ccb._upstream_cache_to_coh_bridge_fifo.request.put(req)
-
-    mem_req = await ccb._memory_producer_fifos.request.get()
-    assert mem_req.type == MEMORY_REQUEST_TYPE.READ
-
-    mem_resp = MemoryResponse(MEMORY_RESPONSE_STATUS.OK, data)
-    await ccb._memory_producer_fifos.response.put(mem_resp)
-
+    await flush_memory_read(ccb)
     resp = await ccb._upstream_cache_to_coh_bridge_fifo.response.get()
     assert resp.data == data
     return resp
@@ -91,7 +97,6 @@ async def send_cache_req_read_no_mem(
 ) -> MemoryResponse:
     await ccb._upstream_cache_to_coh_bridge_fifo.request.put(req)
     resp = await ccb._upstream_cache_to_coh_bridge_fifo.response.get()
-    # assert resp.data == data
     return resp
 
 
@@ -99,15 +104,8 @@ async def send_cache_req_write(
     ccb: CacheCoherencyBridge,
     req: CacheRequest,
 ) -> MemoryResponse:
-    data = 0xDEADBEEF
     await ccb._upstream_cache_to_coh_bridge_fifo.request.put(req)
-
-    mem_req = await ccb._memory_producer_fifos.request.get()
-    assert mem_req.type == MEMORY_REQUEST_TYPE.WRITE
-
-    mem_resp = MemoryResponse(MEMORY_RESPONSE_STATUS.OK, data)
-    await ccb._memory_producer_fifos.response.put(mem_resp)
-
+    await flush_memory_write(ccb)
     resp = await ccb._upstream_cache_to_coh_bridge_fifo.response.get()
     return resp
 
@@ -119,6 +117,78 @@ async def send_cache_req_write_no_mem(
     await ccb._upstream_cache_to_coh_bridge_fifo.request.put(req)
     resp = await ccb._upstream_cache_to_coh_bridge_fifo.response.get()
     return resp
+
+
+@pytest.mark.asyncio
+async def test_cache_coh_bridge_d2h_req(cxl_cache_coh_bridge):
+    ccb: CacheCoherencyBridge
+    ccb = cxl_cache_coh_bridge
+    run_task = await ccb.run_wait_ready()
+
+    ccb.set_cache_coh_dev_count(2)
+
+    # D2H request: CACHE_RD_SHARED
+    addr = 0x40
+    device_req = CxlCacheCacheD2HReqPacket.create(addr, 0, CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_SHARED)
+    await ccb._downstream_cxl_cache_fifos.target_to_host.put(device_req)
+    cache_req = await ccb._upstream_coh_bridge_to_cache_fifo.request.get()
+    assert cache_req.addr == addr
+    await ccb._upstream_coh_bridge_to_cache_fifo.response.put(
+        CacheResponse(CACHE_RESPONSE_STATUS.OK)
+    )
+    resp = await ccb._downstream_cxl_cache_fifos.host_to_target.get()
+    assert resp.h2drsp_header.cache_opcode == CXL_CACHE_H2DRSP_OPCODE.GO
+    resp = await ccb._downstream_cxl_cache_fifos.host_to_target.get()
+    assert isinstance(resp, CxlCacheCacheH2DDataPacket) is True
+
+    # D2H request: CACHE_DIRTY_EVICT
+    addr = 0x80
+    req = CxlCacheCacheD2HReqPacket.create(addr, 0, CXL_CACHE_D2HREQ_OPCODE.CACHE_DIRTY_EVICT)
+    await ccb._downstream_cxl_cache_fifos.target_to_host.put(req)
+    resp = await ccb._downstream_cxl_cache_fifos.host_to_target.get()
+    assert resp.h2drsp_header.cache_opcode == CXL_CACHE_H2DRSP_OPCODE.GO_WRITE_PULL
+    data_packet = CxlCacheCacheD2HDataPacket.create(0, 0xDEADBEEF)
+    await ccb._downstream_cxl_cache_fifos.target_to_host.put(data_packet)
+    req = await ccb._memory_producer_fifos.request.get()
+    assert req.addr == addr
+
+    # D2H request: CACHE_RD_OWN_NO_DATA
+    addr = 0x100
+    req = CxlCacheCacheD2HReqPacket.create(addr, 0, CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_OWN_NO_DATA)
+    await ccb._downstream_cxl_cache_fifos.target_to_host.put(req)
+    req = await ccb._upstream_coh_bridge_to_cache_fifo.request.get()
+    await ccb._upstream_coh_bridge_to_cache_fifo.response.put(
+        CacheResponse(CACHE_RESPONSE_STATUS.OK)
+    )
+    resp = await ccb._downstream_cxl_cache_fifos.host_to_target.get()
+    assert resp.h2drsp_header.cache_opcode == CXL_CACHE_H2DRSP_OPCODE.GO
+
+    await ccb.stop()
+    asyncio.gather(run_task)
+
+
+@pytest.mark.asyncio
+async def test_cache_coh_bridge_d2h_resp(cxl_cache_coh_bridge):
+    ccb: CacheCoherencyBridge
+    ccb = cxl_cache_coh_bridge
+    run_task = await ccb.run_wait_ready()
+
+    ccb.set_cache_coh_dev_count(2)
+
+    resp = CxlCacheCacheD2HRspPacket.create(0, CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_I)
+    await ccb._downstream_cxl_cache_fifos.target_to_host.put(resp)
+
+    resp = CxlCacheCacheD2HRspPacket.create(0, CXL_CACHE_D2HRSP_OPCODE.RSP_S_FWD_M)
+    await ccb._downstream_cxl_cache_fifos.target_to_host.put(resp)
+
+    resp = CxlCacheCacheD2HRspPacket.create(0, CXL_CACHE_D2HRSP_OPCODE.RSP_I_FWD_M)
+    await ccb._downstream_cxl_cache_fifos.target_to_host.put(resp)
+
+    for i in range(100):
+        await asyncio.sleep(0)
+
+    await ccb.stop()
+    asyncio.gather(run_task)
 
 
 @pytest.mark.asyncio
@@ -153,93 +223,69 @@ async def test_cache_coh_bridge_mem_req(cxl_cache_coh_bridge):
     asyncio.gather(run_task)
 
 
+async def cache_request_test(
+    ccb: CacheCoherencyBridge,
+    cache_req_type: CACHE_REQUEST_TYPE,
+    h2dreq_opcode: CXL_CACHE_H2DREQ_OPCODE = None,
+    d2hrsp_opcode: CXL_CACHE_D2HRSP_OPCODE = None,
+):
+    # Setup
+    addr = 0x40
+    device_req = CxlCacheCacheD2HReqPacket.create(addr, 0, CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_SHARED)
+    await ccb._downstream_cxl_cache_fifos.target_to_host.put(device_req)
+    cache_req = await ccb._upstream_coh_bridge_to_cache_fifo.request.get()
+    await ccb._upstream_coh_bridge_to_cache_fifo.response.put(
+        CacheResponse(CACHE_RESPONSE_STATUS.OK)
+    )
+    resp = await ccb._downstream_cxl_cache_fifos.host_to_target.get()
+    assert resp.h2drsp_header.cache_opcode == CXL_CACHE_H2DRSP_OPCODE.GO
+    resp = await ccb._downstream_cxl_cache_fifos.host_to_target.get()
+    assert isinstance(resp, CxlCacheCacheH2DDataPacket) is True
+
+    # Actual Test
+    cache_req = CacheRequest(cache_req_type, addr, 0x40)
+    await ccb._upstream_cache_to_coh_bridge_fifo.request.put(cache_req)
+    req = await ccb._downstream_cxl_cache_fifos.host_to_target.get()
+    if h2dreq_opcode:
+        assert req.h2dreq_header.cache_opcode == h2dreq_opcode
+
+    resp = CxlCacheCacheD2HRspPacket.create(0, d2hrsp_opcode)
+    await ccb._downstream_cxl_cache_fifos.target_to_host.put(resp)
+    await flush_memory_read(ccb)
+
+
 @pytest.mark.asyncio
-async def test_cache_coh_bridge_d2h_req(cxl_cache_coh_bridge):
+async def test_cache_coh_bridge_cache_request(cxl_cache_coh_bridge):
     ccb: CacheCoherencyBridge
     ccb = cxl_cache_coh_bridge
     run_task = await ccb.run_wait_ready()
 
     ccb.set_cache_coh_dev_count(2)
 
-    # setup with WRITE_BACK
-    # req = CacheRequest(CACHE_REQUEST_TYPE.WRITE_BACK, 0, 0x40)
-    # resp = await send_cache_req_write(ccb, req)
-    # assert resp.status == CACHE_RESPONSE_STATUS.OK
-
-    # D2H request
-
-    # D2H request: device cache snoop filter miss
-    req = CxlCacheCacheD2HReqPacket.create(
-        addr=0, cache_id=0, opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_SHARED
+    await cache_request_test(
+        ccb,
+        CACHE_REQUEST_TYPE.SNP_INV,
+        CXL_CACHE_H2DREQ_OPCODE.SNP_INV,
+        CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_I,
     )
-    await ccb._downstream_cxl_cache_fifos.target_to_host.put(req)
-    resp = await ccb._downstream_cxl_cache_fifos.host_to_target.get()
-
-    req = CxlCacheCacheD2HReqPacket.create(
-        addr=0, cache_id=0, opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_DIRTY_EVICT
+    await cache_request_test(
+        ccb,
+        CACHE_REQUEST_TYPE.SNP_DATA,
+        CXL_CACHE_H2DREQ_OPCODE.SNP_DATA,
+        CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_SE,
     )
-    await ccb._downstream_cxl_cache_fifos.target_to_host.put(req)
-    resp = await ccb._downstream_cxl_cache_fifos.host_to_target.get()
-
-    # p = await ccb._upstream_coh_bridge_to_cache_fifo.request.get()
+    # await cache_request_test(
+    #     ccb,
+    #     CACHE_REQUEST_TYPE.SNP_CUR,
+    #     CXL_CACHE_H2DREQ_OPCODE.SNP_CUR,
+    #     CXL_CACHE_D2HRSP_OPCODE.RSP_I_FWD_M,
+    # )
 
     for i in range(100):
         await asyncio.sleep(0)
 
-    # # cache miss write: write-back only
-    # addr = CACHE_NUM_ASSOC * 0x40
-    # mem_req = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, 0x40, 0xDEADBEEFDEADBEEF)
-    # resp = await send_cached_mem_request(cc, mem_req, True)
-
-    # # cache hit read
-    # addr = CACHE_NUM_ASSOC * 0x40
-    # req = MemoryRequest(MEMORY_REQUEST_TYPE.READ, addr, 0x40)
-    # resp = await send_cached_mem_request(cc, req, False, False)
-    # assert resp.data == 0xDEADBEEFDEADBEEF
-
-    # # cache miss read: write-back and snoop
-    # addr = 0
-    # req = MemoryRequest(MEMORY_REQUEST_TYPE.READ, addr, 0x40)
-    # resp = await send_cached_mem_request(cc, req, True, True)
-    # # assert resp.data == 0x1111111111111111
-
-    # # cache hit write
-    # addr = 0
-    # mem_req = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, 0x40, 0xDEADBEEFDEADBEEF)
-    # resp = await send_cached_mem_request(cc, mem_req, False, False)
-
     await ccb.stop()
     asyncio.gather(run_task)
-
-
-# @pytest.mark.asyncio
-# async def test_cxl_host_cc_cache_invalid(cxl_host_cache_controller):
-#     cc: CacheController
-#     cc = cxl_host_cache_controller
-#     tasks = []
-#     tasks.append(asyncio.create_task(cc.run_wait_ready()))
-
-#     cc.add_mem_range(0, 0x1000, MEM_ADDR_TYPE.DRAM)
-#     cc.add_mem_range(0x1000, 0x1000, MEM_ADDR_TYPE.CXL_CACHED_BI)
-
-#     addr = 0
-#     mem_req = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, 0x40, 0xDEADBEEFDEADBEEF)
-#     await cc._processor_to_cache_fifo.request.put(mem_req)
-#     cache_req = await cc._cache_to_coh_bridge_fifo.request.get()
-#     await cc._cache_to_coh_bridge_fifo.response.put(CacheResponse(CACHE_RESPONSE_STATUS.RSP_I))
-#     assert cache_req.type == CACHE_REQUEST_TYPE.SNP_INV
-#     await cc._processor_to_cache_fifo.response.get()
-
-#     addr = 0x1000
-#     mem_req = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, 0x40, 0xDEADBEEFDEADBEEF)
-#     await cc._processor_to_cache_fifo.request.put(mem_req)
-#     cache_req = await cc._cache_to_coh_agent_fifo.request.get()
-#     await cc._cache_to_coh_agent_fifo.response.put(CacheResponse(CACHE_RESPONSE_STATUS.RSP_I))
-#     assert cache_req.type == CACHE_REQUEST_TYPE.SNP_INV
-#     await cc._processor_to_cache_fifo.response.get()
-
-#     await cc.stop()
-#     asyncio.gather(*tasks)
 
 
 # @pytest.mark.asyncio
