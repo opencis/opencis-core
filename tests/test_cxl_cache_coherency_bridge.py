@@ -155,38 +155,6 @@ async def test_cache_coh_bridge_d2h_req(cxl_cache_coh_bridge):
     asyncio.gather(run_task)
 
 
-@pytest.mark.asyncio
-async def test_cache_coh_bridge_cache_snoop_filter_miss(cxl_cache_coh_bridge):
-    ccb: CacheCoherencyBridge
-    ccb = cxl_cache_coh_bridge
-    run_task = await ccb.run_wait_ready()
-
-    ccb.set_cache_coh_dev_count(2)
-
-    # SNP_DATA
-    req = CacheRequest(CACHE_REQUEST_TYPE.SNP_DATA, 0, 0x40)
-    resp = await send_cache_req_read(ccb, req)
-    assert resp.status == CACHE_RESPONSE_STATUS.RSP_S
-
-    # SNP_CUR
-    req = CacheRequest(CACHE_REQUEST_TYPE.SNP_CUR, 0, 0x40)
-    resp = await send_cache_req_read(ccb, req)
-    assert resp.status == CACHE_RESPONSE_STATUS.RSP_V
-
-    # WRITE_BACK
-    req = CacheRequest(CACHE_REQUEST_TYPE.WRITE_BACK, 0, 0x40)
-    resp = await send_cache_req_write(ccb, req)
-    assert resp.status == CACHE_RESPONSE_STATUS.OK
-
-    # SNP_INV
-    req = CacheRequest(CACHE_REQUEST_TYPE.SNP_INV, 0, 0x40)
-    resp = await send_cache_req_read_no_mem(ccb, req)
-    assert resp.status == CACHE_RESPONSE_STATUS.RSP_I
-
-    await ccb.stop()
-    asyncio.gather(run_task)
-
-
 async def setup_cacheline(ccb: CacheCoherencyBridge, addr: int, cache_id: int):
     device_req = CxlCacheCacheD2HReqPacket.create(
         addr, cache_id, CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_SHARED
@@ -286,6 +254,38 @@ async def test_cache_coh_bridge_cache_request(cxl_cache_coh_bridge):
     await ccb._downstream_cxl_cache_fifos.target_to_host.put(resp)
     data_packet = CxlCacheCacheD2HDataPacket.create(0, 0xDEADBEEF)
     await ccb._downstream_cxl_cache_fifos.target_to_host.put(data_packet)
+
+    await ccb.stop()
+    asyncio.gather(run_task)
+
+
+@pytest.mark.asyncio
+async def test_cache_coh_bridge_cache_snoop_filter_miss(cxl_cache_coh_bridge):
+    ccb: CacheCoherencyBridge
+    ccb = cxl_cache_coh_bridge
+    run_task = await ccb.run_wait_ready()
+
+    ccb.set_cache_coh_dev_count(2)
+
+    # SNP_DATA
+    req = CacheRequest(CACHE_REQUEST_TYPE.SNP_DATA, 0, 0x40)
+    resp = await send_cache_req_read(ccb, req)
+    assert resp.status == CACHE_RESPONSE_STATUS.RSP_S
+
+    # SNP_CUR
+    req = CacheRequest(CACHE_REQUEST_TYPE.SNP_CUR, 0, 0x40)
+    resp = await send_cache_req_read(ccb, req)
+    assert resp.status == CACHE_RESPONSE_STATUS.RSP_V
+
+    # WRITE_BACK
+    req = CacheRequest(CACHE_REQUEST_TYPE.WRITE_BACK, 0, 0x40)
+    resp = await send_cache_req_write(ccb, req)
+    assert resp.status == CACHE_RESPONSE_STATUS.OK
+
+    # SNP_INV
+    req = CacheRequest(CACHE_REQUEST_TYPE.SNP_INV, 0, 0x40)
+    resp = await send_cache_req_read_no_mem(ccb, req)
+    assert resp.status == CACHE_RESPONSE_STATUS.RSP_I
 
     await ccb.stop()
     asyncio.gather(run_task)
