@@ -118,7 +118,7 @@ async def test_cxl_host_cc_mem_req(cxl_host_cache_controller):
     cc: CacheController
     cc = cxl_host_cache_controller
     tasks = []
-    tasks.append(asyncio.create_task(cc.run_wait_ready()))
+    tasks.append(await cc.run_wait_ready())
 
     cc.add_mem_range(0x0, 0x1000, MEM_ADDR_TYPE.CXL_CACHED)
 
@@ -159,7 +159,7 @@ async def test_cxl_host_cc_cache_invalid(cxl_host_cache_controller):
     cc: CacheController
     cc = cxl_host_cache_controller
     tasks = []
-    tasks.append(asyncio.create_task(cc.run_wait_ready()))
+    tasks.append(await cc.run_wait_ready())
 
     cc.add_mem_range(0, 0x1000, MEM_ADDR_TYPE.DRAM)
     cc.add_mem_range(0x1000, 0x1000, MEM_ADDR_TYPE.CXL_CACHED_BI)
@@ -189,7 +189,7 @@ async def test_cxl_host_cc_cache_req(cxl_host_cache_controller):
     cc: CacheController
     cc = cxl_host_cache_controller
     tasks = []
-    tasks.append(asyncio.create_task(cc.run_wait_ready()))
+    tasks.append(await cc.run_wait_ready())
 
     cc.add_mem_range(0x0, 0x1000, MEM_ADDR_TYPE.CXL_CACHED)
 
@@ -233,7 +233,7 @@ async def test_cxl_host_cc_cxl_uncached(cxl_host_cache_controller):
     cc: CacheController
     cc = cxl_host_cache_controller
     tasks = []
-    tasks.append(asyncio.create_task(cc.run_wait_ready()))
+    tasks.append(await cc.run_wait_ready())
 
     cc.add_mem_range(0x0, 0x1000, MEM_ADDR_TYPE.CXL_UNCACHED)
 
@@ -254,7 +254,7 @@ async def test_cxl_dcoh_cc_cache_req(cxl_dcoh_cache_controller):
     cc: CacheController
     cc = cxl_dcoh_cache_controller
     tasks = []
-    tasks.append(asyncio.create_task(cc.run_wait_ready()))
+    tasks.append(await cc.run_wait_ready())
 
     # SNP_DATA
     req = CacheRequest(CACHE_REQUEST_TYPE.SNP_DATA, 0, 0x40)

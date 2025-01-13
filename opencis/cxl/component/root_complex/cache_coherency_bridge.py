@@ -329,7 +329,7 @@ class CacheCoherencyBridge(RunnableComponent):
 
         if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_DONE:
             if self._cur_state.cache_rsp == CACHE_RESPONSE_STATUS.RSP_I:
-                addr = self._cur_state.packet.address
+                addr = self._cur_state.packet.addr
                 data = await self._sync_memory_read(addr)
             elif self._cur_state.cache_rsp == CACHE_RESPONSE_STATUS.RSP_S:
                 if self._cxl_channel["d2h_data"].empty():
