@@ -5,7 +5,7 @@
  See LICENSE for details.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from asyncio import create_task, gather, sleep, Queue
 import asyncio
 from typing import cast
@@ -54,6 +54,13 @@ from opencis.cxl.component.cache_controller import (
 
 
 @dataclass
+class HomeAgentCxlChannel:
+    s2m_ndr: Queue = field(default_factory=Queue)
+    s2m_drs: Queue = field(default_factory=Queue)
+    s2m_bisnp: Queue = field(default_factory=Queue)
+
+
+@dataclass
 class HomeAgentConfig:
     host_name: str
     memory_consumer_io_fifos: MemoryFifoPair
@@ -84,7 +91,7 @@ class HomeAgent(RunnableComponent):
         )
 
         # emulated .mem s2m channels
-        self._cxl_channel = {"s2m_ndr": Queue(), "s2m_drs": Queue(), "s2m_bisnp": Queue()}
+        self._cxl_channel = HomeAgentCxlChannel()
 
     def _create_m2s_req_packet(
         self,
@@ -221,9 +228,9 @@ class HomeAgent(RunnableComponent):
 
         if s2mndr_packet.s2mndr_header.meta_value == CXL_MEM_META_VALUE.ANY:
             # HDM-DB: DRS immediately following NDR as part of one response
-            while self._cxl_channel["s2m_drs"].empty():
+            while self._cxl_channel.s2m_drs.empty():
                 await asyncio.sleep(0)  # just spin
-            cxl_packet = await self._cxl_channel["s2m_drs"].get()
+            cxl_packet = await self._cxl_channel.s2m_drs.get()
             assert cast(CxlMemBasePacket, cxl_packet).is_s2mdrs()
             cache_packet = CacheResponse(status, cxl_packet.data)
         else:
@@ -370,11 +377,11 @@ class HomeAgent(RunnableComponent):
             # packets are distributed to s2m channels
             cxl_packet = cast(CxlMemBasePacket, packet)
             if cxl_packet.is_s2mndr():
-                await self._cxl_channel["s2m_ndr"].put(cast(CxlMemS2MNDRPacket, packet))
+                await self._cxl_channel.s2m_ndr.put(cast(CxlMemS2MNDRPacket, packet))
             elif cxl_packet.is_s2mdrs():
-                await self._cxl_channel["s2m_drs"].put(cast(CxlMemS2MDRSPacket, packet))
+                await self._cxl_channel.s2m_drs.put(cast(CxlMemS2MDRSPacket, packet))
             elif cxl_packet.is_s2mbisnp():
-                await self._cxl_channel["s2m_bisnp"].put(cast(CxlMemS2MBISnpPacket, packet))
+                await self._cxl_channel.s2m_bisnp.put(cast(CxlMemS2MBISnpPacket, packet))
             else:
                 raise Exception(f"Received unexpected packet: {cxl_packet.get_type()}")
 
@@ -394,11 +401,11 @@ class HomeAgent(RunnableComponent):
                     if not self._upstream_cache_to_home_agent_fifos.request.empty():
                         _fc_run = True
                         _fc_host_run = True
-                    elif not self._cxl_channel["s2m_bisnp"].empty():
+                    elif not self._cxl_channel.s2m_bisnp.empty():
                         _fc_run = True
                         _fc_host_run = False
                 else:
-                    if not self._cxl_channel["s2m_bisnp"].empty():
+                    if not self._cxl_channel.s2m_bisnp.empty():
                         _fc_run = True
                         _fc_host_run = False
                     elif not self._upstream_cache_to_home_agent_fifos.request.empty():
@@ -419,7 +426,7 @@ class HomeAgent(RunnableComponent):
                             _stop_process = True
                         fn = self._process_upstream_host_to_target_packets
                     else:
-                        self._cur_state.packet = await self._cxl_channel["s2m_bisnp"].get()
+                        self._cur_state.packet = await self._cxl_channel.s2m_bisnp.get()
                         fn = self._process_cxl_s2m_bisnp_packet
 
                     self._cur_state.state = COH_STATE_MACHINE.COH_STATE_START
@@ -429,12 +436,12 @@ class HomeAgent(RunnableComponent):
             else:
                 await fn(self._cur_state.packet)
 
-                if not self._cxl_channel["s2m_ndr"].empty():
-                    packet = await self._cxl_channel["s2m_ndr"].get()
+                if not self._cxl_channel.s2m_ndr.empty():
+                    packet = await self._cxl_channel.s2m_ndr.get()
                     await self._process_cxl_s2m_rsp_packet(packet)
 
-                if not self._cxl_channel["s2m_drs"].empty():
-                    packet = await self._cxl_channel["s2m_drs"].get()
+                if not self._cxl_channel.s2m_drs.empty():
+                    packet = await self._cxl_channel.s2m_drs.get()
                     await self._process_cxl_s2m_drs_packet(packet)
 
     async def _run(self):
