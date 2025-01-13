@@ -53,7 +53,7 @@ class SF_UPDATE_TYPE(Enum):
 
 
 @dataclass
-class CacheDcohCxlChannel:
+class MemDcohCxlChannel:
     m2s_req: Queue = field(default_factory=Queue)
     m2s_rwd: Queue = field(default_factory=Queue)
     m2s_birsp: Queue = field(default_factory=Queue)
@@ -92,7 +92,7 @@ class CxlMemDcoh(PacketProcessor):
         self._bi_tag = 0
 
         # emulated .mem m2s channels
-        self._cxl_channel = CacheDcohCxlChannel()
+        self._cxl_channel = MemDcohCxlChannel()
 
     def set_memory_device_component(self, memory_device_component: CxlMemoryDeviceComponent):
         self._memory_device_component = memory_device_component
