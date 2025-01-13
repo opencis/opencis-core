@@ -7,6 +7,7 @@
 
 from typing import Optional, Tuple, cast
 from asyncio import create_task, gather, sleep, Queue
+from dataclasses import dataclass, field
 from enum import Enum, auto
 
 from opencis.util.logger import logger
@@ -51,6 +52,13 @@ class SF_UPDATE_TYPE(Enum):
     SF_HOST_OUT = auto()
 
 
+@dataclass
+class MemDcohCxlChannel:
+    m2s_req: Queue = field(default_factory=Queue)
+    m2s_rwd: Queue = field(default_factory=Queue)
+    m2s_birsp: Queue = field(default_factory=Queue)
+
+
 class CxlMemDcoh(PacketProcessor):
     def __init__(
         self,
@@ -84,7 +92,7 @@ class CxlMemDcoh(PacketProcessor):
         self._bi_tag = 0
 
         # emulated .mem m2s channels
-        self._cxl_channel = {"m2s_req": Queue(), "m2s_rwd": Queue(), "m2s_birsp": Queue()}
+        self._cxl_channel = MemDcohCxlChannel()
 
     def set_memory_device_component(self, memory_device_component: CxlMemoryDeviceComponent):
         self._memory_device_component = memory_device_component
@@ -322,11 +330,11 @@ class CxlMemDcoh(PacketProcessor):
             # packets are distributed to m2s channels
             cxl_packet = cast(CxlMemBasePacket, packet)
             if cxl_packet.is_m2sreq():
-                await self._cxl_channel["m2s_req"].put(cast(CxlMemM2SReqPacket, packet))
+                await self._cxl_channel.m2s_req.put(cast(CxlMemM2SReqPacket, packet))
             elif cxl_packet.is_m2srwd():
-                await self._cxl_channel["m2s_rwd"].put(cast(CxlMemM2SRwDPacket, packet))
+                await self._cxl_channel.m2s_rwd.put(cast(CxlMemM2SRwDPacket, packet))
             elif cxl_packet.is_m2sbirsp():
-                await self._cxl_channel["m2s_birsp"].put(cast(CxlMemM2SBIRspPacket, packet))
+                await self._cxl_channel.m2s_birsp.put(cast(CxlMemM2SBIRspPacket, packet))
             else:
                 raise Exception(f"Received unexpected packet: {cxl_packet.get_type()}")
 
@@ -352,18 +360,18 @@ class CxlMemDcoh(PacketProcessor):
             else:
                 await self._process_cache_to_dcoh(self._cur_state.packet)
 
-                if not self._cxl_channel["m2s_birsp"].empty():
-                    packet = await self._cxl_channel["m2s_birsp"].get()
+                if not self._cxl_channel.m2s_birsp.empty():
+                    packet = await self._cxl_channel.m2s_birsp.get()
                     await self._process_cxl_m2s_birsp_packet(packet)
 
             # process host request regardless of device processing state
-            if not self._cxl_channel["m2s_req"].empty():
-                packet = await self._cxl_channel["m2s_req"].get()
+            if not self._cxl_channel.m2s_req.empty():
+                packet = await self._cxl_channel.m2s_req.get()
                 await self._process_cxl_m2s_req_packet(packet)
 
             # process host request regardless of device processing state
-            if not self._cxl_channel["m2s_rwd"].empty():
-                packet = await self._cxl_channel["m2s_rwd"].get()
+            if not self._cxl_channel.m2s_rwd.empty():
+                packet = await self._cxl_channel.m2s_rwd.get()
                 await self._process_cxl_m2s_rwd_packet(packet)
 
     # pylint: disable=duplicate-code

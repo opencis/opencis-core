@@ -5,7 +5,7 @@
  See LICENSE for details.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from asyncio import create_task, gather, Queue, sleep
 from itertools import cycle
 from typing import cast
@@ -55,6 +55,13 @@ class SF_UPDATE_TYPE(Enum):
 
 
 @dataclass
+class CacheCoherencyBridgeCxlChannel:
+    d2h_req: Queue = field(default_factory=Queue)
+    d2h_rsp: Queue = field(default_factory=Queue)
+    d2h_data: Queue = field(default_factory=Queue)
+
+
+@dataclass
 class CacheCoherencyBridgeConfig:
     host_name: str
     memory_producer_fifos: MemoryFifoPair
@@ -85,7 +92,7 @@ class CacheCoherencyBridge(RunnableComponent):
         self._sf_device = [set() for _ in range(self._num_cache_devices)]
 
         # emulated .cache d2h channels
-        self._cxl_channel = {"d2h_req": Queue(), "d2h_rsp": Queue(), "d2h_data": Queue()}
+        self._cxl_channel = CacheCoherencyBridgeCxlChannel()
 
         self._uqid_gen = cycle(range(0, 4096))
 
@@ -182,9 +189,9 @@ class CacheCoherencyBridge(RunnableComponent):
                 self._cur_state.state = COH_STATE_MACHINE.COH_STATE_DONE
 
             elif self._cur_state.state == COH_STATE_MACHINE.COH_STATE_DONE:
-                if self._cxl_channel["d2h_data"].empty():
+                if self._cxl_channel.d2h_data.empty():
                     return
-                packet = await self._cxl_channel["d2h_data"].get()
+                packet = await self._cxl_channel.d2h_data.get()
                 addr = self._cur_state.packet.get_address()
                 mem_packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, 64, packet.data)
                 await self._memory_producer_fifos.request.put(mem_packet)
@@ -208,9 +215,9 @@ class CacheCoherencyBridge(RunnableComponent):
             # share host cache and return to the target device
             if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_DONE:
                 if self._cur_state.cache_rsp == CACHE_RESPONSE_STATUS.RSP_S:
-                    if self._cxl_channel["d2h_data"].empty():
+                    if self._cxl_channel.d2h_data.empty():
                         return
-                    packet = await self._cxl_channel["d2h_data"].get()
+                    packet = await self._cxl_channel.d2h_data.get()
                     data = packet.data
                 else:
                     cache_packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_DATA, addr)
@@ -332,9 +339,9 @@ class CacheCoherencyBridge(RunnableComponent):
                 addr = self._cur_state.packet.addr
                 data = await self._sync_memory_read(addr)
             elif self._cur_state.cache_rsp == CACHE_RESPONSE_STATUS.RSP_S:
-                if self._cxl_channel["d2h_data"].empty():
+                if self._cxl_channel.d2h_data.empty():
                     return
-                packet = await self._cxl_channel["d2h_data"].get()
+                packet = await self._cxl_channel.d2h_data.get()
                 data = packet.data
             cache_packet = CacheResponse(self._cur_state.cache_rsp, data)
             await self._upstream_cache_to_coh_bridge_fifo.response.put(cache_packet)
@@ -359,11 +366,11 @@ class CacheCoherencyBridge(RunnableComponent):
             # packets are distributed to d2h channels
             cxl_packet = cast(CxlCacheBasePacket, packet)
             if cxl_packet.is_d2hreq():
-                await self._cxl_channel["d2h_req"].put(cast(CxlCacheD2HReqPacket, packet))
+                await self._cxl_channel.d2h_req.put(cast(CxlCacheD2HReqPacket, packet))
             elif cxl_packet.is_d2hrsp():
-                await self._cxl_channel["d2h_rsp"].put(cast(CxlCacheD2HRspPacket, packet))
+                await self._cxl_channel.d2h_rsp.put(cast(CxlCacheD2HRspPacket, packet))
             elif cxl_packet.is_d2hdata():
-                await self._cxl_channel["d2h_data"].put(cast(CxlCacheD2HDataPacket, packet))
+                await self._cxl_channel.d2h_data.put(cast(CxlCacheD2HDataPacket, packet))
             else:
                 raise Exception(f"Received unexpected packet: {cxl_packet.get_type()}")
 
@@ -383,11 +390,11 @@ class CacheCoherencyBridge(RunnableComponent):
                     if not self._upstream_cache_to_coh_bridge_fifo.request.empty():
                         _fc_run = True
                         _fc_host_run = True
-                    elif not self._cxl_channel["d2h_req"].empty():
+                    elif not self._cxl_channel.d2h_req.empty():
                         _fc_run = True
                         _fc_host_run = False
                 else:
-                    if not self._cxl_channel["d2h_req"].empty():
+                    if not self._cxl_channel.d2h_req.empty():
                         _fc_run = True
                         _fc_host_run = False
                     elif not self._upstream_cache_to_coh_bridge_fifo.request.empty():
@@ -408,7 +415,7 @@ class CacheCoherencyBridge(RunnableComponent):
                             _stop_process = True
                         fn = self._process_upstream_host_to_target_packets
                     else:
-                        self._cur_state.packet = await self._cxl_channel["d2h_req"].get()
+                        self._cur_state.packet = await self._cxl_channel.d2h_req.get()
                         fn = self._process_cxl_d2h_req_packet
 
                     self._cur_state.state = COH_STATE_MACHINE.COH_STATE_START
@@ -418,8 +425,8 @@ class CacheCoherencyBridge(RunnableComponent):
             else:
                 await fn(self._cur_state.packet)
 
-                if not self._cxl_channel["d2h_rsp"].empty():
-                    packet = await self._cxl_channel["d2h_rsp"].get()
+                if not self._cxl_channel.d2h_rsp.empty():
+                    packet = await self._cxl_channel.d2h_rsp.get()
                     await self._process_cxl_d2h_rsp_packet(packet)
 
     async def _run(self):
