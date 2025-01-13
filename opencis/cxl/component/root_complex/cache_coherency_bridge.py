@@ -176,6 +176,38 @@ class CacheCoherencyBridge(RunnableComponent):
                 sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_IN)
                 await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_packet)
                 self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
+        elif d2hreq_packet.d2hreq_header.cache_opcode == CXL_CACHE_D2HREQ_OPCODE.CACHE_CLEAN_EVICT:
+            if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_START:
+                cxl_packet = CxlCacheCacheH2DRspPacket.create(
+                    cache_id,
+                    CXL_CACHE_H2DRSP_OPCODE.GO_WRITE_PULL_DROP,
+                    self.get_next_uqid(),  # fake UQID allocation
+                    cqid=cqid,
+                )
+                await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_packet)
+                self._cur_state.state = COH_STATE_MACHINE.COH_STATE_DONE
+
+            elif self._cur_state.state == COH_STATE_MACHINE.COH_STATE_DONE:
+                sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_OUT)
+                self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
+
+        elif (
+            d2hreq_packet.d2hreq_header.cache_opcode
+            == CXL_CACHE_D2HREQ_OPCODE.CACHE_CLEAN_EVICT_NO_DATA
+        ):
+            if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_START:
+                cxl_packet = CxlCacheCacheH2DRspPacket.create(
+                    cache_id,
+                    CXL_CACHE_H2DRSP_OPCODE.GO,
+                    CXL_CACHE_H2DRSP_CACHE_STATE.INVALID,  # MESI for GO mesgs
+                    cqid=cqid,
+                )
+                await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_packet)
+                self._cur_state.state = COH_STATE_MACHINE.COH_STATE_DONE
+
+            elif self._cur_state.state == COH_STATE_MACHINE.COH_STATE_DONE:
+                sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_OUT)
+                self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
 
         elif d2hreq_packet.d2hreq_header.cache_opcode == CXL_CACHE_D2HREQ_OPCODE.CACHE_DIRTY_EVICT:
             if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_START:
@@ -214,8 +246,8 @@ class CacheCoherencyBridge(RunnableComponent):
 
             # share host cache and return to the target device
             if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_DONE:
-                if self._cur_state.cache_rsp == CACHE_RESPONSE_STATUS.RSP_S:
-                    if self._cxl_channel.d2h_data.empty():
+                if self._cur_state.cache_rsp == CACHE_RESPONSE_STATUS.RSP_M:
+                    if self._cxl_channel["d2h_data"].empty():
                         return
                     packet = await self._cxl_channel.d2h_data.get()
                     data = packet.data
@@ -264,7 +296,7 @@ class CacheCoherencyBridge(RunnableComponent):
 
         else:
             if d2hrsp_packet.d2hrsp_header.cache_opcode == CXL_CACHE_D2HRSP_OPCODE.RSP_S_FWD_M:
-                self._cur_state.cache_rsp = CACHE_RESPONSE_STATUS.RSP_S
+                self._cur_state.cache_rsp = CACHE_RESPONSE_STATUS.RSP_M
             elif d2hrsp_packet.d2hrsp_header.cache_opcode == CXL_CACHE_D2HRSP_OPCODE.RSP_I_FWD_M:
                 self._cur_state.cache_rsp = CACHE_RESPONSE_STATUS.RSP_I
                 sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_OUT)
@@ -335,11 +367,14 @@ class CacheCoherencyBridge(RunnableComponent):
                         self._cur_state.state = COH_STATE_MACHINE.COH_STATE_WAIT
 
         if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_DONE:
-            if self._cur_state.cache_rsp == CACHE_RESPONSE_STATUS.RSP_I:
-                addr = self._cur_state.packet.addr
+            if self._cur_state.cache_rsp in (
+                CACHE_RESPONSE_STATUS.RSP_I,
+                CACHE_RESPONSE_STATUS.RSP_S,
+            ):
+                addr = self._cur_state.packet.address
                 data = await self._sync_memory_read(addr)
-            elif self._cur_state.cache_rsp == CACHE_RESPONSE_STATUS.RSP_S:
-                if self._cxl_channel.d2h_data.empty():
+            elif self._cur_state.cache_rsp == CACHE_RESPONSE_STATUS.RSP_M:
+                if self._cxl_channel["d2h_data"].empty():
                     return
                 packet = await self._cxl_channel.d2h_data.get()
                 data = packet.data
