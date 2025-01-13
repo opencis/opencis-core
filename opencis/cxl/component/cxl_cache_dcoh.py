@@ -6,6 +6,7 @@
 """
 
 # pylint: disable=unused-import
+from dataclasses import dataclass, field
 from itertools import cycle
 import math
 from typing import Awaitable, Callable, Optional, cast
@@ -54,6 +55,13 @@ from opencis.pci.component.packet_processor import PacketProcessor
 from opencis.util.number import split_int
 
 
+@dataclass
+class CacheDcohCxlChannel:
+    h2d_req: Queue = field(default_factory=Queue)
+    h2d_rsp: Queue = field(default_factory=Queue)
+    h2d_data: Queue = field(default_factory=Queue)
+
+
 class CxlCacheDcoh(PacketProcessor):
     def __init__(
         self,
@@ -84,7 +92,7 @@ class CxlCacheDcoh(PacketProcessor):
         )
 
         # emulated .cache d2h channels
-        self._cxl_channel = {"h2d_req": Queue(), "h2d_rsp": Queue(), "h2d_data": Queue()}
+        self._cxl_channel = CacheDcohCxlChannel()
 
         self.device_entries: dict[int, Future] = (
             {}
@@ -357,7 +365,7 @@ class CxlCacheDcoh(PacketProcessor):
                 await self._cache_to_coh_agent_fifo.response.put(cache_packet)
 
             elif h2drsp_packet.h2drsp_header.rsp_data == CXL_CACHE_H2DRSP_CACHE_STATE.SHARED:
-                packet = await self._cxl_channel["h2d_data"].get()
+                packet = await self._cxl_channel.h2d_data.get()
                 cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_S, packet.data)
                 await self._cache_to_coh_agent_fifo.response.put(cache_packet)
 
@@ -425,11 +433,11 @@ class CxlCacheDcoh(PacketProcessor):
 
             cxl_packet = cast(CxlCacheBasePacket, packet)
             if cxl_packet.is_h2dreq():
-                await self._cxl_channel["h2d_req"].put(cast(CxlCacheH2DReqPacket, packet))
+                await self._cxl_channel.h2d_req.put(cast(CxlCacheH2DReqPacket, packet))
             elif cxl_packet.is_h2drsp():
-                await self._cxl_channel["h2d_rsp"].put(cast(CxlCacheH2DRspPacket, packet))
+                await self._cxl_channel.h2d_rsp.put(cast(CxlCacheH2DRspPacket, packet))
             elif cxl_packet.is_h2ddata():
-                await self._cxl_channel["h2d_data"].put(cast(CxlCacheH2DDataPacket, packet))
+                await self._cxl_channel.h2d_data.put(cast(CxlCacheH2DDataPacket, packet))
             else:
                 raise Exception(f"Received unexpected packet: {cxl_packet.get_type()}")
 
@@ -455,13 +463,13 @@ class CxlCacheDcoh(PacketProcessor):
             else:
                 await self._process_cache_to_dcoh(self._cur_state.packet)
 
-                if not self._cxl_channel["h2d_rsp"].empty():
-                    packet = await self._cxl_channel["h2d_rsp"].get()
+                if not self._cxl_channel.h2d_rsp.empty():
+                    packet = await self._cxl_channel.h2d_rsp.get()
                     await self._process_cxl_h2d_rsp_packet(packet)
 
             # process host request regardless of device processing state
-            if not self._cxl_channel["h2d_req"].empty():
-                packet = await self._cxl_channel["h2d_req"].get()
+            if not self._cxl_channel.h2d_req.empty():
+                packet = await self._cxl_channel.h2d_req.get()
                 # corner case handling
                 if (
                     self._cur_state.state != COH_STATE_MACHINE.COH_STATE_INIT
