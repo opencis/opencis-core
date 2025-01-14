@@ -280,18 +280,18 @@ class FabricManagerSocketIoServer(RunnableComponent):
         return CommandResponse(error="", result=return_code.name)
 
     async def _get_ld_info(self, data) -> CommandResponse:
-        (return_code, response) = await self._mctp_client.get_ld_info(data["port_index"])
+        (return_code, response) = await self._mctp_client.get_ld_info(data["portIndex"])
         if response:
             return CommandResponse(error="", result=response.to_dict())
         return CommandResponse(error=return_code.name)
 
     async def _get_ld_allocation(self, data) -> CommandResponse:
         request = GetLdAllocationsRequestPayload(
-            start_ld_id=data["start_ld_id"],
-            ld_allocation_list_limit=data["ld_allocation_list_limit"],
+            start_ld_id=data["startLdId"],
+            ld_allocation_list_limit=data["ldAllocationListLimit"],
         )
         (return_code, response) = await self._mctp_client.get_ld_alloctaion(
-            request, data["port_index"]
+            request, data["portIndex"]
         )
         if response:
             return CommandResponse(error="", result=response.to_dict())
@@ -299,12 +299,12 @@ class FabricManagerSocketIoServer(RunnableComponent):
 
     async def _set_ld_allocation(self, data) -> CommandResponse:
         request = SetLdAllocationsRequestPayload(
-            number_of_lds=data["number_of_lds"],
-            start_ld_id=data["start_ld_id"],
-            ld_allocation_list=data["ld_allocation_list"],
+            number_of_lds=data["numberOfLds"],
+            start_ld_id=data["startLdId"],
+            ld_allocation_list=data["ldAllocationList"],
         )
         (return_code, response) = await self._mctp_client.set_ld_alloctaion(
-            request, data["port_index"]
+            request, data["portIndex"]
         )
         if response:
             return CommandResponse(
