@@ -126,6 +126,9 @@ class SwitchConnectionClient(RunnableComponent):
         else:
             (reader, writer) = await self._connect()
 
+        _, local_port = writer.get_extra_info("sockname")
+        logger.info(self._create_message(f"Connected to switch using local port {local_port}"))
+
         self._packet_processor = CxlPacketProcessor(
             reader,
             writer,
