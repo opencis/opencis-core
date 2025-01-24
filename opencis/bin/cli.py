@@ -22,6 +22,7 @@ from opencis.bin import single_logical_device as sld
 from opencis.bin import multi_logical_device as mld
 from opencis.bin import cxl_host
 from opencis.bin import mem
+from opencis.bin import packet_runner
 
 
 @click.group()
@@ -260,6 +261,7 @@ cli.add_command(cxl_host.host_group)
 cli.add_command(fabric_manager.fabric_manager_group)
 cli.add_command(get_info.get_info_group)
 cli.add_command(mem.mem_group)
+cli.add_command(packet_runner.ptr_group)
 
 if __name__ == "__main__":
     cli()
