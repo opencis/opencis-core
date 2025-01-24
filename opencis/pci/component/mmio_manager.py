@@ -144,7 +144,7 @@ class MmioManager(PacketProcessor):
                 req_id, tag, data, pload_len=data_len, ld_id=ld_id
             )
         else:
-            packet = CxlIoCompletionPacket.create(req_id, tag, ld_id=ld_id)
+            packet = CxlIoCompletionPacket.create(req_id=req_id, tag=tag, ld_id=ld_id)
 
         packet.cpl_header.req_id = self._req_id
         await self._upstream_fifo.target_to_host.put(packet)

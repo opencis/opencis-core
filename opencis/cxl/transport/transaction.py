@@ -22,7 +22,6 @@ from opencis.util.pci import (
     extract_bus_from_bdf,
 )
 from opencis.util.number import (
-    get_randbits,
     htotlp16,
     tlptoh16,
     extract_upper,
@@ -668,7 +667,11 @@ class CxlIoCompletionPacket(CxlIoBasePacket):
 
     @staticmethod
     def create(
-        req_id: int, tag: int, status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC, ld_id: int = 0
+        req_id: int,
+        tag: int,
+        cpl_id: int = 0,
+        status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
+        ld_id: int = 0,
     ) -> "CxlIoCompletionPacket":
         packet = CxlIoCompletionPacket()
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
@@ -677,8 +680,8 @@ class CxlIoCompletionPacket(CxlIoBasePacket):
         packet.cxl_io_header.length_upper = 0b000
         packet.cxl_io_header.length_lower = 0b00000000
         packet.tlp_prefix.ld_id = ld_id
-        # TODO: actual ID to be added
-        packet.cpl_header.cpl_id = htotlp16(get_randbits(16))
+
+        packet.cpl_header.cpl_id = htotlp16(cpl_id)
         packet.cpl_header.status = status
         packet.cpl_header.byte_count_upper = 0
         packet.cpl_header.byte_count_lower = 4
@@ -711,6 +714,7 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
         req_id: int,
         tag: int,
         data: int,
+        cpl_id: int = 0,
         status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
         pload_len=0x04,
         ld_id: int = 0,
@@ -725,8 +729,7 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
         packet.cxl_io_header.length_upper = extract_upper(pload_len // 4, 2, 10)
         packet.cxl_io_header.length_lower = extract_lower(pload_len // 4, 8, 10)
 
-        # TODO: actual ID to be added
-        packet.cpl_header.cpl_id = htotlp16(get_randbits(16))
+        packet.cpl_header.cpl_id = htotlp16(cpl_id)
         packet.cpl_header.status = status
         packet.cpl_header.req_id = htotlp16(req_id)
         packet.cpl_header.tag = tag
