@@ -462,10 +462,13 @@ async def test_switch_connection_manager_handle_cfg_completion():
         req1 = CxlIoCfgWrPacket.create(0, 0x10, 4, 0xDEADBEEF, req_id=req_id, tag=tag)
         await client_connection.cfg_fifo.host_to_target.put(req1)
 
+        cpl_id = 0x20
         tag = 0xA6
         req2 = CxlIoCfgRdPacket.create(0, 0x10, 4, req_id=req_id, tag=tag)
         await client_connection.cfg_fifo.host_to_target.put(req2)
-        cpl2 = CxlIoCompletionWithDataPacket.create(req_id, tag, CXL_IO_CPL_STATUS.SC, 0xDEADBEEF)
+        cpl2 = CxlIoCompletionWithDataPacket.create(
+            req_id=req_id, tag=tag, status=CXL_IO_CPL_STATUS.SC, data=0xDEADBEEF, cpl_id=cpl_id
+        )
         await server_connection.cfg_fifo.target_to_host.put(cpl2)
 
         logger.info("[PyTest] Checking config space completion packets received from client")
@@ -527,10 +530,13 @@ async def test_switch_connection_manager_handle_mmio_completion():
         req1 = CxlIoMemWrPacket.create(0x10, 4, 0xDEADBEEF, req_id=req_id, tag=tag)
         await client_connection.mmio_fifo.host_to_target.put(req1)
 
+        cpl_id = 0x20
         tag = 0x2
         req2 = CxlIoMemRdPacket.create(0x10, 4, req_id=req_id, tag=tag)
         await client_connection.mmio_fifo.host_to_target.put(req2)
-        cpl2 = CxlIoCompletionWithDataPacket.create(req_id, tag, data=0)
+        cpl2 = CxlIoCompletionWithDataPacket.create(
+            req_id=req_id, tag=tag, data=0xA5A5, cpl_id=cpl_id
+        )
         await server_connection.mmio_fifo.target_to_host.put(cpl2)
 
         logger.info("[PyTest] Checking MMIO completion packets received from client")

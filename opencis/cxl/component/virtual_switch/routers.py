@@ -205,9 +205,11 @@ class MmioRouter(CxlRouter):
         Note that data_len should be in bytes.
         """
         if data is not None:
-            packet = CxlIoCompletionWithDataPacket.create(req_id, tag, data, pload_len=data_len)
+            packet = CxlIoCompletionWithDataPacket.create(
+                req_id=req_id, tag=tag, data=data, pload_len=data_len
+            )
         else:
-            packet = CxlIoCompletionPacket.create(req_id, tag)
+            packet = CxlIoCompletionPacket.create(req_id=req_id, tag=tag)
         packet.cpl_header.req_id = 0
         await self._upstream_connection_fifo.target_to_host.put(packet)
 
@@ -309,8 +311,7 @@ class ConfigSpaceRouter(CxlRouter):
             await self._upstream_connection_fifo.target_to_host.put(packet)
 
     async def _send_unsupported_request(self, req_id, tag):
-        packet = CxlIoCompletionPacket.create(req_id, tag, CXL_IO_CPL_STATUS.UR)
-        packet.cpl_header.req_id = 0
+        packet = CxlIoCompletionPacket.create(req_id=req_id, tag=tag, status=CXL_IO_CPL_STATUS.UR)
         await self._upstream_connection_fifo.target_to_host.put(packet)
 
     async def update_router(self, vppb_index: int):
