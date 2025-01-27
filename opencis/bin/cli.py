@@ -6,13 +6,12 @@
 """
 
 import os
-import sys
 import multiprocessing
 import logging
 from importlib import import_module
+import time
+import pyshark
 import click
-from pylibpcap.pcap import Sniff, wpcap
-from pylibpcap.exception import LibpcapError
 
 from opencis.util.logger import logger
 from opencis.bin import fabric_manager
@@ -120,6 +119,7 @@ def start(
         pcap_proc = multiprocessing.Process(target=start_capture, args=(ctx, pcap_file))
         processes.append(pcap_proc)
         pcap_proc.start()
+        time.sleep(2)
 
     if "fm" in comp:
         p_fm = multiprocessing.Process(target=start_fabric_manager, args=(ctx,))
@@ -185,33 +185,12 @@ def start(
 # helper functions
 def start_capture(ctx, pcap_file):
     def capture(pcap_file):
-
         logger.info(f"Capturing in pid: {os.getpid()}")
         if os.path.exists(pcap_file):
             os.remove(pcap_file)
 
-        filter_str = (
-            "((tcp port 8000) or (tcp port 8100) or (tcp port 8200) "
-            "or (tcp port 8300) or (tcp port 8400)) "
-            "and (((ip[2:2] - ((ip[0] & 0xf) << 2)) - ((tcp[12] & 0xf0) >> 2)) != 0)"
-        )
-        try:
-            sniffobj = Sniff(iface="lo", count=-1, promisc=1, filters=filter_str)
-            for _, _, buf in sniffobj.capture():
-                wpcap(buf, pcap_file)
-                logger.hexdump("TRACE", buf)
-        except KeyboardInterrupt:
-            pass
-        except LibpcapError as e:
-            logger.error(f"Packet capture error: {e}")
-            sys.exit()
-
-        if sniffobj is not None:
-            stats = sniffobj.stats()
-            logger.debug(stats.capture_cnt, " packets captured")
-            logger.debug(stats.ps_recv, " packets received by filter")
-            logger.debug(stats.ps_drop, "  packets dropped by kernel")
-            logger.debug(stats.ps_ifdrop, "  packets dropped by iface")
+        capture = pyshark.LiveCapture(interface="lo", bpf_filter="tcp", output_file=pcap_file)
+        capture.sniff(packet_count=0)
 
     ctx.invoke(capture, pcap_file=pcap_file)
 
