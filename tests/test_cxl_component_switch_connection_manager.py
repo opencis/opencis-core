@@ -39,9 +39,11 @@ from opencis.cxl.transport.transaction import (
     CXL_MEM_M2SBIRSP_OPCODE,
     CXL_MEM_S2MBISNP_OPCODE,
 )
+from opencis.util.number import get_rand_range_generator
 
 
 BASE_TEST_PORT = 9100
+generator = get_rand_range_generator(BASE_TEST_PORT, 100)
 
 
 def test_switch_connection_manager_check_ports():
@@ -51,7 +53,7 @@ def test_switch_connection_manager_check_ports():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_1
+    port = next(generator)
     manager = SwitchConnectionManager(port_configs, port=port)
     for port in range(len(port_configs)):
         connection = manager.get_cxl_connection(port)
@@ -68,7 +70,7 @@ async def test_switch_connection_manager_run_and_stop():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_2
+    port = next(generator)
     manager = SwitchConnectionManager(port_configs, port=port)
 
     async def wait_and_stop():
@@ -87,7 +89,7 @@ async def test_switch_connection_manager_run_and_run():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_3
+    port = next(generator)
     manager = SwitchConnectionManager(port_configs, port=port)
 
     async def wait_and_run():
@@ -108,7 +110,7 @@ async def test_switch_connection_manager_stop_before_run():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_4
+    port = next(generator)
     manager = SwitchConnectionManager(port_configs, port=port)
 
     with pytest.raises(Exception, match="Cannot stop when it is not running"):
@@ -123,7 +125,7 @@ async def test_switch_connection_manager_handle_connection():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_5
+    port = next(generator)
     manager = SwitchConnectionManager(port_configs, port=port)
     client = SwitchConnectionClient(
         port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
@@ -163,7 +165,7 @@ async def test_switch_connection_manager_handle_connection_oob():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_6
+    port = next(generator)
     manager = SwitchConnectionManager(port_configs, port=port)
     client = SwitchConnectionClient(
         port_index=4, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
@@ -198,7 +200,7 @@ async def test_switch_connection_manager_handle_connection_after_connection():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_7
+    port = next(generator)
     manager = SwitchConnectionManager(port_configs, port=port)
     client = SwitchConnectionClient(
         port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
@@ -241,7 +243,7 @@ async def test_switch_connection_manager_handle_connection_errors():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_8
+    port = next(generator)
     manager = SwitchConnectionManager(port_configs, port=port)
     client = SwitchConnectionClient(
         port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
@@ -279,7 +281,7 @@ async def test_switch_connection_manager_handle_cfg_packet():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_9
+    port = next(generator)
     manager = SwitchConnectionManager(port_configs, port=port)
     client = SwitchConnectionClient(
         port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
@@ -331,7 +333,7 @@ async def test_switch_connection_manager_handle_mmio_packet():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_10
+    port = next(generator)
     manager = SwitchConnectionManager(port_configs, port=port)
     client = SwitchConnectionClient(
         port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
@@ -382,7 +384,7 @@ async def test_switch_connection_manager_handle_cxl_mem_packet_m2s():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_11
+    port = next(generator)
     manager = SwitchConnectionManager(port_configs, port=port)
     client = SwitchConnectionClient(
         port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
@@ -435,7 +437,7 @@ async def test_switch_connection_manager_handle_cfg_completion():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_12
+    port = next(generator)
     manager = SwitchConnectionManager(port_configs, port=port)
     client = SwitchConnectionClient(
         port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
@@ -502,7 +504,7 @@ async def test_switch_connection_manager_handle_mmio_completion():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_13
+    port = next(generator)
     manager = SwitchConnectionManager(port_configs, port=port)
     client = SwitchConnectionClient(
         port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
@@ -570,7 +572,7 @@ async def test_switch_connection_manager_handle_cxl_mem_s2m():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_14
+    port = next(generator)
     manager = SwitchConnectionManager(port_configs, port=port)
     client = SwitchConnectionClient(
         port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port

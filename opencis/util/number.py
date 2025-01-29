@@ -28,6 +28,13 @@ def round_up_to_power_of_2(number: int) -> int:
     return number
 
 
+def get_rand_range_generator(base, length):
+    nums = random.sample(range(base, base + length), length)
+    for num in nums:
+        print(f"port:{num}")
+        yield num
+
+
 def get_randbits(n_bits: int):
     # truly random via /dev/random
     s = os.urandom(100)

@@ -108,19 +108,19 @@ class CxlSwitch(RunnableComponent):
             self._physical_port_manager,
             allocated_ld,
         )
-        self._mctp_connection_client = MctpConnectionClient(
-            switch_config.mctp_host, switch_config.mctp_port
-        )
-        self._mctp_cci_executor = MctpCciExecutor(
-            self._mctp_connection_client.get_mctp_connection(),
-            self._switch_connection_manager,
-            switch_config.port_configs,
-        )
-
-        if start_mctp:
-            self._initialize_mctp_endpoint()
 
         self._start_mctp = start_mctp
+        if self._start_mctp:
+            self._mctp_connection_client = MctpConnectionClient(
+                switch_config.mctp_host, switch_config.mctp_port
+            )
+            self._mctp_cci_executor = MctpCciExecutor(
+                self._mctp_connection_client.get_mctp_connection(),
+                self._switch_connection_manager,
+                switch_config.port_configs,
+            )
+            self._initialize_mctp_endpoint()
+
         self._run_as_child = switch_config.run_as_child
 
     def _initialize_mctp_endpoint(self):
@@ -185,7 +185,8 @@ class CxlSwitch(RunnableComponent):
             create_task(self._switch_connection_manager.stop()),
             create_task(self._physical_port_manager.stop()),
             create_task(self._virtual_switch_manager.stop()),
-            create_task(self._mctp_connection_client.stop()),
-            create_task(self._mctp_cci_executor.stop()),
         ]
+        if self._start_mctp:
+            stop_tasks.append(create_task(self._mctp_connection_client.stop()))
+            stop_tasks.append(create_task(self._mctp_cci_executor.stop()))
         await gather(*stop_tasks)
