@@ -16,16 +16,18 @@ class PacketTraceRunner(LabeledComponent):
     def __init__(
         self,
         pcap_file: str,
-        device_port: int,
+        switch_host: str,
         switch_port: int,
-        switch_host: str = "0.0.0.0",
+        trace_switch_port: int,
+        trace_device_port: int,
         label: str = None,
     ):
         super().__init__(label)
         self._pcap_file = pcap_file
-        self._device_port = device_port
         self._switch_port = switch_port
         self._switch_host = switch_host
+        self._trace_switch_port = trace_switch_port
+        self._trace_device_port = trace_device_port
 
     async def run(self):
         try:
@@ -42,18 +44,31 @@ class PacketTraceRunner(LabeledComponent):
                     tcp = packet.getlayer("TCP")
                     data_bytes = bytes(tcp.payload)
                     data = int.from_bytes(data_bytes)
-                    if tcp.sport == self._device_port and tcp.dport == self._switch_port:
-                        logger.info(self._create_message(f"Tx: 0x{data:x}"))
+                    if (
+                        tcp.sport == self._trace_device_port
+                        and tcp.dport == self._trace_switch_port
+                    ):
+                        logger.info(self._create_message(f"({n + 1}) Tx: 0x{data:x}"))
                         writer.write(data_bytes)
                         await writer.drain()
-                    elif tcp.sport == self._switch_port and tcp.dport == self._device_port:
-                        recv_data_bytes = await reader.read(len(data_bytes))
+                    elif (
+                        tcp.sport == self._trace_switch_port
+                        and tcp.dport == self._trace_device_port
+                    ):
+                        try:
+                            recv_data_bytes = await asyncio.wait_for(
+                                reader.read(len(data_bytes)), timeout=5
+                            )
+                        except TimeoutError as e:
+                            raise ValueError(f"Timed out waiting for Packet {n+1}") from e
+
                         recv_data = int.from_bytes(recv_data_bytes, "big")
-                        logger.info(self._create_message(f"Rx: 0x{recv_data:x}"))
+                        logger.info(self._create_message(f"({n + 1}) Rx: 0x{recv_data:x}"))
                         if recv_data != data:
                             logger.error(self._create_message("Packet Trace Mismatch detected."))
                             raise ValueError(
                                 f"Packet {n + 1}\n  Expected (in BE): 0x{data:x}\n"
                                 f"  Received (in BE): 0x{recv_data:x}"
                             )
+        writer.close()
         logger.info("The packet trace run finished successfully!")

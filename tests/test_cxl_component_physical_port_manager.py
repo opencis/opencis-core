@@ -16,9 +16,11 @@ from opencis.cxl.component.physical_port_manager import (
     DownstreamPortDevice,
 )
 from opencis.cxl.component.switch_connection_manager import SwitchConnectionManager
+from opencis.util.number import get_rand_range_generator
 
 
 BASE_TEST_PORT = 9000
+generator = get_rand_range_generator(BASE_TEST_PORT, 100)
 
 
 @pytest.mark.asyncio
@@ -31,7 +33,7 @@ async def test_physical_port_manager_init(get_gold_std_reg_vals):
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_1
+    port = next(generator)
     switch_connection_manager = SwitchConnectionManager(port_configs, port=port)
     physical_port_manager = PhysicalPortManager(
         switch_connection_manager=switch_connection_manager, port_configs=port_configs
@@ -65,7 +67,7 @@ async def test_physical_port_manager_run_and_stop():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_2
+    port = next(generator)
     switch_connection_manager = SwitchConnectionManager(port_configs, port=port)
     physical_port_manager = PhysicalPortManager(
         switch_connection_manager=switch_connection_manager, port_configs=port_configs
@@ -88,7 +90,7 @@ async def test_physical_port_manager_stop_before_run():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_3
+    port = next(generator)
     switch_connection_manager = SwitchConnectionManager(port_configs, port=port)
     physical_port_manager = PhysicalPortManager(
         switch_connection_manager=switch_connection_manager, port_configs=port_configs
@@ -107,7 +109,7 @@ async def test_physical_port_manager_run_after_run():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_4
+    port = next(generator)
     switch_connection_manager = SwitchConnectionManager(port_configs, port=port)
     physical_port_manager = PhysicalPortManager(
         switch_connection_manager=switch_connection_manager, port_configs=port_configs

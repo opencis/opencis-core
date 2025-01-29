@@ -22,8 +22,11 @@ from opencis.cxl.component.virtual_switch_manager import (
     CxlVirtualSwitch,
 )
 from opencis.util.unaligned_bit_structure import UnalignedBitStructure
+from opencis.util.number import get_rand_range_generator
+
 
 BASE_TEST_PORT = 9200
+generator = get_rand_range_generator(BASE_TEST_PORT, 100)
 
 
 def test_virtual_switch_manager_init():
@@ -34,7 +37,7 @@ def test_virtual_switch_manager_init():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_1
+    port = next(generator)
     switch_connection_manager = SwitchConnectionManager(port_configs, port=port)
     physical_port_manager = PhysicalPortManager(
         switch_connection_manager=switch_connection_manager, port_configs=port_configs
@@ -47,7 +50,7 @@ def test_virtual_switch_manager_init():
             vppb_counts=vppb_counts,
             initial_bounds=initial_bounds,
             irq_host="127.0.0.1",
-            irq_port=BASE_TEST_PORT + pytest.PORT.TEST_1 + 61,
+            irq_port=next(generator),
         )
     ]
     allocated_ld = {}
@@ -75,7 +78,7 @@ async def test_virtual_switch_manager_run_and_stop():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = BASE_TEST_PORT + pytest.PORT.TEST_2
+    port = next(generator)
     switch_connection_manager = SwitchConnectionManager(port_configs, port=port)
     physical_port_manager = PhysicalPortManager(
         switch_connection_manager=switch_connection_manager, port_configs=port_configs
@@ -88,7 +91,7 @@ async def test_virtual_switch_manager_run_and_stop():
             vppb_counts=vppb_counts,
             initial_bounds=initial_bounds,
             irq_host="127.0.0.1",
-            irq_port=BASE_TEST_PORT + pytest.PORT.TEST_1 + 62,
+            irq_port=next(generator),
         )
     ]
     allocated_ld = {}
