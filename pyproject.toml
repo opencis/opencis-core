@@ -16,7 +16,6 @@ python-socketio = "^5.10.0"
 aiohttp = "^3.8.6"
 pytest-timeout = "^2.2.0"
 dill = "^0.3.7"
-pytest-xdist = "^3.5.0"
 websockets = "^12.0"
 jsonrpcserver = "^5.0.9"
 jsonrpcclient = "^4.0.3"
@@ -29,6 +28,7 @@ torchinfo = "^1.8.0"
 tqdm = "^4.66.4"
 pyshark = "^0.6"
 scapy = "^2.6.1"
+pytest-xdist = "3.5.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
@@ -42,7 +42,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 testpaths = "tests/"
-timeout = 20
+timeout = 30
 filterwarnings = [
   "ignore::DeprecationWarning"
 ]

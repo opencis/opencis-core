@@ -1505,18 +1505,18 @@ pytest = ">=7.0.0"
 
 [[package]]
 name = "pytest-xdist"
-version = "3.6.1"
+version = "3.5.0"
 description = "pytest xdist plugin for distributed testing, most importantly across multiple CPUs"
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.7"
 files = [
-    {file = "pytest_xdist-3.6.1-py3-none-any.whl", hash = "sha256:9ed4adfb68a016610848639bb7e02c9352d5d9f03d04809919e2dafc3be4cca7"},
-    {file = "pytest_xdist-3.6.1.tar.gz", hash = "sha256:ead156a4db231eec769737f57668ef58a2084a34b2e55c4a8fa20d861107300d"},
+    {file = "pytest-xdist-3.5.0.tar.gz", hash = "sha256:cbb36f3d67e0c478baa57fa4edc8843887e0f6cfc42d677530a36d7472b32d8a"},
+    {file = "pytest_xdist-3.5.0-py3-none-any.whl", hash = "sha256:d075629c7e00b611df89f490a5063944bee7a4362a5ff11c7cc7824a03dfce24"},
 ]
 
 [package.dependencies]
-execnet = ">=2.1"
-pytest = ">=7.0.0"
+execnet = ">=1.1"
+pytest = ">=6.2.0"
 
 [package.extras]
 psutil = ["psutil (>=3.0)"]
@@ -2218,4 +2218,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "29b6083af2476c4a58721b1bba1d13f111df0baa2cf4246fa80d650eb0d090c5"
+content-hash = "6f2aaf4a3f62df30c65eb91afaddb936fc68e59d00be4b013438d76fb80af40e"
