@@ -29,7 +29,7 @@ def round_up_to_power_of_2(number: int) -> int:
 
 
 def get_rand_range_generator(base, length):
-    nums = random.sample(range(base, base + length), length)
+    nums = random.sample(range(base, base + length), counts=[1] * 100, k=length)
     for num in nums:
         print(f"port:{num}")
         yield num

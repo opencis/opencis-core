@@ -29,7 +29,7 @@ class CPU(RunnableComponent):
         return self._create_message(message)
 
     async def load(self, addr: int, size: int) -> int:
-        if size < 64:
+        if size <= 64:
             data = await self._cxl_mem_hub.load(addr, size)
         else:
             data_bytes = await self.load_bytes(addr, size)
@@ -56,8 +56,8 @@ class CPU(RunnableComponent):
         return result
 
     async def store(self, addr: int, size: int, value: int, prog_bar: bool = False):
-        if size < 64:
-            await self._cxl_mem_hub.store(addr, size, value)
+        if size <= 64:
+            res = await self._cxl_mem_hub.store(addr, size, value)
         else:
             if addr % 64 or size % 64:
                 raise Exception("Size and address must be aligned to 64!")
@@ -73,11 +73,14 @@ class CPU(RunnableComponent):
                 chunk_count = 0
                 while size > 0:
                     low_64_byte = value & ((1 << (64 * 8)) - 1)
-                    await self._cxl_mem_hub.store(addr + (chunk_count * 64), 64, low_64_byte)
+                    res = await self._cxl_mem_hub.store(addr + (chunk_count * 64), 64, low_64_byte)
+                    if not res:
+                        return res
                     size -= 64
                     chunk_count += 1
                     value >>= 64 * 8
                     pbar.update(64)
+        return res
 
     async def _app_run_task(self):
         return await self._user_app(_cpu=self, _mem_hub=self._cxl_mem_hub)

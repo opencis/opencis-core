@@ -9,7 +9,7 @@ import asyncio
 import click
 
 from opencis.util.logger import logger
-from opencis.apps.cxl_simple_host import CxlHostUtilClient
+from opencis.cxl.component.cxl_host_manager import CxlHostUtilClient
 from opencis.bin.common import BASED_INT
 
 

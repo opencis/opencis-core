@@ -336,6 +336,7 @@ async def main():
         user_app=my_img_classification_app,
         host_name="ImageHostType2",
         switch_port=sw_portno,
+        enable_hm=False,
     )
     start_tasks = [
         asyncio.create_task(host.run()),

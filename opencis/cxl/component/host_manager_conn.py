@@ -86,10 +86,8 @@ class UtilConnServer(RunnableComponent):
         self._host = host
         self._port = port
         self._util_methods = {
-            "UTIL_CXL_MEM_READ": self._util_cxl_mem_read,
-            "UTIL_CXL_MEM_WRITE": self._util_cxl_mem_write,
-            "UTIL_CXL_MEM_BIRSP": self._util_cxl_mem_birsp,
-            "UTIL_REINIT": self._util_reinit,
+            "UTIL_CXL_HOST_READ": self._util_cxl_host_read,
+            "UTIL_CXL_HOST_WRITE": self._util_cxl_host_write,
         }
         self._fut = None
         self._util_server = None
@@ -111,24 +109,12 @@ class UtilConnServer(RunnableComponent):
             case jsonrpcclient.Error(code, message, data, _):
                 return jsonrpcserver.Error(code, message, data)
 
-    async def _util_cxl_mem_write(self, port: int, addr: int, data: int) -> jsonrpcserver.Result:
-        cmd = jsonrpcclient.request_json("HOST_CXL_MEM_WRITE", params={"addr": addr, "data": data})
+    async def _util_cxl_host_write(self, port: int, addr: int, data: int) -> jsonrpcserver.Result:
+        cmd = jsonrpcclient.request_json("HOST_CXL_HOST_WRITE", params={"addr": addr, "data": data})
         return await self._process_cmd(cmd, port)
 
-    async def _util_cxl_mem_read(self, port: int, addr: int) -> jsonrpcserver.Result:
-        cmd = jsonrpcclient.request_json("HOST_CXL_MEM_READ", params={"addr": addr})
-        return await self._process_cmd(cmd, port)
-
-    async def _util_cxl_mem_birsp(
-        self, port: int, opcode: CXL_MEM_M2SBIRSP_OPCODE, bi_id: int = 0, bi_tag: int = 0
-    ) -> jsonrpcserver.Result:
-        cmd = jsonrpcclient.request_json(
-            "HOST_CXL_MEM_BIRSP", params={"opcode": opcode, "bi_id": bi_id, "bi_tag": bi_tag}
-        )
-        return await self._process_cmd(cmd, port)
-
-    async def _util_reinit(self, port: int, hpa_base: int) -> jsonrpcserver.Result:
-        cmd = jsonrpcclient.request_json("HOST_REINIT", params={"hpa_base": hpa_base})
+    async def _util_cxl_host_read(self, port: int, addr: int) -> jsonrpcserver.Result:
+        cmd = jsonrpcclient.request_json("HOST_CXL_HOST_READ", params={"addr": addr})
         return await self._process_cmd(cmd, port)
 
     async def _serve(self, ws):
