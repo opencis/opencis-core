@@ -12,8 +12,8 @@ from opencis.util.logger import logger
 from opencis.util.component import RunnableComponent
 from opencis.cxl.device.root_port_device import CxlRootPortDevice
 from opencis.cxl.component.switch_connection_client import SwitchConnectionClient
-from opencis.cxl.component.host_manager_conn import (
-    HostManagerConnClient,
+from opencis.cxl.component.host_manager import (
+    HostMgrConnClient,
     Result,
 )
 from opencis.cxl.component.common import CXL_COMPONENT_TYPE
@@ -42,13 +42,13 @@ class CxlSimpleHost(RunnableComponent):
             "HOST_CXL_MEM_BIRSP": self._cxl_mem_birsp,
         }
         if hm_mode:
-            self._host_manager_conn_client = HostManagerConnClient(
+            self._host_mgr_conn_client = HostMgrConnClient(
                 port_index=port_index, host=host_host, port=host_port, methods=self._methods
             )
         else:
             logger.debug(
                 self._create_message(
-                    "HostManagerConnClient is not starting because of the --no-hm arg."
+                    "HostMgrConnClient is not starting because of the --no-hm arg."
                 )
             )
         self._root_port_device = CxlRootPortDevice(
@@ -97,8 +97,8 @@ class CxlSimpleHost(RunnableComponent):
             asyncio.create_task(self._root_port_device.run()),
         ]
         if self._hm_mode:
-            tasks.append(asyncio.create_task(self._host_manager_conn_client.run()))
-            await self._host_manager_conn_client.wait_for_ready()
+            tasks.append(asyncio.create_task(self._host_mgr_conn_client.run()))
+            await self._host_mgr_conn_client.wait_for_ready()
         await self._sw_conn_client.wait_for_ready()
         await self._root_port_device.wait_for_ready()
         await self._change_status_to_running()
@@ -110,5 +110,5 @@ class CxlSimpleHost(RunnableComponent):
             asyncio.create_task(self._root_port_device.stop()),
         ]
         if self._hm_mode:
-            tasks.append(asyncio.create_task(self._host_manager_conn_client.stop()))
+            tasks.append(asyncio.create_task(self._host_mgr_conn_client.stop()))
         await asyncio.gather(*tasks)

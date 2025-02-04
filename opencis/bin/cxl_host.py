@@ -11,7 +11,7 @@ import click
 from opencis.util.logger import logger
 from opencis.cxl.environment import parse_cxl_environment
 from opencis.cxl.component.cxl_component import PORT_TYPE
-from opencis.cxl.component.cxl_host_manager import CxlHostManager
+from opencis.cxl.component.host_manager import HostManager
 from opencis.apps.memory_pooling import run_host
 
 
@@ -27,7 +27,7 @@ def start(port: int = 0):
 
 def start_host_manager():
     logger.info("Starting CXL HostManager")
-    host_manager = CxlHostManager()
+    host_manager = HostManager()
     asyncio.run(host_manager.run())
     asyncio.run(host_manager.wait_for_ready())
 

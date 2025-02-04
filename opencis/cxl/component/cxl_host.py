@@ -16,7 +16,7 @@ from opencis.cxl.component.root_complex.root_port_client_manager import RootPort
 from opencis.cxl.component.root_complex.root_port_switch import ROOT_PORT_SWITCH_TYPE
 from opencis.cxl.component.root_complex.root_complex import SystemMemControllerConfig
 from opencis.cxl.component.irq_manager import IrqManager
-from opencis.cxl.component.host_manager_conn import HostManagerConnClient, Result
+from opencis.cxl.component.host_manager import HostMgrConnClient, Result
 
 
 class CxlHost(RunnableComponent):
@@ -69,7 +69,7 @@ class CxlHost(RunnableComponent):
                 "HOST_CXL_HOST_READ": self._cxl_host_read,
                 "HOST_CXL_HOST_WRITE": self._cxl_host_write,
             }
-            self._host_manager_conn_client = HostManagerConnClient(
+            self._host_mgr_conn_client = HostMgrConnClient(
                 port_index=port_index,
                 host=host_conn_host,
                 port=host_conn_port,
@@ -102,8 +102,8 @@ class CxlHost(RunnableComponent):
         await self._cxl_memory_hub.wait_for_ready()
         tasks.append(asyncio.create_task(self._cpu.run()))
         if self._enable_hm:
-            tasks.append(asyncio.create_task(self._host_manager_conn_client.run()))
-            await self._host_manager_conn_client.wait_for_ready()
+            tasks.append(asyncio.create_task(self._host_mgr_conn_client.run()))
+            await self._host_mgr_conn_client.wait_for_ready()
 
         await self._change_status_to_running()
         await asyncio.gather(*tasks)

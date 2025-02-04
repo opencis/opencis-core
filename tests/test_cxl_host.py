@@ -21,7 +21,7 @@ from opencis.cxl.transport.transaction import (
     CXL_MEM_M2SBIRSP_OPCODE,
 )
 from opencis.apps.cxl_simple_host import CxlSimpleHost
-from opencis.cxl.component.cxl_host_manager import CxlHostManager, CxlHostUtilClient
+from opencis.cxl.component.host_manager import HostManager, UtilConnClient
 from opencis.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencis.cxl.component.cxl_component import PortConfig, PORT_TYPE
 from opencis.cxl.component.physical_port_manager import PhysicalPortManager
@@ -148,7 +148,7 @@ async def test_cxl_host_manager_send_util_and_recv_host():
     host_port = next(generator)
     util_port = next(generator)
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
     await host_manager.wait_for_ready()
     host_client, util_client = await init_clients(host_port, util_port)
@@ -176,7 +176,7 @@ async def test_cxl_host_manager_handle_res():
     host_port = next(generator)
     util_port = next(generator)
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
     await host_manager.wait_for_ready()
     host = DummyHost()
@@ -215,7 +215,7 @@ async def test_cxl_host_manager_handle_err():
     host_port = next(generator)
     util_port = next(generator)
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
     await host_manager.wait_for_ready()
     dummy_host = DummyHost()
@@ -253,13 +253,13 @@ async def test_cxl_host_util_client():
     host_port = next(generator)
     util_port = next(generator)
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
     await host_manager.wait_for_ready()
     dummy_host = DummyHost()
     asyncio.create_task(dummy_host.conn_open(port=host_port))
     await dummy_host.wait_connected()
-    util_client = CxlHostUtilClient(port=util_port)
+    util_client = UtilConnClient(port=util_port)
 
     data = 0xA5A5
     valid_addr = 0x40
@@ -315,7 +315,7 @@ async def test_cxl_host_type3_ete():
         port=switch_port,
     )
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=host_port, util_port=util_port)
     host = CxlSimpleHost(port_index=0, switch_port=switch_port, host_port=host_port)
     start_tasks = [
         asyncio.create_task(host.run()),
@@ -469,7 +469,7 @@ async def test_cxl_qemu_host_type3():
 #             port=switch_port,
 #         )
 
-#         host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+#         host_manager = HostManager(host_port=host_port, util_port=util_port)
 #         host = CxlSimpleHost(port_index=0, switch_port=switch_port, host_port=host_port)
 
 #         start_tasks = [
@@ -548,7 +548,7 @@ async def test_cxl_qemu_host_type3():
 #         port=switch_port,
 #     )
 
-#     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+#     host_manager = HostManager(host_port=host_port, util_port=util_port)
 #     host = CxlSimpleHost(port_index=0, switch_port=switch_port, host_port=host_port)
 #     test_mode_host = CxlSimpleHost(
 #         port_index=2, switch_port=switch_port, host_port=host_port, test_mode=True
