@@ -12,10 +12,7 @@ from opencis.util.logger import logger
 from opencis.util.component import RunnableComponent
 from opencis.cxl.device.root_port_device import CxlRootPortDevice
 from opencis.cxl.component.switch_connection_client import SwitchConnectionClient
-from opencis.cxl.component.host_manager import (
-    HostMgrConnClient,
-    Result,
-)
+from opencis.cxl.component.host_manager import HostMgrConnClient, Result
 from opencis.cxl.component.common import CXL_COMPONENT_TYPE
 
 

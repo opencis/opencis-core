@@ -68,8 +68,8 @@ class SimpleJsonClient:
 class DummyHost:
     def __init__(self):
         self._util_methods = {
-            "HOST_CXL_HOST_READ": self._dummy_mem_read,
-            "HOST_CXL_HOST_WRITE": self._dummy_mem_write,
+            "HOST:CXL_HOST_READ": self._dummy_mem_read,
+            "HOST:CXL_HOST_WRITE": self._dummy_mem_write,
         }
         self._ws = None
         self._event = asyncio.Event()
@@ -153,9 +153,9 @@ async def test_cxl_host_manager_send_util_and_recv_host():
     await host_manager.wait_for_ready()
     host_client, util_client = await init_clients(host_port, util_port)
 
-    cmd = request_json("UTIL_CXL_HOST_READ", params={"port": 0, "addr": 0x40})
+    cmd = request_json("UTIL:CXL_HOST_READ", params={"port": 0, "addr": 0x40})
     await send_util_and_check_host(host_client, util_client, cmd)
-    cmd = request_json("UTIL_CXL_HOST_WRITE", params={"port": 0, "addr": 0x40, "data": 0xA5A5})
+    cmd = request_json("UTIL:CXL_HOST_WRITE", params={"port": 0, "addr": 0x40, "data": 0xA5A5})
     await send_util_and_check_host(host_client, util_client, cmd)
 
     await util_client.close()
@@ -186,9 +186,9 @@ async def test_cxl_host_manager_handle_res():
 
     addr = 0x40
     data = 0xA5A5
-    cmd = request_json("UTIL_CXL_HOST_READ", params={"port": 0, "addr": addr})
+    cmd = request_json("UTIL:CXL_HOST_READ", params={"port": 0, "addr": addr})
     await send_and_check_res(util_client, cmd, addr)
-    cmd = request_json("UTIL_CXL_HOST_WRITE", params={"port": 0, "addr": addr, "data": data})
+    cmd = request_json("UTIL:CXL_HOST_WRITE", params={"port": 0, "addr": addr, "data": data})
     await send_and_check_res(util_client, cmd, data)
     cmd = request_json(
         "UTIL_CXL_MEM_BIRSP",
@@ -228,18 +228,18 @@ async def test_cxl_host_manager_handle_err():
 
     # Invalid USP port
     err_expected = "Invalid Params"
-    cmd = request_json("UTIL_CXL_HOST_READ", params={"port": 10, "addr": valid_addr})
+    cmd = request_json("UTIL:CXL_HOST_READ", params={"port": 10, "addr": valid_addr})
     await send_and_check_err(util_client, cmd, err_expected)
 
     # Invalid read address
     err_expected = "Invalid Params"
-    cmd = request_json("UTIL_CXL_HOST_READ", params={"port": 0, "addr": invalid_addr})
+    cmd = request_json("UTIL:CXL_HOST_READ", params={"port": 0, "addr": invalid_addr})
     await send_and_check_err(util_client, cmd, err_expected)
 
     # Invalid write address
     err_expected = "Invalid Params"
     cmd = request_json(
-        "UTIL_CXL_HOST_WRITE", params={"port": 0, "addr": invalid_addr, "data": data}
+        "UTIL:CXL_HOST_WRITE", params={"port": 0, "addr": invalid_addr, "data": data}
     )
     await send_and_check_err(util_client, cmd, err_expected)
 

@@ -66,8 +66,8 @@ class CxlHost(RunnableComponent):
         self._enable_hm = enable_hm
         if self._enable_hm:
             methods = {
-                "HOST_CXL_HOST_READ": self._cxl_host_read,
-                "HOST_CXL_HOST_WRITE": self._cxl_host_write,
+                "HOST:CXL_HOST_READ": self._cxl_host_read,
+                "HOST:CXL_HOST_WRITE": self._cxl_host_write,
             }
             self._host_mgr_conn_client = HostMgrConnClient(
                 port_index=port_index,

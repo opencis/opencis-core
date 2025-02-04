@@ -145,8 +145,8 @@ class UtilConnServer(RunnableComponent):
         self._host = host
         self._port = port
         self._util_methods = {
-            "UTIL_CXL_HOST_READ": self._util_cxl_host_read,
-            "UTIL_CXL_HOST_WRITE": self._util_cxl_host_write,
+            "UTIL:CXL_HOST_READ": self._util_cxl_host_read,
+            "UTIL:CXL_HOST_WRITE": self._util_cxl_host_write,
         }
         self._fut = None
         self._util_server = None
@@ -169,11 +169,11 @@ class UtilConnServer(RunnableComponent):
                 return jsonrpcserver.Error(code, message, data)
 
     async def _util_cxl_host_write(self, port: int, addr: int, data: int) -> jsonrpcserver.Result:
-        cmd = jsonrpcclient.request_json("HOST_CXL_HOST_WRITE", params={"addr": addr, "data": data})
+        cmd = jsonrpcclient.request_json("HOST:CXL_HOST_WRITE", params={"addr": addr, "data": data})
         return await self._process_cmd(cmd, port)
 
     async def _util_cxl_host_read(self, port: int, addr: int) -> jsonrpcserver.Result:
-        cmd = jsonrpcclient.request_json("HOST_CXL_HOST_READ", params={"addr": addr})
+        cmd = jsonrpcclient.request_json("HOST:CXL_HOST_READ", params={"addr": addr})
         return await self._process_cmd(cmd, port)
 
     async def _serve(self, ws):
@@ -219,12 +219,12 @@ class UtilConnClient:
 
     async def cxl_mem_write(self, port: int, addr: int, data: int) -> str:
         logger.info(f"CXL-Host[Port{port}]: Start CXL.mem Write: addr=0x{addr:x} data=0x{data:x}")
-        cmd = request_json("UTIL_CXL_HOST_WRITE", params={"port": port, "addr": addr, "data": data})
+        cmd = request_json("UTIL:CXL_HOST_WRITE", params={"port": port, "addr": addr, "data": data})
         return await self._process_cmd(cmd)
 
     async def cxl_mem_read(self, port: int, addr: int) -> str:
         logger.info(f"CXL-Host[Port{port}]: Start CXL.mem Read: addr=0x{addr:x}")
-        cmd = request_json("UTIL_CXL_HOST_READ", params={"port": port, "addr": addr})
+        cmd = request_json("UTIL:CXL_HOST_READ", params={"port": port, "addr": addr})
         return await self._process_cmd(cmd)
 
 
