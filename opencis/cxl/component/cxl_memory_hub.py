@@ -185,8 +185,8 @@ class CxlMemoryHub(RunnableComponent):
                 bdf = self._cfg_addr_to_bdf(addr)
                 offset = addr & 0xFFF
                 return await self._root_complex.read_config(bdf, offset, size)
-            case _:
-                raise Exception(self._create_message(f"Address 0x{addr:x} is OOB."))
+            case MEM_ADDR_TYPE.OOB:
+                return False
 
     async def store(self, addr: int, size: int, data: int):
         addr_type = self._cache_controller.get_mem_addr_type(addr)
@@ -203,8 +203,9 @@ class CxlMemoryHub(RunnableComponent):
                 bdf = self._cfg_addr_to_bdf(addr)
                 offset = addr & 0xFFF
                 await self._root_complex.write_config(bdf, offset, size, data)
-            case _:
-                raise Exception(self._create_message(f"Address 0x{addr:x} is OOB."))
+            case MEM_ADDR_TYPE.OOB:
+                return False
+        return True
 
     def get_root_complex(self):
         return self._root_complex

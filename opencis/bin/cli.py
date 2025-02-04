@@ -166,12 +166,11 @@ def start(
         p_mgroup.start()
 
     if "host" in comp or "host-group" in comp:
-        # TODO: Re-enable HostManager
-        # hm_mode = not no_hm
-        # if hm_mode:
-        #     p_hm = multiprocessing.Process(target=start_host_manager, args=(ctx,))
-        #     processes.append(p_hm)
-        #     p_hm.start()
+        hm_mode = True
+        if hm_mode:
+            p_hm = multiprocessing.Process(target=start_host_manager, args=(ctx,))
+            processes.append(p_hm)
+            p_hm.start()
         if "host" in comp:
             p_host = multiprocessing.Process(target=start_host, args=(ctx,))
             processes.append(p_host)
@@ -195,8 +194,8 @@ def start_capture(ctx, pcap_file):
     ctx.invoke(capture, pcap_file=pcap_file)
 
 
-def start_host_manager():
-    pass
+def start_host_manager(ctx):
+    ctx.invoke(cxl_host.start_host_manager)
 
 
 def start_fabric_manager(ctx):

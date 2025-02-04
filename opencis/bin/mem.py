@@ -9,7 +9,7 @@ import asyncio
 import click
 
 from opencis.util.logger import logger
-from opencis.apps.cxl_simple_host import CxlHostUtilClient
+from opencis.cxl.component.host_manager import UtilConnClient
 from opencis.bin.common import BASED_INT
 
 
@@ -26,7 +26,7 @@ def mem_group():
 @click.option("--util-port", type=BASED_INT, default=8400, help="Port for util server")
 def cxl_mem_write(port: int, addr: int, data: int, util_host: str, util_port: int):
     """CXL.mem Write Command"""
-    client = CxlHostUtilClient(host=util_host, port=util_port)
+    client = UtilConnClient(host=util_host, port=util_port)
     if len(f"{data:x}") > 128:
         logger.info(f"CXL-Host[Port{port}]: Error - Data length greater than 0x40 bytes")
         return
@@ -45,7 +45,7 @@ def cxl_mem_write(port: int, addr: int, data: int, util_host: str, util_port: in
 @click.option("--util-port", type=BASED_INT, default=8400, help="Port for util server")
 def cxl_mem_read(port: int, addr: int, util_host: str, util_port: int):
     """CXL.mem Read Command"""
-    client = CxlHostUtilClient(host=util_host, port=util_port)
+    client = UtilConnClient(host=util_host, port=util_port)
     try:
         res = asyncio.run(client.cxl_mem_read(port, addr))
     except Exception as e:

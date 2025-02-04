@@ -20,7 +20,8 @@ import pytest
 from opencis.cxl.transport.transaction import (
     CXL_MEM_M2SBIRSP_OPCODE,
 )
-from opencis.apps.cxl_simple_host import CxlHostManager, CxlSimpleHost, CxlHostUtilClient
+from opencis.apps.cxl_simple_host import CxlSimpleHost
+from opencis.cxl.component.host_manager import HostManager, UtilConnClient
 from opencis.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencis.cxl.component.cxl_component import PortConfig, PORT_TYPE
 from opencis.cxl.component.physical_port_manager import PhysicalPortManager
@@ -67,9 +68,8 @@ class SimpleJsonClient:
 class DummyHost:
     def __init__(self):
         self._util_methods = {
-            "HOST_CXL_MEM_READ": self._dummy_mem_read,
-            "HOST_CXL_MEM_WRITE": self._dummy_mem_write,
-            "HOST_REINIT": self._dummy_reinit,
+            "HOST:CXL_HOST_READ": self._dummy_mem_read,
+            "HOST:CXL_HOST_WRITE": self._dummy_mem_write,
         }
         self._ws = None
         self._event = asyncio.Event()
@@ -92,9 +92,6 @@ class DummyHost:
                 f"Invalid Params: 0x{addr:x} is not a valid address",
             )
         return jsonrpcserver.Success({"result": data})
-
-    async def _dummy_reinit(self, hpa_base: int) -> jsonrpcserver.Result:
-        return jsonrpcserver.Success({"result": hpa_base})
 
     async def conn_open(self, port: int, host: str = "0.0.0.0"):
         util_server_uri = f"ws://{host}:{port}"
@@ -151,16 +148,14 @@ async def test_cxl_host_manager_send_util_and_recv_host():
     host_port = next(generator)
     util_port = next(generator)
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
     await host_manager.wait_for_ready()
     host_client, util_client = await init_clients(host_port, util_port)
 
-    cmd = request_json("UTIL_CXL_MEM_READ", params={"port": 0, "addr": 0x40})
+    cmd = request_json("UTIL:CXL_HOST_READ", params={"port": 0, "addr": 0x40})
     await send_util_and_check_host(host_client, util_client, cmd)
-    cmd = request_json("UTIL_CXL_MEM_WRITE", params={"port": 0, "addr": 0x40, "data": 0xA5A5})
-    await send_util_and_check_host(host_client, util_client, cmd)
-    cmd = request_json("UTIL_REINIT", params={"port": 0, "hpa_base": 0x40})
+    cmd = request_json("UTIL:CXL_HOST_WRITE", params={"port": 0, "addr": 0x40, "data": 0xA5A5})
     await send_util_and_check_host(host_client, util_client, cmd)
 
     await util_client.close()
@@ -181,7 +176,7 @@ async def test_cxl_host_manager_handle_res():
     host_port = next(generator)
     util_port = next(generator)
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
     await host_manager.wait_for_ready()
     host = DummyHost()
@@ -191,9 +186,9 @@ async def test_cxl_host_manager_handle_res():
 
     addr = 0x40
     data = 0xA5A5
-    cmd = request_json("UTIL_CXL_MEM_READ", params={"port": 0, "addr": addr})
+    cmd = request_json("UTIL:CXL_HOST_READ", params={"port": 0, "addr": addr})
     await send_and_check_res(util_client, cmd, addr)
-    cmd = request_json("UTIL_CXL_MEM_WRITE", params={"port": 0, "addr": addr, "data": data})
+    cmd = request_json("UTIL:CXL_HOST_WRITE", params={"port": 0, "addr": addr, "data": data})
     await send_and_check_res(util_client, cmd, data)
     cmd = request_json(
         "UTIL_CXL_MEM_BIRSP",
@@ -220,7 +215,7 @@ async def test_cxl_host_manager_handle_err():
     host_port = next(generator)
     util_port = next(generator)
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
     await host_manager.wait_for_ready()
     dummy_host = DummyHost()
@@ -233,17 +228,19 @@ async def test_cxl_host_manager_handle_err():
 
     # Invalid USP port
     err_expected = "Invalid Params"
-    cmd = request_json("UTIL_CXL_MEM_READ", params={"port": 10, "addr": valid_addr})
+    cmd = request_json("UTIL:CXL_HOST_READ", params={"port": 10, "addr": valid_addr})
     await send_and_check_err(util_client, cmd, err_expected)
 
     # Invalid read address
     err_expected = "Invalid Params"
-    cmd = request_json("UTIL_CXL_MEM_READ", params={"port": 0, "addr": invalid_addr})
+    cmd = request_json("UTIL:CXL_HOST_READ", params={"port": 0, "addr": invalid_addr})
     await send_and_check_err(util_client, cmd, err_expected)
 
     # Invalid write address
     err_expected = "Invalid Params"
-    cmd = request_json("UTIL_CXL_MEM_WRITE", params={"port": 0, "addr": invalid_addr, "data": data})
+    cmd = request_json(
+        "UTIL:CXL_HOST_WRITE", params={"port": 0, "addr": invalid_addr, "data": data}
+    )
     await send_and_check_err(util_client, cmd, err_expected)
 
     await dummy_host.conn_close()
@@ -256,20 +253,19 @@ async def test_cxl_host_util_client():
     host_port = next(generator)
     util_port = next(generator)
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
     await host_manager.wait_for_ready()
     dummy_host = DummyHost()
     asyncio.create_task(dummy_host.conn_open(port=host_port))
     await dummy_host.wait_connected()
-    util_client = CxlHostUtilClient(port=util_port)
+    util_client = UtilConnClient(port=util_port)
 
     data = 0xA5A5
     valid_addr = 0x40
     invalid_addr = 0x41
     assert valid_addr == await util_client.cxl_mem_read(0, valid_addr)
     assert data == await util_client.cxl_mem_write(0, valid_addr, data)
-    assert valid_addr == await util_client.reinit(0, valid_addr)
     try:
         await util_client.cxl_mem_read(0, invalid_addr)
     except Exception as e:
@@ -319,12 +315,8 @@ async def test_cxl_host_type3_ete():
         port=switch_port,
     )
 
-    host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=host_port, util_port=util_port)
     host = CxlSimpleHost(port_index=0, switch_port=switch_port, host_port=host_port)
-    test_mode_host = CxlSimpleHost(
-        port_index=2, switch_port=switch_port, host_port=host_port, test_mode=True
-    )
-
     start_tasks = [
         asyncio.create_task(host.run()),
         asyncio.create_task(host_manager.run()),
@@ -352,9 +344,6 @@ async def test_cxl_host_type3_ete():
         asyncio.create_task(host._cxl_mem_read(invalid_addr)),
         asyncio.create_task(host._cxl_mem_write(valid_addr, data)),
         asyncio.create_task(host._cxl_mem_write(invalid_addr, data)),
-        asyncio.create_task(test_mode_host._reinit()),
-        asyncio.create_task(test_mode_host._reinit(valid_addr)),
-        asyncio.create_task(test_mode_host._reinit(invalid_addr)),
     ]
     await asyncio.gather(*test_tasks)
 
@@ -480,7 +469,7 @@ async def test_cxl_qemu_host_type3():
 #             port=switch_port,
 #         )
 
-#         host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+#         host_manager = HostManager(host_port=host_port, util_port=util_port)
 #         host = CxlSimpleHost(port_index=0, switch_port=switch_port, host_port=host_port)
 
 #         start_tasks = [
@@ -559,7 +548,7 @@ async def test_cxl_qemu_host_type3():
 #         port=switch_port,
 #     )
 
-#     host_manager = CxlHostManager(host_port=host_port, util_port=util_port)
+#     host_manager = HostManager(host_port=host_port, util_port=util_port)
 #     host = CxlSimpleHost(port_index=0, switch_port=switch_port, host_port=host_port)
 #     test_mode_host = CxlSimpleHost(
 #         port_index=2, switch_port=switch_port, host_port=host_port, test_mode=True
