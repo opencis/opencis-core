@@ -14,8 +14,10 @@ from opencis.cxl.features.mailbox import (
     MAILBOX_RETURN_CODE,
 )
 from opencis.cxl.features.event_manager import EventManager
+from opencis.cxl.cci.memory_device.dynamic_capacity import DynamicCapacityExtentStruct
 from opencis.util.unaligned_bit_structure import (
     UnalignedBitStructure,
+    StructureField,
     ByteField,
 )
 
@@ -42,6 +44,86 @@ class CommonEventRecord(UnalignedBitStructure):
         ByteField("event_record_timestamp", 0x18, 0x1F),
         ByteField("maintenance_operation_class", 0x20, 0x20),
         ByteField("reserved1", 0x21, 0x2F),
+    ]
+
+
+COMMON_EVENT_RECORD_START = 0
+COMMON_EVENT_RECORD_END = CommonEventRecord.get_size() - 1
+EVENT_RECORD_START = COMMON_EVENT_RECORD_END + 1
+
+
+#
+#   DynamicCapacityEventRecord
+#
+class DynamicCapacityEventRecord(UnalignedBitStructure):
+    common_event_record: int
+    dynamic_capacity_event_type: int
+    validity_flags: int
+    host_id: int
+    updated_region_index: int
+    flags: int
+    dc_extent: DynamicCapacityExtentStruct
+    num_available_extents: int
+    num_available_tags: int
+
+    _fields = [
+        StructureField(
+            "common_event_record",
+            COMMON_EVENT_RECORD_START,
+            COMMON_EVENT_RECORD_END,
+            CommonEventRecord,
+        ),
+        ByteField(
+            "dynamic_capacity_event_type",
+            EVENT_RECORD_START + 0x00,
+            EVENT_RECORD_START + 0x00,
+        ),
+        ByteField(
+            "validity_flags",
+            EVENT_RECORD_START + 0x01,
+            EVENT_RECORD_START + 0x01,
+        ),
+        ByteField(
+            "host_id",
+            EVENT_RECORD_START + 0x02,
+            EVENT_RECORD_START + 0x03,
+        ),
+        ByteField(
+            "updated_region_index",
+            EVENT_RECORD_START + 0x04,
+            EVENT_RECORD_START + 0x04,
+        ),
+        ByteField(
+            "flags",
+            EVENT_RECORD_START + 0x05,
+            EVENT_RECORD_START + 0x05,
+        ),
+        ByteField(
+            "reserved1",
+            EVENT_RECORD_START + 0x06,
+            EVENT_RECORD_START + 0x07,
+        ),
+        StructureField(
+            "dc_extent",
+            EVENT_RECORD_START + 0x08,
+            EVENT_RECORD_START + 0x5F,
+            DynamicCapacityExtentStruct,
+        ),
+        ByteField(
+            "reserved2",
+            EVENT_RECORD_START + 0x60,
+            EVENT_RECORD_START + 0x77,
+        ),
+        ByteField(
+            "num_available_extents",
+            EVENT_RECORD_START + 0x7B,
+            EVENT_RECORD_START + 0x07,
+        ),
+        ByteField(
+            "num_available_tags",
+            EVENT_RECORD_START + 0x7C,
+            EVENT_RECORD_START + 0x0F,
+        ),
     ]
 
 
