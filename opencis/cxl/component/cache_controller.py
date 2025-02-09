@@ -245,10 +245,14 @@ class CacheController(RunnableComponent):
             cache_state = CacheState.CACHE_EXCLUSIVE
         elif packet.status == CACHE_RESPONSE_STATUS.RSP_S:
             cache_state = CacheState.CACHE_SHARED
+        elif packet.status == CACHE_RESPONSE_STATUS.RSP_E:
+            cache_state = CacheState.CACHE_EXCLUSIVE
         elif packet.status == CACHE_RESPONSE_STATUS.RSP_I:
             cache_state = CacheState.CACHE_EXCLUSIVE
         elif packet.status == CACHE_RESPONSE_STATUS.RSP_V:
             cache_state = CacheState.CACHE_INVALID
+        elif packet.status == CACHE_RESPONSE_STATUS.RSP_M:
+            cache_state = CacheState.CACHE_MODIFIED
         return cache_state
 
     def _get_cache_fifo(self, addr: int) -> CacheFifoPair:
@@ -455,7 +459,7 @@ class CacheController(RunnableComponent):
 
     async def _run_coh_request(self, packet: CacheRequest, cache_fifo: CacheFifoPair):
         cache_blk, data, prev_state = await self._coh_to_cache_state_lookup(
-            packet.type, packet.address
+            packet.type, packet.addr
         )
         if cache_blk is None:
             packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_MISS, data)

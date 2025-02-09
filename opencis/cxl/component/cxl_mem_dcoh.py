@@ -280,7 +280,12 @@ class CxlMemDcoh(PacketProcessor):
                 packet = CacheResponse(CACHE_RESPONSE_STATUS.OK, data)
                 await self._cache_to_coh_agent_fifo.response.put(packet)
                 self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
-            elif cache_packet.type in (CACHE_REQUEST_TYPE.WRITE, CACHE_REQUEST_TYPE.WRITE_BACK):
+            elif cache_packet.type in (
+                CACHE_REQUEST_TYPE.WRITE,
+                CACHE_REQUEST_TYPE.WRITE_BACK,
+                CACHE_REQUEST_TYPE.WRITE_BACK_CLEAN,
+            ):
+                # if not CACHE_REQUEST_TYPE.WRITE_BACK_CLEAN:
                 await self._memory_device_component.write_mem_dpa(dpa, cache_packet.data)
                 packet = CacheResponse(CACHE_RESPONSE_STATUS.OK)
                 await self._cache_to_coh_agent_fifo.response.put(packet)

@@ -316,11 +316,15 @@ class CacheCoherencyBridge(RunnableComponent):
         if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_START:
             addr = cache_packet.addr
 
-            if cache_packet.type == CACHE_REQUEST_TYPE.WRITE_BACK:
-                mem_packet = MemoryRequest(
-                    MEMORY_REQUEST_TYPE.WRITE, addr, cache_packet.size, cache_packet.data
-                )
-                await self._memory_producer_fifos.request.put(mem_packet)
+            if cache_packet.type in (
+                CACHE_REQUEST_TYPE.WRITE_BACK,
+                CACHE_REQUEST_TYPE.WRITE_BACK_CLEAN,
+            ):
+                if cache_packet.type == CACHE_REQUEST_TYPE.WRITE_BACK:
+                    mem_packet = MemoryRequest(
+                        MEMORY_REQUEST_TYPE.WRITE, addr, cache_packet.size, cache_packet.data
+                    )
+                    await self._memory_producer_fifos.request.put(mem_packet)
                 cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.OK)
                 await self._upstream_cache_to_coh_bridge_fifo.response.put(cache_packet)
                 self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
@@ -371,7 +375,7 @@ class CacheCoherencyBridge(RunnableComponent):
                 CACHE_RESPONSE_STATUS.RSP_I,
                 CACHE_RESPONSE_STATUS.RSP_S,
             ):
-                addr = self._cur_state.packet.address
+                addr = self._cur_state.packet.addr
                 data = await self._sync_memory_read(addr)
             elif self._cur_state.cache_rsp == CACHE_RESPONSE_STATUS.RSP_M:
                 if self._cxl_channel["d2h_data"].empty():
