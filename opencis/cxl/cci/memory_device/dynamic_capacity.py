@@ -11,7 +11,11 @@ from opencis.cxl.features.mailbox import (
     MAILBOX_RETURN_CODE,
 )
 from opencis.util.unaligned_bit_structure import UnalignedBitStructure, ByteField, StructureField
-from opencis.cxl.device.config.dynamic_capacity_device import RegionConfiguration
+from opencis.cxl.device.config.dynamic_capacity_device import (
+    RegionConfiguration,
+    RegionConfigStruct,
+    DynamicCapacityExtentStruct,
+)
 
 
 #
@@ -19,26 +23,6 @@ from opencis.cxl.device.config.dynamic_capacity_device import RegionConfiguratio
 #
 
 REGION_CONFIG_STRUCT_SIZE = 0x28
-
-
-class RegionConfigStruct(UnalignedBitStructure):
-    region_base: int
-    region_decode_len: int
-    region_len: int
-    resion_block_size: int
-    dsmad_handle: int
-    flags: int
-    reserved: int
-
-    _fields = [
-        ByteField("region_base", 0x00, 0x07),
-        ByteField("region_decode_len", 0x08, 0x0F),
-        ByteField("region_len", 0x10, 0x17),
-        ByteField("region_block_size", 0x18, 0x1F),
-        ByteField("dsmad_handle", 0x20, 0x23),
-        ByteField("flags", 0x24, 0x24),
-        ByteField("reserved", 0x25, 0x27),
-    ]
 
 
 class GetDynamicCapacityConfigInput(UnalignedBitStructure):
@@ -114,7 +98,7 @@ class GetDynamicCapacityConfigOutput(UnalignedBitStructure):
     @staticmethod
     def get_size(region_config_structs: list[RegionConfigStruct]):
         # pylint: disable=arguments-renamed
-        return 8 + REGION_CONFIG_STRUCT_SIZE * len(region_config_structs) + 16
+        return 8 + RegionConfigStruct.get_size() * len(region_config_structs) + 16
 
 
 class GetDynamicCapacityConfig(CxlMailboxCommandBase):
@@ -148,26 +132,6 @@ class GetDynamicCapacityConfig(CxlMailboxCommandBase):
 #
 #   GetDynamicCapacityExtentList command (Opcode 4801h)
 #
-
-DC_EXT_STRUCT_SIZE = 0x28
-
-
-class DynamicCapacityExtentStruct(UnalignedBitStructure):
-    start_dpa: int
-    length: int
-    tag: int
-    shared_extent_seq: int
-    reserved: int
-
-    _fields = [
-        ByteField("start_dpa", 0x00, 0x07),
-        ByteField("length", 0x08, 0x0F),
-        ByteField("tag", 0x10, 0x1F),
-        ByteField("shared_extent_seq", 0x20, 0x21),
-        ByteField("reserved", 0x22, 0x27),
-    ]
-
-
 class GetDynamicCapacityExtentListInput(UnalignedBitStructure):
     extent_count: int
     starting_extent_index: int
@@ -231,7 +195,7 @@ class GetDynamicCapacityExtentListOutput(UnalignedBitStructure):
     @staticmethod
     def get_size(dc_extent_list: list[DynamicCapacityExtentStruct]):
         # pylint: disable=arguments-renamed
-        return 0x10 + DC_EXT_STRUCT_SIZE * len(dc_extent_list)
+        return 0x10 + DynamicCapacityExtentStruct.get_size() * len(dc_extent_list)
 
 
 class GetDynamicCapacityExtentList(CxlMailboxCommandBase):
