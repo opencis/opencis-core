@@ -21,10 +21,6 @@ from opencis.cxl.device.config.dynamic_capacity_device import (
 #
 #   GetDynamicCapacityConfig command (Opcode 4800h)
 #
-
-REGION_CONFIG_STRUCT_SIZE = 0x28
-
-
 class GetDynamicCapacityConfigInput(UnalignedBitStructure):
     region_count: int
     starting_region_index: int
@@ -303,8 +299,6 @@ class AddDynamicCapacityResponse(CxlMailboxCommandBase):
 #
 #   ReleaseDynamicCapacity command (Opcode 4803h)
 #
-
-
 class ReleaseDynamicCapacityInput(UnalignedBitStructure):
     updated_extent_list_size: int
     flags: int
