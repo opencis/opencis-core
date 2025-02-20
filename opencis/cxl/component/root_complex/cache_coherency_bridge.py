@@ -295,7 +295,10 @@ class CacheCoherencyBridge(RunnableComponent):
                 self._cur_state.state = COH_STATE_MACHINE.COH_STATE_DONE
 
         else:
-            if d2hrsp_packet.d2hrsp_header.cache_opcode == CXL_CACHE_D2HRSP_OPCODE.RSP_S_FWD_M:
+            if d2hrsp_packet.d2hrsp_header.cache_opcode in (
+                CXL_CACHE_D2HRSP_OPCODE.RSP_S_FWD_M,
+                CXL_CACHE_D2HRSP_OPCODE.RSP_V_FWD_V,
+            ):
                 self._cur_state.cache_rsp = CACHE_RESPONSE_STATUS.RSP_M
             elif d2hrsp_packet.d2hrsp_header.cache_opcode == CXL_CACHE_D2HRSP_OPCODE.RSP_I_FWD_M:
                 self._cur_state.cache_rsp = CACHE_RESPONSE_STATUS.RSP_I
@@ -382,6 +385,8 @@ class CacheCoherencyBridge(RunnableComponent):
                     return
                 packet = await self._cxl_channel.d2h_data.get()
                 data = packet.data
+            else:  # Unsupported for now
+                assert 0
             cache_packet = CacheResponse(self._cur_state.cache_rsp, data)
             await self._upstream_cache_to_coh_bridge_fifo.response.put(cache_packet)
             self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT

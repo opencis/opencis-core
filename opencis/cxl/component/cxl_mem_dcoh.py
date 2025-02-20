@@ -177,7 +177,8 @@ class CxlMemDcoh(PacketProcessor):
             if data_read is True:
                 data = await self._memory_device_component.read_mem_dpa(dpa)
         else:
-            if packet.status == CACHE_RESPONSE_STATUS.RSP_S:
+            if packet.status in (CACHE_RESPONSE_STATUS.RSP_S, CACHE_RESPONSE_STATUS.RSP_M):
+                # TODO: Table 3-50 shows Cmp-M should be optionally suported by host implementations
                 rsp_code = CXL_MEM_S2MNDR_OPCODE.CMP_S
                 sf_update_list.append(SF_UPDATE_TYPE.SF_HOST_IN)
             elif packet.status == CACHE_RESPONSE_STATUS.RSP_I:
