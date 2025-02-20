@@ -208,6 +208,8 @@ async def test_cache_coh_bridge_cache_request(cxl_cache_coh_bridge):
 
     ccb.set_cache_coh_dev_count(2)
 
+    # TODO: exhaust all scenarios using Table 3-26
+    # If using *HIT*, set d2h_data to True
     addr = 0x40
     await cache_request_test(
         ccb,
@@ -223,7 +225,7 @@ async def test_cache_coh_bridge_cache_request(cxl_cache_coh_bridge):
         addr,
         CACHE_REQUEST_TYPE.SNP_DATA,
         CXL_CACHE_H2DREQ_OPCODE.SNP_DATA,
-        CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_SE,
+        CXL_CACHE_D2HRSP_OPCODE.RSP_S_HIT_SE,
         True,
         False,
     )
@@ -234,7 +236,7 @@ async def test_cache_coh_bridge_cache_request(cxl_cache_coh_bridge):
         CXL_CACHE_H2DREQ_OPCODE.SNP_CUR,
         CXL_CACHE_D2HRSP_OPCODE.RSP_I_FWD_M,
         True,
-        False,
+        True,
     )
 
     addr = 0x80
@@ -243,17 +245,10 @@ async def test_cache_coh_bridge_cache_request(cxl_cache_coh_bridge):
         addr,
         CACHE_REQUEST_TYPE.SNP_CUR,
         CXL_CACHE_H2DREQ_OPCODE.SNP_CUR,
-        CXL_CACHE_D2HRSP_OPCODE.RSP_S_HIT_SE,
+        CXL_CACHE_D2HRSP_OPCODE.RSP_V_FWD_V,
         False,
         True,
     )
-    device_req = CxlCacheCacheD2HReqPacket.create(addr, 1, CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_SHARED)
-    await ccb._downstream_cxl_cache_fifos.target_to_host.put(device_req)
-    await ccb._downstream_cxl_cache_fifos.host_to_target.get()
-    resp = CxlCacheCacheD2HRspPacket.create(addr, 1)
-    await ccb._downstream_cxl_cache_fifos.target_to_host.put(resp)
-    data_packet = CxlCacheCacheD2HDataPacket.create(0, 0xDEADBEEF)
-    await ccb._downstream_cxl_cache_fifos.target_to_host.put(data_packet)
 
     await ccb.stop()
     asyncio.gather(run_task)
