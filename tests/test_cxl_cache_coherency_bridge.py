@@ -209,7 +209,8 @@ async def test_cache_coh_bridge_cache_request(cxl_cache_coh_bridge):
     ccb.set_cache_coh_dev_count(2)
 
     # TODO: exhaust all scenarios using Table 3-26
-    # If using *HIT*, set d2h_data to True
+    # If using *FWD*, set d2h_data to True
+    # If using *HIT*, set d2h_data to False
     addr = 0x40
     await cache_request_test(
         ccb,
