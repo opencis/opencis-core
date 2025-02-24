@@ -222,14 +222,17 @@ class CacheController(RunnableComponent):
 
         return None
 
-    def _cache_find_valid_block(self, tag: int, set: int) -> Tuple[int, CacheState]:
+    def _cache_find_valid_block(self, tag: int, set: int) -> int:
         for blk in range(self._cache_assoc_size):
             if (self._cache[set][blk].tag == tag) and (
                 self._cache[set][blk].state != CacheState.CACHE_INVALID
             ):
-                return blk, self._cache[set][blk].state
+                return blk
 
-        return None, None
+        return None
+
+    def _cache_check_block_state(self, set: int, blk: int) -> CacheState:
+        return self._cache[set][blk].state
 
     def _cache_data_read(self, set: int, blk: int) -> int:
         self._cache_priority_update(set, blk)
@@ -316,8 +319,10 @@ class CacheController(RunnableComponent):
         tag = self._cache_extract_tag(addr)
         set = self._cache_extract_set(addr)
 
-        cache_blk, prev_state = self._cache_find_valid_block(tag, set)
+        cache_blk = self._cache_find_valid_block(tag, set)
+        prev_state = None
         if cache_blk is not None:
+            prev_state = self._cache_check_block_state(set, cache_blk)
             data = self._cache_data_read(set, cache_blk)
             if type == CACHE_REQUEST_TYPE.SNP_DATA:
                 self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_SHARED)
@@ -337,7 +342,7 @@ class CacheController(RunnableComponent):
         tag = self._cache_extract_tag(addr)
         set = self._cache_extract_set(addr)
 
-        cache_blk, _ = self._cache_find_valid_block(tag, set)
+        cache_blk = self._cache_find_valid_block(tag, set)
         if cache_blk is not None:
             # cache hit
             data = self._cache_data_read(set, cache_blk)
@@ -377,7 +382,7 @@ class CacheController(RunnableComponent):
         tag = self._cache_extract_tag(addr)
         set = self._cache_extract_set(addr)
 
-        cache_blk, _ = self._cache_find_valid_block(tag, set)
+        cache_blk = self._cache_find_valid_block(tag, set)
         if cache_blk is not None:
             # cache hit
             cache_state = self._cache_extract_block_state(set, cache_blk)
