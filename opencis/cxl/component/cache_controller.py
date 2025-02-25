@@ -204,7 +204,7 @@ class CacheController(RunnableComponent):
         self._cache[set][blk].tag = tag
         self._cache[set][blk].state = state
 
-    def _cache_find_replace_block(self, set: int) -> int:
+    def _cache_find_replace_block(self, set: int) -> Tuple[int, CacheState]:
         min_priority = self._cache[set][0].priority
         min_idx = 0
 
@@ -213,7 +213,7 @@ class CacheController(RunnableComponent):
                 min_priority = self._cache[set][idx].priority
                 min_idx = idx
 
-        return min_idx
+        return min_idx, self._cache[set][min_idx].state
 
     def _cache_find_invalid_block(self, set: int) -> int:
         for blk in range(self._cache_assoc_size):
@@ -231,6 +231,9 @@ class CacheController(RunnableComponent):
 
         return None
 
+    def _cache_check_block_state(self, set: int, blk: int) -> CacheState:
+        return self._cache[set][blk].state
+
     def _cache_data_read(self, set: int, blk: int) -> int:
         self._cache_priority_update(set, blk)
 
@@ -245,10 +248,14 @@ class CacheController(RunnableComponent):
             cache_state = CacheState.CACHE_EXCLUSIVE
         elif packet.status == CACHE_RESPONSE_STATUS.RSP_S:
             cache_state = CacheState.CACHE_SHARED
+        elif packet.status == CACHE_RESPONSE_STATUS.RSP_E:
+            cache_state = CacheState.CACHE_EXCLUSIVE
         elif packet.status == CACHE_RESPONSE_STATUS.RSP_I:
             cache_state = CacheState.CACHE_EXCLUSIVE
         elif packet.status == CACHE_RESPONSE_STATUS.RSP_V:
             cache_state = CacheState.CACHE_INVALID
+        elif packet.status == CACHE_RESPONSE_STATUS.RSP_M:
+            cache_state = CacheState.CACHE_MODIFIED
         return cache_state
 
     def _get_cache_fifo(self, addr: int) -> CacheFifoPair:
@@ -273,9 +280,13 @@ class CacheController(RunnableComponent):
         packet = await cache_fifo.response.get()
         return packet
 
-    async def _memory_store(self, addr: int, size: int, value: int) -> None:
+    async def _memory_store(self, addr: int, size: int, prev_state: CacheState, value) -> None:
         cache_fifo = self._get_cache_fifo(addr)
-        packet = CacheRequest(CACHE_REQUEST_TYPE.WRITE_BACK, addr, size, value)
+        # Check for dirtiness, use WRITE_BACK_CLEAN if clean
+        if prev_state == CacheState.CACHE_MODIFIED:
+            packet = CacheRequest(CACHE_REQUEST_TYPE.WRITE_BACK, addr, size, value)
+        else:
+            packet = CacheRequest(CACHE_REQUEST_TYPE.WRITE_BACK_CLEAN, addr, size, value)
         await cache_fifo.request.put(packet)
         await cache_fifo.response.get()
 
@@ -303,13 +314,15 @@ class CacheController(RunnableComponent):
     # For response: coherency tasks from coh module to cache controller
     async def _coh_to_cache_state_lookup(
         self, type: CACHE_REQUEST_TYPE, addr: int
-    ) -> Tuple[int, int]:
+    ) -> Tuple[int, int, CacheState]:
         data = 0
         tag = self._cache_extract_tag(addr)
         set = self._cache_extract_set(addr)
 
         cache_blk = self._cache_find_valid_block(tag, set)
+        prev_state = None
         if cache_blk is not None:
+            prev_state = self._cache_check_block_state(set, cache_blk)
             data = self._cache_data_read(set, cache_blk)
             if type == CACHE_REQUEST_TYPE.SNP_DATA:
                 self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_SHARED)
@@ -320,7 +333,7 @@ class CacheController(RunnableComponent):
             elif type == CACHE_REQUEST_TYPE.WRITE_BACK:
                 assert self._cache_extract_block_state(set, cache_blk) == CacheState.CACHE_SHARED
 
-        return cache_blk, data
+        return cache_blk, data, prev_state
 
     # cache access for read
     async def cache_coherent_load(self, addr: int, size: int) -> int:
@@ -339,12 +352,12 @@ class CacheController(RunnableComponent):
 
             # cache block full
             if cache_blk is None:
-                cache_blk = self._cache_find_replace_block(set)
+                cache_blk, prev_state = self._cache_find_replace_block(set)
                 assem_addr = self._cache_assem_addr(set, cache_blk)
                 cached_data = self._cache_data_read(set, cache_blk)
 
                 # cacheline flush to secure space
-                await self._memory_store(assem_addr, size, cached_data)
+                await self._memory_store(assem_addr, size, prev_state, cached_data)
                 self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_INVALID)
 
             # coherency check whenever inserting a cache block
@@ -388,12 +401,12 @@ class CacheController(RunnableComponent):
 
             # cache block full
             if cache_blk is None:
-                cache_blk = self._cache_find_replace_block(set)
+                cache_blk, prev_state = self._cache_find_replace_block(set)
                 assem_addr = self._cache_assem_addr(set, cache_blk)
                 cached_data = self._cache_data_read(set, cache_blk)
 
                 # cacheline flush to secure space
-                await self._memory_store(assem_addr, size, cached_data)
+                await self._memory_store(assem_addr, size, prev_state, cached_data)
                 self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_INVALID)
 
             # coherency check whenever inserting a cache block
@@ -450,11 +463,18 @@ class CacheController(RunnableComponent):
                     assert False
 
     async def _run_coh_request(self, packet: CacheRequest, cache_fifo: CacheFifoPair):
-        cache_blk, data = await self._coh_to_cache_state_lookup(packet.type, packet.addr)
+        cache_blk, data, prev_state = await self._coh_to_cache_state_lookup(
+            packet.type, packet.addr
+        )
         if cache_blk is None:
             packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_MISS, data)
         elif packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
-            packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_S, data)
+            rsp_status = CACHE_RESPONSE_STATUS.RSP_S
+            if prev_state == CacheState.CACHE_MODIFIED:
+                rsp_status = CACHE_RESPONSE_STATUS.RSP_M
+            elif prev_state == CacheState.CACHE_EXCLUSIVE:
+                rsp_status = CACHE_RESPONSE_STATUS.RSP_E
+            packet = CacheResponse(rsp_status, data)
         elif packet.type == CACHE_REQUEST_TYPE.SNP_INV:
             packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I, data)
         elif packet.type == CACHE_REQUEST_TYPE.SNP_CUR:

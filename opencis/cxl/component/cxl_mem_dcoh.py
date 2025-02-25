@@ -177,7 +177,8 @@ class CxlMemDcoh(PacketProcessor):
             if data_read is True:
                 data = await self._memory_device_component.read_mem_dpa(dpa)
         else:
-            if packet.status == CACHE_RESPONSE_STATUS.RSP_S:
+            if packet.status in (CACHE_RESPONSE_STATUS.RSP_S, CACHE_RESPONSE_STATUS.RSP_M):
+                # TODO: Table 3-50 shows Cmp-M should be optionally suported by host implementations
                 rsp_code = CXL_MEM_S2MNDR_OPCODE.CMP_S
                 sf_update_list.append(SF_UPDATE_TYPE.SF_HOST_IN)
             elif packet.status == CACHE_RESPONSE_STATUS.RSP_I:
@@ -280,7 +281,12 @@ class CxlMemDcoh(PacketProcessor):
                 packet = CacheResponse(CACHE_RESPONSE_STATUS.OK, data)
                 await self._cache_to_coh_agent_fifo.response.put(packet)
                 self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
-            elif cache_packet.type in (CACHE_REQUEST_TYPE.WRITE, CACHE_REQUEST_TYPE.WRITE_BACK):
+            elif cache_packet.type in (
+                CACHE_REQUEST_TYPE.WRITE,
+                CACHE_REQUEST_TYPE.WRITE_BACK,
+                CACHE_REQUEST_TYPE.WRITE_BACK_CLEAN,
+            ):
+                # if not CACHE_REQUEST_TYPE.WRITE_BACK_CLEAN:
                 await self._memory_device_component.write_mem_dpa(dpa, cache_packet.data)
                 packet = CacheResponse(CACHE_RESPONSE_STATUS.OK)
                 await self._cache_to_coh_agent_fifo.response.put(packet)
