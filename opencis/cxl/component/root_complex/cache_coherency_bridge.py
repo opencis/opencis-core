@@ -247,7 +247,7 @@ class CacheCoherencyBridge(RunnableComponent):
             # share host cache and return to the target device
             if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_DONE:
                 if self._cur_state.cache_rsp == CACHE_RESPONSE_STATUS.RSP_M:
-                    if self._cxl_channel["d2h_data"].empty():
+                    if self._cxl_channel.d2h_data.empty():
                         return
                     packet = await self._cxl_channel.d2h_data.get()
                     data = packet.data
@@ -381,7 +381,7 @@ class CacheCoherencyBridge(RunnableComponent):
                 addr = self._cur_state.packet.addr
                 data = await self._sync_memory_read(addr)
             elif self._cur_state.cache_rsp == CACHE_RESPONSE_STATUS.RSP_M:
-                if self._cxl_channel["d2h_data"].empty():
+                if self._cxl_channel.d2h_data.empty():
                     return
                 packet = await self._cxl_channel.d2h_data.get()
                 data = packet.data
