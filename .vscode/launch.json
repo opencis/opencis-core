@@ -1,6 +1,7 @@
 {
     "version": "0.2.0",
     "configurations": [
+
       {
         "name": "poetry install", 
         "type": "debugpy",
@@ -27,6 +28,15 @@
         "request": "launch",
         "module": "poetry",
         "args": ["run", "python", "opencxl/bin/cli.py", "start", "-c", "switch", "-c", "sld-group", "--config-file", "configs/1vcs_4sld.yaml", "--log-file=log_name.log", "--log-level=debug"]
+      }
+      ,
+      {
+        "name": "Run Type 2", 
+        "type": "debugpy",
+        "request": "launch",
+        "module": "poetry",
+        "cwd": "${workspaceFolder}/demos/image-classification",
+        "args": ["run", "python", "run-demo.py", "-p", "~/Downloads/imagenette2-160-fast", "-t", "2"]
       }
     ]
 }

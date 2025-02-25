@@ -1058,8 +1058,8 @@ class CxlCacheD2HDataPacket(CxlCacheBasePacket):
     _fields = CxlCacheBasePacket._fields + [
         StructureField(
             "d2hdata_header",
-            D2HRSP_HEADER_START,
-            D2HRSP_HEADER_END,
+            D2HDATA_HEADER_START,
+            D2HDATA_HEADER_END,
             CxlCacheD2HDataHeader,
         ),
         ByteField("data", D2HDATA_FIELD_START, D2HDATA_FIELD_START + 63),

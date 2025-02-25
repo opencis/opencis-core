@@ -202,7 +202,9 @@ async def test_cxl_host_cc_cache_req(cxl_host_cache_controller):
     # SNP_DATA
     req = CacheRequest(CACHE_REQUEST_TYPE.SNP_DATA, 0, 0x40)
     resp = await send_cache_req(cc, req)
-    assert resp.status == CACHE_RESPONSE_STATUS.RSP_S
+    # Data is now modified, should respond RSP_M
+    # It will be translated to RSP_S_FWD_M in CacheDcoh
+    assert resp.status == CACHE_RESPONSE_STATUS.RSP_M
 
     # SNP_CUR
     req = CacheRequest(CACHE_REQUEST_TYPE.SNP_CUR, 0, 0x40)
