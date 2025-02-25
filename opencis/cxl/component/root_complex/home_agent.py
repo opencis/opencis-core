@@ -302,6 +302,7 @@ class HomeAgent(RunnableComponent):
             if cache_packet.type in (
                 CACHE_REQUEST_TYPE.WRITE,
                 CACHE_REQUEST_TYPE.WRITE_BACK,
+                CACHE_REQUEST_TYPE.WRITE_BACK_CLEAN,
                 CACHE_REQUEST_TYPE.UNCACHED_WRITE,
             ):
                 opcode = CXL_MEM_M2SRWD_OPCODE.MEM_WR
@@ -311,7 +312,12 @@ class HomeAgent(RunnableComponent):
                 if cache_packet.type == CACHE_REQUEST_TYPE.WRITE:
                     meta_value = CXL_MEM_META_VALUE.ANY
                 # HDM-DB Flush Write (Cmp: I/I)
-                elif cache_packet.type == CACHE_REQUEST_TYPE.WRITE_BACK:
+                elif cache_packet.type in (
+                    CACHE_REQUEST_TYPE.WRITE_BACK,
+                    CACHE_REQUEST_TYPE.WRITE_BACK_CLEAN,
+                ):
+                    # TODO: should consider skip sending data back to .MEM dev
+                    # if the cache line is clean (WRITE_BACK_CLEAN)
                     meta_field = CXL_MEM_META_FIELD.META0_STATE
                     meta_value = CXL_MEM_META_VALUE.INVALID
                 # HDM Uncached Write
