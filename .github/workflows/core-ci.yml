@@ -9,25 +9,25 @@ jobs:
     name: pytest
     runs-on: ubuntu-22.04
     container:
-      image: ghcr.io/opencis/core-ci:0.1
+      image: ghcr.io/opencis/core-ci:0.2
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
-      - name: Install Python packages via poetry
-        run: poetry env use python3.11 && poetry install
+      - name: Install Python packages via uv
+        run: uv python pin 3.11 && uv sync
       - name: Run pytest
         run: make test
   code-quality:
     name: code-quality
     runs-on: ubuntu-22.04
     container:
-      image: ghcr.io/opencis/core-ci:0.1
+      image: ghcr.io/opencis/core-ci:0.2
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
-      - name: Install Python packages via poetry
-        run: poetry env use python3.11 && poetry install
+      - name: Install Python packages via uv
+        run: uv python pin 3.11 && uv sync
       - name: Run pylint
         run: make lint
       - name: Run black
-        run: poetry run black --check opencis tests
+        run: uv run black --check opencis tests demos

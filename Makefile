@@ -15,7 +15,7 @@ lint:
 	uv run pylint tests
 
 format:
-	uv run black opencis tests
+	uv run black opencis tests demos
 
 clean:
 	rm -rf *.bin logs *.log *.pcap
