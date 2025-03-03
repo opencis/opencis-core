@@ -34,6 +34,7 @@ class CxlFabricManager(RunnableComponent):
         mctp_port: int = 8100,
         socketio_host: str = "0.0.0.0",
         socketio_port: int = 8200,
+        host_fm_conn_port: int = 8700,
         use_test_runner: bool = False,
     ):
         super().__init__()
@@ -41,7 +42,7 @@ class CxlFabricManager(RunnableComponent):
 
         self._api_client = MctpCciApiClient(self._connection_manager.get_mctp_connection())
         self._host_fm_conn_server = ShortMsgConn(
-            "FM_Server", port=8700, server=True, msg_width=16, msg_type=HostFMMsg
+            "FM_Server", port=host_fm_conn_port, server=True, msg_width=16, msg_type=HostFMMsg
         )
         self._host_fm_conn_manager = HostFMConnManager(self._api_client, self._host_fm_conn_server)
         self._socketio_server = FabricManagerSocketIoServer(
@@ -103,6 +104,7 @@ class CxlFabricManager(RunnableComponent):
             create_task(self._connection_manager.wait_for_ready()),
             create_task(self._socketio_server.wait_for_ready()),
             create_task(self._api_client.wait_for_ready()),
+            create_task(self._host_fm_conn_server.wait_for_ready()),
         ]
         if self._use_test_runner:
             tasks.append(create_task(self._run_test()))
