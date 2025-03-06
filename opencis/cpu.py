@@ -24,6 +24,7 @@ class CPU(RunnableComponent):
         self._cxl_mem_hub = cxl_mem_hub
         self._sys_sw_app = sys_sw_app
         self._user_app = user_app
+        self._fut = None
 
     def create_message(self, message):
         return self._create_message(message)
@@ -87,12 +88,11 @@ class CPU(RunnableComponent):
 
     async def _run(self):
         await self._sys_sw_app(self._cxl_mem_hub)
-        tasks = [
-            asyncio.create_task(self._app_run_task()),
-        ]
+        app_task = asyncio.create_task(self._app_run_task())
         await self._change_status_to_running()
-        await asyncio.gather(*tasks)
+        self._fut = asyncio.Future()
+        await self._fut
+        app_task.cancel()
 
     async def _stop(self):
-        # TODO: Add app interruptability
-        pass
+        self._fut.set_result("CPU Done")

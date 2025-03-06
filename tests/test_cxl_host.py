@@ -20,7 +20,9 @@ import pytest
 from opencis.cxl.transport.transaction import (
     CXL_MEM_M2SBIRSP_OPCODE,
 )
-from opencis.apps.cxl_simple_host import CxlSimpleHost
+from opencis.apps.fabric_manager import CxlFabricManager
+from opencis.apps.memory_pooling import my_sys_sw_app, sample_app
+from opencis.cxl.component.cxl_host import CxlHost
 from opencis.cxl.component.host_manager import HostManager, UtilConnClient
 from opencis.cxl.component.switch_connection_manager import SwitchConnectionManager
 from opencis.cxl.component.cxl_component import PortConfig, PORT_TYPE
@@ -281,6 +283,8 @@ async def test_cxl_host_type3_ete():
     host_port = next(generator)
     util_port = next(generator)
     switch_port = next(generator)
+    irq_port = next(generator)
+    mctp_port = next(generator)
 
     port_configs = [
         PortConfig(PORT_TYPE.USP),
@@ -315,35 +319,37 @@ async def test_cxl_host_type3_ete():
         port=switch_port,
     )
 
+    # host_fm_conn_port port number conflict?
+    fabric_manager = CxlFabricManager(mctp_port=mctp_port, host_fm_conn_port=8700)
     host_manager = HostManager(host_port=host_port, util_port=util_port)
-    host = CxlSimpleHost(port_index=0, switch_port=switch_port, host_port=host_port)
+    host = CxlHost(
+        port_index=0,
+        sys_mem_size=(16 * MB),
+        sys_sw_app=my_sys_sw_app,
+        user_app=sample_app,
+        switch_port=switch_port,
+        irq_port=irq_port,
+        host_conn_port=host_port,
+        enable_hm=False,
+    )
     start_tasks = [
-        asyncio.create_task(host.run()),
-        asyncio.create_task(host_manager.run()),
-        asyncio.create_task(sw_conn_manager.run()),
-        asyncio.create_task(physical_port_manager.run()),
-        asyncio.create_task(virtual_switch_manager.run()),
-        asyncio.create_task(sld.run()),
+        await fabric_manager.run_wait_ready(),
+        await sw_conn_manager.run_wait_ready(),
+        await physical_port_manager.run_wait_ready(),
+        await virtual_switch_manager.run_wait_ready(),
+        await host_manager.run_wait_ready(),
+        await sld.run_wait_ready(),
+        await host.run_wait_ready(),
     ]
-
-    wait_tasks = [
-        asyncio.create_task(sw_conn_manager.wait_for_ready()),
-        asyncio.create_task(physical_port_manager.wait_for_ready()),
-        asyncio.create_task(virtual_switch_manager.wait_for_ready()),
-        asyncio.create_task(host_manager.wait_for_ready()),
-        asyncio.create_task(host.wait_for_ready()),
-        asyncio.create_task(sld.wait_for_ready()),
-    ]
-    await asyncio.gather(*wait_tasks)
 
     data = 0xA5A5
     valid_addr = 0x40
     invalid_addr = 0x41
     test_tasks = [
-        asyncio.create_task(host._cxl_mem_read(valid_addr)),
-        asyncio.create_task(host._cxl_mem_read(invalid_addr)),
-        asyncio.create_task(host._cxl_mem_write(valid_addr, data)),
-        asyncio.create_task(host._cxl_mem_write(invalid_addr, data)),
+        asyncio.create_task(host._cxl_host_read(valid_addr)),
+        asyncio.create_task(host._cxl_host_read(invalid_addr)),
+        asyncio.create_task(host._cxl_host_write(valid_addr, data)),
+        asyncio.create_task(host._cxl_host_write(invalid_addr, data)),
     ]
     await asyncio.gather(*test_tasks)
 
@@ -354,6 +360,7 @@ async def test_cxl_host_type3_ete():
         asyncio.create_task(host_manager.stop()),
         asyncio.create_task(host.stop()),
         asyncio.create_task(sld.stop()),
+        asyncio.create_task(fabric_manager.stop()),
     ]
     await asyncio.gather(*stop_tasks)
     await asyncio.gather(*start_tasks)

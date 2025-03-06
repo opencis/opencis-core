@@ -161,6 +161,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
         self._sio = socketio.AsyncServer(cors_allowed_origins="*")
         self._sio.attach(self._app)
         self._runner = web.AppRunner(self._app)
+        self._fut = None
 
         self._register_handler("port:get")
         self._register_handler("vcs:get")
@@ -334,10 +335,10 @@ class FabricManagerSocketIoServer(RunnableComponent):
         )
         await self._change_status_to_running()
 
-        # Here you could add a condition to run indefinitely or until a stop signal is received
-        while not self._stop_signal:
-            await asyncio.sleep(1)  # Run forever or until a stop signal is set
+        # wait until stopped
+        self._fut = asyncio.Future()
+        await self._fut
 
     async def _stop(self):
-        self._stop_signal = True
+        self._fut.set_result("Done")
         await self._runner.cleanup()
