@@ -1,13 +1,15 @@
 """
- Copyright (c) 2024, Eeum, Inc.
+Copyright (c) 2024, Eeum, Inc.
 
- This software is licensed under the terms of the Revised BSD License.
- See LICENSE for details.
+This software is licensed under the terms of the Revised BSD License.
+See LICENSE for details.
 """
 
 from typing import List
+
 from opencis.util.component import LabeledComponent, Label
 from opencis.cxl.component.root_complex.root_complex import RootComplex
+from opencis.cxl.component.hdm_decoder import INTERLEAVE_GRANULARITY, INTERLEAVE_WAYS
 from opencis.drivers.cxl_bus_driver import CxlBusDriver, CxlDeviceInfo
 from opencis.util.logger import logger
 
@@ -42,10 +44,20 @@ class CxlMemDriver(LabeledComponent):
         return downstream_port.pci_device_info.get_port_number()
 
     async def attach_single_mem_device(
-        self, device: CxlDeviceInfo, hpa_base: int, size: int
+        self,
+        device: CxlDeviceInfo,
+        hpa_base: int,
+        size: int,
+        ig: INTERLEAVE_GRANULARITY = INTERLEAVE_GRANULARITY.SIZE_256B,
+        iw: INTERLEAVE_WAYS = INTERLEAVE_WAYS.WAY_1,
     ) -> bool:
         device.log_prefix = "CxlMemDriver"
-        successful = await device.configure_hdm_decoder_device(hpa_base=hpa_base, hpa_size=size)
+        successful = await device.configure_hdm_decoder_device(
+            hpa_base=hpa_base,
+            hpa_size=size,
+            interleaving_granularity=ig.value,
+            interleaving_way=iw.value,
+        )
         if not successful:
             bdf_str = device.pci_device_info.get_bdf_string()
             logger.warning(self._create_message(f"Failed to configure HDM decoder of {bdf_str}"))

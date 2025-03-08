@@ -1,8 +1,8 @@
 """
- Copyright (c) 2024, Eeum, Inc.
+Copyright (c) 2024, Eeum, Inc.
 
- This software is licensed under the terms of the Revised BSD License.
- See LICENSE for details.
+This software is licensed under the terms of the Revised BSD License.
+See LICENSE for details.
 """
 
 import asyncio
@@ -16,6 +16,7 @@ from opencis.drivers.cxl_mem_driver import CxlMemDriver
 from opencis.drivers.pci_bus_driver import PciBusDriver
 from opencis.cxl.component.cxl_memory_hub import CxlMemoryHub, MEM_ADDR_TYPE
 from opencis.cxl.component.cxl_host import CxlHost
+from opencis.cxl.component.hdm_decoder import INTERLEAVE_GRANULARITY, INTERLEAVE_WAYS
 from opencis.cpu import CPU
 from opencis.util.number_const import MB
 
@@ -114,10 +115,21 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
                 continue
             cxl_memory_hub.add_mem_range(bar_info.base_address, bar_info.size, MEM_ADDR_TYPE.MMIO)
 
+    ig = INTERLEAVE_GRANULARITY.SIZE_256B
+    iw = INTERLEAVE_WAYS.WAY_4
+    iw_factor = int(iw.name.rsplit("_", maxsplit=1)[-1])
     for device in cxl_mem_driver.get_devices():
-        size = device.get_memory_size()
+        hpa_base = memory_base_tracker.hpa_base
+        if iw_factor > 1:
+            # interleaving enabled: same HPA base_addr and size (combined) for all
+            size = device.get_memory_size() * iw_factor
+        else:
+            # interleaving disabled: unique HPA base_addr and size
+            size = device.get_memory_size()
+            memory_base_tracker.hpa_base += size
+
         successful = await cxl_mem_driver.attach_single_mem_device(
-            device, memory_base_tracker.hpa_base, size
+            device, hpa_base, size, ig=ig, iw=iw
         )
         sn = device.pci_device_info.serial_number
         vppb = cxl_mem_driver.get_port_number(device)
@@ -145,7 +157,6 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
             mem_tracker.add_mem_range(
                 vppb, memory_base_tracker.hpa_base, size, MEM_ADDR_TYPE.CXL_UNCACHED
             )
-        memory_base_tracker.hpa_base += size
 
     # System Memory
     sys_mem_size = root_complex.get_sys_mem_size()
