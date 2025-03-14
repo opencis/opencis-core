@@ -15,7 +15,7 @@ from opencis.drivers.cxl_bus_driver import CxlBusDriver
 from opencis.drivers.cxl_mem_driver import CxlMemDriver
 from opencis.drivers.pci_bus_driver import PciBusDriver
 from opencis.cxl.component.cxl_memory_hub import CxlMemoryHub, MEM_ADDR_TYPE
-from opencis.cxl.component.cxl_host import CxlHost
+from opencis.cxl.component.cxl_host import CxlHost, CxlHostConfig
 from opencis.cxl.component.hdm_decoder import INTERLEAVE_GRANULARITY, INTERLEAVE_WAYS
 from opencis.cpu import CPU
 from opencis.util.number_const import MB
@@ -74,14 +74,17 @@ class MemoryBaseTracker:
 host_fm_conn = None
 
 
-async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
+async def my_sys_sw_app(ig, iw, **kwargs):
+    cxl_memory_hub: CxlMemoryHub
+
     # Max addr for CFG is 0x9FFFFFFF, given max num bus = 8
     # Therefore, 0xFE000000 for MMIO does not overlap
     pci_cfg_base_addr = 0x10000000
     pci_mmio_base_addr = 0xFE000000
     cxl_hpa_base_addr = 0x100000000000
+    cxl_memory_hub = kwargs["cxl_memory_hub"]
     sys_mem_base_addr = 0xFFFF888000000000
-
+    logger.info(f"{ig}:{iw}:{cxl_memory_hub}")
     # PCI Device
     mem_tracker = CxlDeviceMemTracker(cxl_memory_hub)
     root_complex = cxl_memory_hub.get_root_complex()
@@ -123,9 +126,11 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
         if iw_factor > 1:
             # interleaving enabled: same HPA base_addr and size (combined) for all
             size = device.get_memory_size() * iw_factor
+            logger.info(f"{iw_factor}:0x{size:x}")
         else:
             # interleaving disabled: unique HPA base_addr and size
             size = device.get_memory_size()
+            logger.info(f"{iw_factor}:0x{size:x}")
             memory_base_tracker.hpa_base += size
 
         successful = await cxl_mem_driver.attach_single_mem_device(
@@ -273,14 +278,15 @@ async def sample_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
     await asyncio.Event().wait()  # keep the host app alive
 
 
-async def run_host(port_index: int, irq_port: int):
-    host = CxlHost(
+async def run_host(port_index: int, irq_port: int, ig: int, iw: int):
+    cxl_host_config = CxlHostConfig(
         port_index=port_index,
         sys_mem_size=(16 * MB),
-        sys_sw_app=my_sys_sw_app,
+        sys_sw_app=lambda **kwargs: my_sys_sw_app(ig=ig, iw=iw, **kwargs),
         user_app=sample_app,
         irq_port=irq_port,
     )
+    host = CxlHost(cxl_host_config)
     await host.run()
 
 

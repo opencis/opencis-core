@@ -32,7 +32,7 @@ def start_host_manager():
     asyncio.run(host_manager.wait_for_ready())
 
 
-async def run_host_group(ports):
+async def run_host_group(ports, ig, iw):
     irq_port = 8500
     tasks = []
     for idx in ports:
@@ -41,6 +41,8 @@ async def run_host_group(ports):
                 run_host(
                     port_index=idx,
                     irq_port=irq_port,
+                    ig=ig,
+                    iw=iw,
                 )
             )
         )
@@ -48,7 +50,7 @@ async def run_host_group(ports):
     await asyncio.gather(*tasks)
 
 
-def start_group(config_file: str):
+def start_group(config_file: str, ig: int = 0, iw: int = 0):
     logger.info(f"Starting CXL Host Group - Config: {config_file}")
     try:
         environment = parse_cxl_environment(config_file)
@@ -60,4 +62,4 @@ def start_group(config_file: str):
     for idx, port_config in enumerate(environment.switch_config.port_configs):
         if port_config.type == PORT_TYPE.USP:
             ports.append(idx)
-    asyncio.run(run_host_group(ports))
+    asyncio.run(run_host_group(ports, ig, iw))

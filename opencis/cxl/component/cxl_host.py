@@ -7,6 +7,7 @@
 
 import asyncio
 from typing import Callable, Awaitable
+from dataclasses import dataclass, field
 
 from opencis.util.logger import logger
 from opencis.util.component import RunnableComponent
@@ -19,60 +20,64 @@ from opencis.cxl.component.irq_manager import IrqManager
 from opencis.cxl.component.host_manager import HostMgrConnClient, Result
 
 
+@dataclass
+class CxlHostConfig:
+    port_index: int
+    sys_mem_size: int
+    sys_sw_app: Callable[[], Awaitable[None]]
+    user_app: Callable[[], Awaitable[None]]
+    host_name: str = None
+    switch_host: str = "0.0.0.0"
+    switch_port: int = 8000
+    irq_host: str = "0.0.0.0"
+    irq_port: int = 8500
+    host_conn_host: str = "0.0.0.0"
+    host_conn_port: int = 8300
+    enable_hm: bool = True
+
+
 class CxlHost(RunnableComponent):
-    def __init__(
-        self,
-        port_index: int,
-        sys_mem_size: int,
-        sys_sw_app: Callable[[], Awaitable[None]],
-        user_app: Callable[[], Awaitable[None]],
-        host_name: str = None,
-        switch_host: str = "0.0.0.0",
-        switch_port: int = 8000,
-        irq_host: str = "0.0.0.0",
-        irq_port: int = 8500,
-        host_conn_host: str = "0.0.0.0",
-        host_conn_port: int = 8300,
-        enable_hm: int = True,
-    ):
-        label = f"Port{port_index}"
+    def __init__(self, config: CxlHostConfig):
+        label = f"Port{config.port_index}"
         super().__init__(label)
-        self._port_index = port_index
-        root_ports = [RootPortClientConfig(port_index, switch_host, switch_port)]
-        host_name = host_name if host_name else f"CxlHostPort{port_index}"
+        self._port_index = config.port_index
+        root_ports = [
+            RootPortClientConfig(config.port_index, config.switch_host, config.switch_port)
+        ]
+        host_name = config.host_name if config.host_name else f"CxlHostPort{config.port_index}"
 
         self._sys_mem_config = SystemMemControllerConfig(
-            memory_size=sys_mem_size,
-            memory_filename=f"sys-mem{port_index}.bin",
+            memory_size=config.sys_mem_size,
+            memory_filename=f"sys-mem{config.port_index}.bin",
         )
         self._irq_manager = IrqManager(
             device_name=host_name,
-            addr=irq_host,
-            port=irq_port,
+            addr=config.irq_host,
+            port=config.irq_port,
             server=True,
-            device_id=port_index,
+            device_id=config.port_index,
         )
         self._cxl_memory_hub_config = CxlMemoryHubConfig(
             host_name=host_name,
-            root_bus=port_index,
+            root_bus=config.port_index,
             root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
             root_ports=root_ports,
             sys_mem_controller=self._sys_mem_config,
             irq_handler=self._irq_manager,
         )
         self._cxl_memory_hub = CxlMemoryHub(self._cxl_memory_hub_config)
-        self._cpu = CPU(self._cxl_memory_hub, sys_sw_app, user_app)
+        self._cpu = CPU(self._cxl_memory_hub, config.sys_sw_app, config.user_app)
 
-        self._enable_hm = enable_hm
+        self._enable_hm = config.enable_hm
         if self._enable_hm:
             methods = {
                 "HOST:CXL_HOST_READ": self._cxl_host_read,
                 "HOST:CXL_HOST_WRITE": self._cxl_host_write,
             }
             self._host_mgr_conn_client = HostMgrConnClient(
-                port_index=port_index,
-                host=host_conn_host,
-                port=host_conn_port,
+                port_index=config.port_index,
+                host=config.host_conn_host,
+                port=config.host_conn_port,
                 methods=methods,
             )
 

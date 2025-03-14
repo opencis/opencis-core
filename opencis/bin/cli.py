@@ -78,6 +78,8 @@ def validate_log_level(ctx, param, level):
 @click.option("--show-timestamp", is_flag=True, default=False, help="Show timestamp.")
 @click.option("--show-loglevel", is_flag=True, default=False, help="Show log level.")
 @click.option("--show-linenumber", is_flag=True, default=False, help="Show line number.")
+@click.option("--ig", help="Interleave granularity")
+@click.option("--iw", help="Interleave ways")
 def start(
     ctx,
     comp,
@@ -88,6 +90,8 @@ def start(
     show_timestamp,
     show_loglevel,
     show_linenumber,
+    ig,
+    iw,
 ):
     """Start components"""
 
@@ -172,11 +176,13 @@ def start(
             processes.append(p_hm)
             p_hm.start()
         if "host" in comp:
-            p_host = multiprocessing.Process(target=start_host, args=(ctx,))
+            p_host = multiprocessing.Process(target=start_host, args=(ctx, ig, iw))
             processes.append(p_host)
             p_host.start()
         elif "host-group" in comp:
-            p_hgroup = multiprocessing.Process(target=start_host_group, args=(ctx, config_file))
+            p_hgroup = multiprocessing.Process(
+                target=start_host_group, args=(ctx, config_file, ig, iw)
+            )
             processes.append(p_hgroup)
             p_hgroup.start()
 
@@ -210,8 +216,8 @@ def start_host(ctx):
     ctx.invoke(cxl_host.start)
 
 
-def start_host_group(ctx, config_file):
-    ctx.invoke(cxl_host.start_group, config_file=config_file)
+def start_host_group(ctx, config_file, ig, iw):
+    ctx.invoke(cxl_host.start_group, config_file=config_file, ig=ig, iw=iw)
 
 
 def start_sld(ctx, config_file):

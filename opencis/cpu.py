@@ -16,15 +16,19 @@ from opencis.cxl.component.cxl_memory_hub import CxlMemoryHub
 class CPU(RunnableComponent):
     def __init__(
         self,
-        cxl_mem_hub: CxlMemoryHub,
+        cxl_memory_hub: CxlMemoryHub,
         sys_sw_app: Callable[[], Awaitable[None]],
         user_app: Callable[[], Awaitable[None]],
     ):
         super().__init__()
-        self._cxl_mem_hub = cxl_mem_hub
+        self._cxl_memory_hub = cxl_memory_hub
         self._sys_sw_app = sys_sw_app
         self._user_app = user_app
         self._fut = None
+
+    async def _run_sys_sw_app(self, *args, **kwargs):
+        kwargs["cxl_memory_hub"] = self._cxl_memory_hub
+        await self._sys_sw_app(*args, **kwargs)
 
     def create_message(self, message):
         return self._create_message(message)
@@ -87,7 +91,7 @@ class CPU(RunnableComponent):
         return await self._user_app(_cpu=self, _mem_hub=self._cxl_mem_hub)
 
     async def _run(self):
-        await self._sys_sw_app(self._cxl_mem_hub)
+        await self._run_sys_sw_app()
         app_task = asyncio.create_task(self._app_run_task())
         await self._change_status_to_running()
         self._fut = asyncio.Future()
