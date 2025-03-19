@@ -35,7 +35,7 @@ class CPU(RunnableComponent):
 
     async def load(self, addr: int, size: int) -> int:
         if size <= 64:
-            data = await self._cxl_mem_hub.load(addr, size)
+            data = await self._cxl_memory_hub.load(addr, size)
         else:
             data_bytes = await self.load_bytes(addr, size)
             data = int.from_bytes(data_bytes, "little")
@@ -53,7 +53,7 @@ class CPU(RunnableComponent):
             disable=not prog_bar,
         ) as pbar:
             for cacheline_offset in range(addr, addr + size, 64):
-                cacheline = await self._cxl_mem_hub.load(cacheline_offset, 64)
+                cacheline = await self._cxl_memory_hub.load(cacheline_offset, 64)
                 chunk_size = min(64, (end - cacheline_offset))
                 chunk_data = cacheline.to_bytes(64, "little")
                 result += chunk_data[:chunk_size]
@@ -62,7 +62,7 @@ class CPU(RunnableComponent):
 
     async def store(self, addr: int, size: int, value: int, prog_bar: bool = False):
         if size <= 64:
-            res = await self._cxl_mem_hub.store(addr, size, value)
+            res = await self._cxl_memory_hub.store(addr, size, value)
         else:
             if addr % 64 or size % 64:
                 raise Exception("Size and address must be aligned to 64!")
@@ -78,7 +78,9 @@ class CPU(RunnableComponent):
                 chunk_count = 0
                 while size > 0:
                     low_64_byte = value & ((1 << (64 * 8)) - 1)
-                    res = await self._cxl_mem_hub.store(addr + (chunk_count * 64), 64, low_64_byte)
+                    res = await self._cxl_memory_hub.store(
+                        addr + (chunk_count * 64), 64, low_64_byte
+                    )
                     if not res:
                         return res
                     size -= 64
@@ -88,7 +90,7 @@ class CPU(RunnableComponent):
         return res
 
     async def _app_run_task(self):
-        return await self._user_app(_cpu=self, _mem_hub=self._cxl_mem_hub)
+        return await self._user_app(_cpu=self, _mem_hub=self._cxl_memory_hub)
 
     async def _run(self):
         await self._run_sys_sw_app()

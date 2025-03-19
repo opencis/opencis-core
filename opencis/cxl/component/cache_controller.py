@@ -44,6 +44,9 @@ class MemoryRange:
     size: int
     addr_type: MEM_ADDR_TYPE
 
+    def __hash__(self):
+        return hash((self.base_addr, self.size, self.addr_type))
+
 
 class COH_STATE_MACHINE(Enum):
     COH_STATE_INIT = auto()
@@ -121,7 +124,7 @@ class CacheController(RunnableComponent):
         self._cache_to_coh_bridge_fifo = config.cache_to_coh_bridge_fifo
         self._coh_bridge_to_cache_fifo = config.coh_bridge_to_cache_fifo
 
-        self._memory_ranges: List[MemoryRange] = []
+        self._memory_ranges: set[MemoryRange] = set()
 
         self.init_cache()
         logger.debug(self._create_message(f"{config.component_name} LLC Generated"))
@@ -146,7 +149,7 @@ class CacheController(RunnableComponent):
         logger.info(
             self._create_message(f"Adding MemoryRange addr: 0x{addr:x} addr_type: {addr_type.name}")
         )
-        self._memory_ranges.append(MemoryRange(base_addr=addr, size=size, addr_type=addr_type))
+        self._memory_ranges.add(MemoryRange(base_addr=addr, size=size, addr_type=addr_type))
 
     def remove_mem_range(self, base_addr: int, size: int, addr_type: MEM_ADDR_TYPE):
         r = MemoryRange(base_addr, size, addr_type)

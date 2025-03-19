@@ -322,8 +322,9 @@ async def test_cxl_host_type3_ete():
     # host_fm_conn_port port number conflict?
     fabric_manager = CxlFabricManager(mctp_port=mctp_port, host_fm_conn_port=8700)
     host_manager = HostManager(host_port=host_port, util_port=util_port)
+
     ig = 0
-    iw = 4
+    iw = 2
     cxl_host_config = CxlHostConfig(
         port_index=0,
         sys_mem_size=(16 * MB),

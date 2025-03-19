@@ -174,6 +174,9 @@ class HdmDecoderManagerBase(LabeledComponent):
 
     def get_decoder_from_hpa(self, hpa: int) -> Optional[HdmDecoderBase]:
         for decoder in self._decoders:
+            logger.debug(
+                f"decoder.index:{decoder.index}, decoder.base:{decoder.base:x}, decoder.size:{decoder.size:x}, decoder.ig:{decoder.ig:x}, decoder.iw:{decoder.iw:x}"
+            )
             if decoder.is_hpa_in_range(hpa):
                 return decoder
         return None

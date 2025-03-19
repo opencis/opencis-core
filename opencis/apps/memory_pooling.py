@@ -74,6 +74,15 @@ class MemoryBaseTracker:
 host_fm_conn = None
 
 
+async def init_cxl_devices_interleave(
+    cxl_mem_driver: CxlMemDriver,
+    hpa_base: int,
+    ig: INTERLEAVE_GRANULARITY = INTERLEAVE_GRANULARITY.SIZE_256B,
+    iw: INTERLEAVE_WAYS = INTERLEAVE_WAYS.WAY_1,
+):
+    pass
+
+
 async def my_sys_sw_app(ig, iw, **kwargs):
     cxl_memory_hub: CxlMemoryHub
 
@@ -82,9 +91,12 @@ async def my_sys_sw_app(ig, iw, **kwargs):
     pci_cfg_base_addr = 0x10000000
     pci_mmio_base_addr = 0xFE000000
     cxl_hpa_base_addr = 0x100000000000
-    cxl_memory_hub = kwargs["cxl_memory_hub"]
     sys_mem_base_addr = 0xFFFF888000000000
+    cxl_memory_hub = kwargs["cxl_memory_hub"]
+    ig = int(ig)
+    iw = int(iw)
     logger.info(f"{ig}:{iw}:{cxl_memory_hub}")
+
     # PCI Device
     mem_tracker = CxlDeviceMemTracker(cxl_memory_hub)
     root_complex = cxl_memory_hub.get_root_complex()
@@ -118,50 +130,97 @@ async def my_sys_sw_app(ig, iw, **kwargs):
                 continue
             cxl_memory_hub.add_mem_range(bar_info.base_address, bar_info.size, MEM_ADDR_TYPE.MMIO)
 
-    ig = INTERLEAVE_GRANULARITY.SIZE_256B
-    iw = INTERLEAVE_WAYS.WAY_4
-    iw_factor = int(iw.name.rsplit("_", maxsplit=1)[-1])
+    ig = INTERLEAVE_GRANULARITY(ig)
+    iw = INTERLEAVE_WAYS(iw)
+    iw_in_int = int(iw.name.rsplit("_", maxsplit=1)[-1])
+
+    dev_mem_sizes = []
+    vppbs = []
     for device in cxl_mem_driver.get_devices():
-        hpa_base = memory_base_tracker.hpa_base
-        if iw_factor > 1:
-            # interleaving enabled: same HPA base_addr and size (combined) for all
-            size = device.get_memory_size() * iw_factor
-            logger.info(f"{iw_factor}:0x{size:x}")
-        else:
-            # interleaving disabled: unique HPA base_addr and size
-            size = device.get_memory_size()
-            logger.info(f"{iw_factor}:0x{size:x}")
-            memory_base_tracker.hpa_base += size
+        dev_mem_sizes.append(device.get_memory_size())
+        vppbs.append(cxl_mem_driver.get_port_number(device))
 
-        successful = await cxl_mem_driver.attach_single_mem_device(
-            device, hpa_base, size, ig=ig, iw=iw
-        )
-        sn = device.pci_device_info.serial_number
-        vppb = cxl_mem_driver.get_port_number(device)
-        if not successful:
-            logger.info(f"[SYS-SW] Failed to attach device {device}")
-            continue
-        logger.info(f"[SYS-SW] Attached to device, SN: {sn}, port: {vppb}")
+    hpa_base = memory_base_tracker.hpa_base
+    if iw_in_int > 1:
+        # interleaving enabled
+        # The smallest memory size is used for determining interleaved memory size
+        # Only support all DSP device interleaving.
+        # TODO: add partial VCS interleaving.
+        min_size = min(dev_mem_sizes)
+        interleaved_mem_size = min_size * len(dev_mem_sizes)
+        logger.info(f"{dev_mem_sizes}, {interleaved_mem_size:x}")
 
-        mem_tracker.add_mem_range(
-            vppb, memory_base_tracker.cfg_base, pci_cfg_size, MEM_ADDR_TYPE.CFG
-        )
-        memory_base_tracker.cfg_base += pci_cfg_size
-        for bar_info in device.pci_device_info.bars:
-            if bar_info.base_address == 0:
-                continue
-            mem_tracker.add_mem_range(
-                vppb, bar_info.base_address, bar_info.size, MEM_ADDR_TYPE.MMIO
+        # setup HDM decoder for devices
+        for device in cxl_mem_driver.get_devices():
+            successful = await cxl_mem_driver.config_single_mem_device(
+                device, hpa_base, interleaved_mem_size, ig=ig, iw=iw
             )
+            if not successful:
+                raise Exception("FAILED DSP!!!!!!!!!!!!")
 
+        # setup HDM decoder for USP
+        successful = await cxl_mem_driver.config_usp(
+            device, hpa_base, interleaved_mem_size, ig=ig, iw=iw
+        )
+        if not successful:
+            raise Exception("FAILED USP!!!!!!!!!!!!")
+
+        # Add CXL.mem ranges
         if await device.get_bi_enable():
             mem_tracker.add_mem_range(
-                vppb, memory_base_tracker.hpa_base, size, MEM_ADDR_TYPE.CXL_CACHED_BI
+                1, memory_base_tracker.hpa_base, interleaved_mem_size, MEM_ADDR_TYPE.CXL_CACHED_BI
             )
         else:
             mem_tracker.add_mem_range(
-                vppb, memory_base_tracker.hpa_base, size, MEM_ADDR_TYPE.CXL_UNCACHED
+                1, memory_base_tracker.hpa_base, interleaved_mem_size, MEM_ADDR_TYPE.CXL_UNCACHED
             )
+    else:
+        # interleave disabled
+        for device in cxl_mem_driver.get_devices():
+            if iw_in_int > 1:
+                size = device.get_memory_size() * iw_in_int
+                logger.info(f"{iw_in_int}:0x{size:x}")
+            else:
+                # interleaving disabled: unique HPA base_addr and size
+                size = device.get_memory_size()
+                logger.info(f"{iw_in_int}:0x{size:x}")
+                memory_base_tracker.hpa_base += size
+
+            successful = await cxl_mem_driver.attach_single_mem_device(
+                device, hpa_base, size, ig=ig, iw=iw
+            )
+            sn = device.pci_device_info.serial_number
+            vppb = cxl_mem_driver.get_port_number(device)
+            if not successful:
+                logger.info(f"[SYS-SW] Failed to attach device {device}")
+                continue
+            logger.info(f"[SYS-SW] Attached to device, SN: {sn}, port: {vppb}")
+
+            # Add CXL.mem ranges
+            if await device.get_bi_enable():
+                mem_tracker.add_mem_range(
+                    vppb, memory_base_tracker.hpa_base, size, MEM_ADDR_TYPE.CXL_CACHED_BI
+                )
+            else:
+                mem_tracker.add_mem_range(
+                    vppb, memory_base_tracker.hpa_base, size, MEM_ADDR_TYPE.CXL_UNCACHED
+                )
+
+    # # others
+    # for device in cxl_mem_driver.get_devices():
+    #     # Add Config address range
+    #     mem_tracker.add_mem_range(
+    #         vppb, memory_base_tracker.cfg_base, pci_cfg_size, MEM_ADDR_TYPE.CFG
+    #     )
+    #     memory_base_tracker.cfg_base += pci_cfg_size
+
+    #     # Add MMIO address ranges
+    #     for bar_info in device.pci_device_info.bars:
+    #         if bar_info.base_address == 0:
+    #             continue
+    #         mem_tracker.add_mem_range(
+    #             vppb, bar_info.base_address, bar_info.size, MEM_ADDR_TYPE.MMIO
+    #         )
 
     # System Memory
     sys_mem_size = root_complex.get_sys_mem_size()
