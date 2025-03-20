@@ -17,7 +17,7 @@ from signal import SIGCONT, SIGINT, SIGIO
 from typing import Dict
 
 from opencis.util.logger import logger
-from opencis.cxl.component.cxl_host import CxlHost
+from opencis.cxl.component.cxl_host import CxlHost, CxlHostConfig
 from opencis.cpu import CPU
 from opencis.util.number_const import MB
 from opencis.cxl.component.cxl_memory_hub import CxlMemoryHub, MEM_ADDR_TYPE
@@ -63,7 +63,8 @@ host = None
 start_tasks = None
 
 
-async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
+async def my_sys_sw_app(**kwargs):
+    cxl_memory_hub = kwargs["cxl_memory_hub"]
     pci_cfg_base_addr = config.pci_cfg_base_addr
     pci_mmio_base_addr = config.pci_mmio_base_addr
     cxl_hpa_base_addr = config.cxl_hpa_base_addr
@@ -329,15 +330,15 @@ async def main():
     global host
     global start_tasks
 
-    host = CxlHost(
+    cxl_host_config = CxlHostConfig(
         port_index=0,
         sys_mem_size=(2 * MB),
-        sys_sw_app=my_sys_sw_app,
+        sys_sw_app=lambda **kwargs: my_sys_sw_app(**kwargs),
         user_app=my_img_classification_app,
-        host_name="ImageHostType2",
         switch_port=sw_portno,
         enable_hm=False,
     )
+    host = CxlHost(cxl_host_config)
     start_tasks = [
         asyncio.create_task(host.run()),
     ]
