@@ -323,8 +323,10 @@ async def test_cxl_host_type3_ete():
     fabric_manager = CxlFabricManager(mctp_port=mctp_port, host_fm_conn_port=8700)
     host_manager = HostManager(host_port=host_port, util_port=util_port)
 
+    # 256B / 4-ways
     ig = 0
     iw = 2
+
     cxl_host_config = CxlHostConfig(
         port_index=0,
         sys_mem_size=(16 * MB),

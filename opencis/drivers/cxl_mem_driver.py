@@ -1,8 +1,8 @@
 """
-Copyright (c) 2024, Eeum, Inc.
+ Copyright (c) 2024, Eeum, Inc.
 
-This software is licensed under the terms of the Revised BSD License.
-See LICENSE for details.
+ This software is licensed under the terms of the Revised BSD License.
+ See LICENSE for details.
 """
 
 from typing import List
@@ -111,18 +111,13 @@ class CxlMemDriver(LabeledComponent):
 
     async def config_usp(
         self,
-        device: CxlDeviceInfo,
+        upstream_port: CxlDeviceInfo,
         hpa_base: int,
         size: int,
+        target_list: list[int],
         ig: INTERLEAVE_GRANULARITY = INTERLEAVE_GRANULARITY.SIZE_256B,
         iw: INTERLEAVE_WAYS = INTERLEAVE_WAYS.WAY_1,
     ) -> bool:
-        downstream_port = device.parent
-        port_number = self.get_port_number(device)
-        if port_number < 0:
-            return False
-
-        upstream_port = downstream_port.parent
         upstream_port.log_prefix = "CxlMemDriver"
         if not upstream_port.is_upstream_port():
             bdf_str = upstream_port.pci_device_info.get_bdf_string()
@@ -132,12 +127,12 @@ class CxlMemDriver(LabeledComponent):
         successful = await upstream_port.configure_hdm_decoder_switch(
             hpa_base=hpa_base,
             hpa_size=size,
-            target_list=[1, 2, 3, 4],
-            interleaving_granularity=0,
-            interleaving_way=2,
+            target_list=target_list,
+            interleaving_granularity=ig.value,
+            interleaving_way=iw.value,
         )
         if not successful:
-            bdf_str = device.pci_device_info.get_bdf_string()
+            bdf_str = upstream_port.pci_device_info.get_bdf_string()
             logger.warning(self._create_message(f"Failed to configure HDM decoder of {bdf_str}"))
             return False
         return True
