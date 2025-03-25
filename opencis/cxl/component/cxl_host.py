@@ -102,8 +102,8 @@ class CxlHost(RunnableComponent):
         tasks = [
             await self._irq_manager.run_wait_ready(),
             await self._cxl_memory_hub.run_wait_ready(),
-            await self._cpu.run_wait_ready(),
         ]
+        tasks.append(asyncio.create_task(self._cpu.run()))
         if self._enable_hm:
             tasks.append(asyncio.create_task(self._host_mgr_conn_client.run()))
             await self._host_mgr_conn_client.wait_for_ready()
