@@ -322,6 +322,7 @@ class CxlMemDcoh(PacketProcessor):
                     self._cur_state.state = COH_STATE_MACHINE.COH_STATE_WAIT
 
     # .mem m2s host packet handler
+    # pylint: disable=duplicate-code
     async def _process_host_to_target(self):
         while True:
             packet = await self._upstream_fifo.host_to_target.get()
