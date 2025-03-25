@@ -60,7 +60,7 @@ config = None
 start_signal = None
 stop_signal = None
 host = None
-start_tasks = None
+host_task = None
 
 
 async def my_sys_sw_app(**kwargs):
@@ -280,40 +280,28 @@ async def my_img_classification_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
     logger.info("[APP] Notifying Host Ready to Accelerators")
     for dev_id in range(config.accel_count):
         await host_irq_handler.send_irq_request(Irq.HOST_READY, dev_id)
-    logger.info(f"{__file__}, Line: {inspect.currentframe().f_lineno}")
     await stop_signal.wait()
-    logger.info(f"{__file__}, Line: {inspect.currentframe().f_lineno}")
-    # await asyncio.Event().wait()
+
 
 async def shutdown(signame=None):
     # pylint: disable=unused-argument
-    logger.info(f"SHUTDOWN!!!!!!!!! {__file__}, Line: {inspect.currentframe().f_lineno}")
     try:
         stop_tasks = [
             asyncio.create_task(host.stop()),
         ]
-        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
         await asyncio.gather(*stop_tasks, return_exceptions=True)
-        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
-        start_tasks.cancel()
-
-        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
+        host_task.cancel()
     except Exception as exc:
         logger.info("[HOST]", exc.__traceback__)
     finally:
-        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
-
         os._exit(0)
 
 
 async def run_demo(signame=None):
     # pylint: disable=unused-argument
     start_signal.set()
-    logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
     await stop_signal.wait()
-    logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
     os.kill(os.getppid(), SIGINT)
-    logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
 
 
 async def main():
@@ -340,7 +328,7 @@ async def main():
     stop_signal = asyncio.Event()
 
     global host
-    global start_tasks
+    global host_task
 
     cxl_host_config = CxlHostConfig(
         port_index=0,
@@ -352,8 +340,7 @@ async def main():
         enable_hm=False,
     )
     host = CxlHost(cxl_host_config)
-    start_tasks = asyncio.create_task(host.run())
-    # await host.wait_for_ready()
+    host_task = asyncio.create_task(host.run())
 
     # install signal handlers
     lp = asyncio.get_event_loop()
@@ -361,7 +348,6 @@ async def main():
     lp.add_signal_handler(SIGIO, lambda signame="SIGIO": asyncio.create_task(run_demo(signame)))
 
     os.kill(os.getppid(), SIGCONT)
-    logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
     await asyncio.Event().wait()  # blocks
 
 

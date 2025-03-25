@@ -100,15 +100,9 @@ class CPU(RunnableComponent):
         await self._run_sys_sw_app()
         self._app_task = asyncio.create_task(self._app_run_task())
         await self._change_status_to_running()
-        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
         await self._app_task
-        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
-        res = await self._fut
-        logger.info(f"{res} File: {__file__}, Line: {inspect.currentframe().f_lineno}")
+        await self._fut
 
     async def _stop(self):
-        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
         self._app_task.cancel()
-        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
         self._fut.set_result("CPU Done")
-        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
