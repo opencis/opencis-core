@@ -8,6 +8,7 @@
 import asyncio
 from typing import Callable, Awaitable
 from dataclasses import dataclass, field
+import inspect
 
 from opencis.util.logger import logger
 from opencis.util.component import RunnableComponent
@@ -103,19 +104,30 @@ class CxlHost(RunnableComponent):
             await self._irq_manager.run_wait_ready(),
             await self._cxl_memory_hub.run_wait_ready(),
         ]
-        tasks.append(asyncio.create_task(self._cpu.run()))
+        t = asyncio.create_task(self._cpu.run())
         await self._cpu.wait_for_ready()
+        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
         if self._enable_hm:
             tasks.append(asyncio.create_task(self._host_mgr_conn_client.run()))
             await self._host_mgr_conn_client.wait_for_ready()
 
         await self._change_status_to_running()
+        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
+        logger.info(f"{tasks}")
         await asyncio.gather(*tasks)
+        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
+        await t
+        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
 
     async def _stop(self):
-        tasks = [
-            asyncio.create_task(self._cxl_memory_hub.stop()),
-            asyncio.create_task(self._cpu.stop()),
-            asyncio.create_task(self._irq_manager.stop()),
-        ]
-        await asyncio.gather(*tasks)
+        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
+        t1 = asyncio.create_task(self._cxl_memory_hub.stop())
+        t2 = asyncio.create_task(self._cpu.stop())
+        t3 = asyncio.create_task(self._irq_manager.stop())
+        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
+        await t1
+        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
+        await t3
+        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
+        await t2
+        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")

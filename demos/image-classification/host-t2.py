@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 import json
 import glob
 import os
-import sys
+import sys, inspect
 from random import sample
 from signal import SIGCONT, SIGINT, SIGIO
 from typing import Dict
@@ -190,6 +190,7 @@ async def do_img_classification_type2():
             pic_id += 1
 
     merge_validation_results()
+    logger.info(f"{__file__}, Line: {inspect.currentframe().f_lineno}")
     stop_signal.set()
 
 
@@ -260,7 +261,7 @@ async def my_img_classification_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
     for dev_id in range(config.accel_count):
         logger.info(cpu.create_message(f"Sending Metadata to dev {dev_id}"))
         write_addr = to_accel_mem_addr(dev_id, CSV_DATA_MEM_OFFSET)
-        await cpu.store(write_addr, csv_data_len_rounded, csv_data_int, prog_bar=True)
+        # await cpu.store(write_addr, csv_data_len_rounded, csv_data_int, prog_bar=True)
 
         await mem_hub.write_mmio(to_accel_mmio_addr(dev_id, 0x1800), 8, CSV_DATA_MEM_OFFSET)
         await mem_hub.write_mmio(to_accel_mmio_addr(dev_id, 0x1808), 8, csv_data_len)
@@ -279,29 +280,40 @@ async def my_img_classification_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
     logger.info("[APP] Notifying Host Ready to Accelerators")
     for dev_id in range(config.accel_count):
         await host_irq_handler.send_irq_request(Irq.HOST_READY, dev_id)
-
+    logger.info(f"{__file__}, Line: {inspect.currentframe().f_lineno}")
     await stop_signal.wait()
-
+    logger.info(f"{__file__}, Line: {inspect.currentframe().f_lineno}")
+    # await asyncio.Event().wait()
 
 async def shutdown(signame=None):
     # pylint: disable=unused-argument
+    logger.info(f"SHUTDOWN!!!!!!!!! {__file__}, Line: {inspect.currentframe().f_lineno}")
     try:
         stop_tasks = [
             asyncio.create_task(host.stop()),
         ]
+        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
         await asyncio.gather(*stop_tasks, return_exceptions=True)
-        await asyncio.gather(*start_tasks)
+        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
+        start_tasks.cancel()
+
+        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
     except Exception as exc:
-        print("[HOST]", exc.__traceback__)
+        logger.info("[HOST]", exc.__traceback__)
     finally:
+        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
+
         os._exit(0)
 
 
 async def run_demo(signame=None):
     # pylint: disable=unused-argument
     start_signal.set()
+    logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
     await stop_signal.wait()
+    logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
     os.kill(os.getppid(), SIGINT)
+    logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
 
 
 async def main():
@@ -335,13 +347,13 @@ async def main():
         sys_mem_size=(2 * MB),
         sys_sw_app=lambda **kwargs: my_sys_sw_app(**kwargs),
         user_app=my_img_classification_app,
+        host_name="ImageHostType2",
         switch_port=sw_portno,
         enable_hm=False,
     )
     host = CxlHost(cxl_host_config)
-    start_tasks = [
-        asyncio.create_task(host.run()),
-    ]
+    start_tasks = asyncio.create_task(host.run())
+    # await host.wait_for_ready()
 
     # install signal handlers
     lp = asyncio.get_event_loop()
@@ -349,6 +361,7 @@ async def main():
     lp.add_signal_handler(SIGIO, lambda signame="SIGIO": asyncio.create_task(run_demo(signame)))
 
     os.kill(os.getppid(), SIGCONT)
+    logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
     await asyncio.Event().wait()  # blocks
 
 

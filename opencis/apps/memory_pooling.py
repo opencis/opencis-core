@@ -333,7 +333,7 @@ async def sample_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
     val = await _cpu.load(0x100000000040, 0x40)
     logger.info(f"0x{val:X}")
 
-    await asyncio.Event().wait()  # keep the host app alive
+    # await asyncio.Event().wait()  # keep the host app alive
 
 
 async def run_host(port_index: int, irq_port: int, ig: int, iw: int):

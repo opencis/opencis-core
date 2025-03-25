@@ -8,7 +8,9 @@
 import asyncio
 from typing import Callable, Awaitable
 from tqdm.auto import tqdm
+import inspect
 
+from opencis.util.logger import logger
 from opencis.util.component import RunnableComponent
 from opencis.cxl.component.cxl_memory_hub import CxlMemoryHub
 
@@ -25,6 +27,7 @@ class CPU(RunnableComponent):
         self._sys_sw_app = sys_sw_app
         self._user_app = user_app
         self._fut = None
+        self._app_task = None
 
     async def _run_sys_sw_app(self, *args, **kwargs):
         kwargs["cxl_memory_hub"] = self._cxl_memory_hub
@@ -93,12 +96,19 @@ class CPU(RunnableComponent):
         return await self._user_app(_cpu=self, _mem_hub=self._cxl_memory_hub)
 
     async def _run(self):
-        await self._run_sys_sw_app()
-        app_task = asyncio.create_task(self._app_run_task())
-        await self._change_status_to_running()
         self._fut = asyncio.Future()
-        await self._fut
-        app_task.cancel()
+        await self._run_sys_sw_app()
+        self._app_task = asyncio.create_task(self._app_run_task())
+        await self._change_status_to_running()
+        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
+        await self._app_task
+        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
+        res = await self._fut
+        logger.info(f"{res} File: {__file__}, Line: {inspect.currentframe().f_lineno}")
 
     async def _stop(self):
+        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
+        self._app_task.cancel()
+        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
         self._fut.set_result("CPU Done")
+        logger.info(f"File: {__file__}, Line: {inspect.currentframe().f_lineno}")
