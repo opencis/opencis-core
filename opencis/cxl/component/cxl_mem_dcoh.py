@@ -68,10 +68,12 @@ class CxlMemDcoh(PacketProcessor):
         downstream_fifo: Optional[FifoPair] = None,
         label: Optional[str] = None,
         device_id: int = 0,
+        test_mode: bool = False,
     ):
         # pylint: disable=duplicate-code
         self._downstream_fifo: Optional[FifoPair]
         self._upstream_fifo: FifoPair
+        self._test_mode = test_mode
 
         super().__init__(upstream_fifo, downstream_fifo, label)
         self._cache_to_coh_agent_fifo = cache_to_coh_agent_fifo
@@ -128,7 +130,10 @@ class CxlMemDcoh(PacketProcessor):
             raise Exception("CxlMemoryDeviceComponent isn't set yet")
 
         addr = m2sreq_packet.get_address()
-        dpa = self._memory_device_component.get_dpa(addr)
+        if self._test_mode:
+            dpa = addr
+        else:
+            dpa = self._memory_device_component.get_dpa(addr)
 
         if m2sreq_packet.m2sreq_header.meta_field == CXL_MEM_META_FIELD.NO_OP:
             data = await self._memory_device_component.read_mem_dpa(dpa)
@@ -217,7 +222,10 @@ class CxlMemDcoh(PacketProcessor):
             raise Exception("CxlMemoryDeviceComponent isn't set yet")
 
         addr = m2srwd_packet.get_address()
-        dpa = self._memory_device_component.get_dpa(addr)
+        if self._test_mode:
+            dpa = addr
+        else:
+            dpa = self._memory_device_component.get_dpa(addr)
 
         if m2srwd_packet.m2srwd_header.meta_field == CXL_MEM_META_FIELD.NO_OP:
             await self._memory_device_component.write_mem_dpa(dpa, m2srwd_packet.data)
