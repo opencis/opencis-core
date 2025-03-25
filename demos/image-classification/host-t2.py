@@ -342,7 +342,6 @@ async def main():
     start_tasks = [
         asyncio.create_task(host.run()),
     ]
-    await host.wait_for_ready()
 
     # install signal handlers
     lp = asyncio.get_event_loop()
