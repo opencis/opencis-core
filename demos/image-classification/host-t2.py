@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 import json
 import glob
 import os
-import sys, inspect
+import sys
 from random import sample
 from signal import SIGCONT, SIGINT, SIGIO
 from typing import Dict
@@ -190,7 +190,6 @@ async def do_img_classification_type2():
             pic_id += 1
 
     merge_validation_results()
-    logger.info(f"{__file__}, Line: {inspect.currentframe().f_lineno}")
     stop_signal.set()
 
 
@@ -261,7 +260,7 @@ async def my_img_classification_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
     for dev_id in range(config.accel_count):
         logger.info(cpu.create_message(f"Sending Metadata to dev {dev_id}"))
         write_addr = to_accel_mem_addr(dev_id, CSV_DATA_MEM_OFFSET)
-        # await cpu.store(write_addr, csv_data_len_rounded, csv_data_int, prog_bar=True)
+        await cpu.store(write_addr, csv_data_len_rounded, csv_data_int, prog_bar=True)
 
         await mem_hub.write_mmio(to_accel_mmio_addr(dev_id, 0x1800), 8, CSV_DATA_MEM_OFFSET)
         await mem_hub.write_mmio(to_accel_mmio_addr(dev_id, 0x1808), 8, csv_data_len)
@@ -292,7 +291,7 @@ async def shutdown(signame=None):
         await asyncio.gather(*stop_tasks, return_exceptions=True)
         host_task.cancel()
     except Exception as exc:
-        logger.info("[HOST]", exc.__traceback__)
+        logger.info(f"[HOST]: {exc.__traceback__}")
     finally:
         os._exit(0)
 
@@ -333,7 +332,7 @@ async def main():
     cxl_host_config = CxlHostConfig(
         port_index=0,
         sys_mem_size=(2 * MB),
-        sys_sw_app=lambda **kwargs: my_sys_sw_app(**kwargs),
+        sys_sw_app=my_sys_sw_app,
         user_app=my_img_classification_app,
         host_name="ImageHostType2",
         switch_port=sw_portno,

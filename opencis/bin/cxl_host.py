@@ -20,9 +20,9 @@ def host_group():
     """Command group for managing CXL Host"""
 
 
-def start(port: int = 0):
+def start(port, ig, iw):
     logger.info(f"Starting CXL Host on Port{port}")
-    asyncio.run(run_host(port_index=port, irq_port=8500))
+    asyncio.run(run_host(port_index=port, irq_port=8500, ig=ig, iw=iw))
 
 
 def start_host_manager():

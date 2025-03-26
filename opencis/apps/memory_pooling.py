@@ -74,15 +74,6 @@ class MemoryBaseTracker:
 host_fm_conn = None
 
 
-async def init_cxl_devices_interleave(
-    cxl_mem_driver: CxlMemDriver,
-    hpa_base: int,
-    ig: INTERLEAVE_GRANULARITY = INTERLEAVE_GRANULARITY.SIZE_256B,
-    iw: INTERLEAVE_WAYS = INTERLEAVE_WAYS.WAY_1,
-):
-    pass
-
-
 async def my_sys_sw_app(ig: int = None, iw: int = None, **kwargs):
     cxl_memory_hub: CxlMemoryHub
 
@@ -349,4 +340,4 @@ async def run_host(port_index: int, irq_port: int, ig: int, iw: int):
 
 
 if __name__ == "__main__":
-    asyncio.run(run_host(port_index=0, irq_port=8500))
+    asyncio.run(run_host(port_index=0, irq_port=8500, ig=0, iw=2))

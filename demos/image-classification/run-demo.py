@@ -9,7 +9,6 @@ import argparse
 from signal import SIGCONT, SIGINT, SIGIO, SIG_BLOCK, SIG_UNBLOCK, pthread_sigmask, signal, pause
 
 import os
-import inspect
 
 from opencis.util.logger import logger
 
@@ -23,10 +22,8 @@ def clean_shutdown(signum=None, frame=None):
     pthread_sigmask(SIG_BLOCK, [SIGINT])
 
     global pids
-    print(f"{__file__}, Line: {inspect.currentframe().f_lineno}")
     pids = dict(reversed(pids.items()))
     for _, pid in pids.items():
-        print(f"{__file__}, {pid}, l:{inspect.currentframe().f_lineno}")
         os.kill(pid, SIGINT)
         os.waitpid(pid, 0)
     os._exit(0)
@@ -42,7 +39,7 @@ def run_next_app(signum=None, frame=None):
         host_pid = pids["host"]
         os.kill(host_pid, SIGIO)
         return
-    logger.info(f"{RUN_LIST}: {run_progress} ")
+
     component_name, program, args = RUN_LIST[run_progress]
 
     if not (chld := os.fork()):

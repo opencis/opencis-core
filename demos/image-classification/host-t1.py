@@ -59,7 +59,7 @@ config = None
 start_signal = None
 stop_signal = None
 host = None
-start_tasks = None
+host_task = None
 
 
 async def my_sys_sw_app(**kwargs):
@@ -343,12 +343,10 @@ async def main():
     global host
     global host_task
 
-    global host_task
-
     cxl_host_config = CxlHostConfig(
         port_index=0,
         sys_mem_size=(2 * MB),
-        sys_sw_app=lambda **kwargs: my_sys_sw_app(**kwargs),
+        sys_sw_app=my_sys_sw_app,
         user_app=my_img_classification_app,
         host_name="ImageHostType1",
         switch_port=sw_portno,

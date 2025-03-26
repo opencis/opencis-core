@@ -7,8 +7,7 @@
 
 import asyncio
 from typing import Callable, Awaitable
-from dataclasses import dataclass, field
-import inspect
+from dataclasses import dataclass
 
 from opencis.util.logger import logger
 from opencis.util.component import RunnableComponent

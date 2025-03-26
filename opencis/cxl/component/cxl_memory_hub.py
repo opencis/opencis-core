@@ -9,7 +9,6 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Callable, List
 
-from opencis.util.logger import logger
 from opencis.cxl.component.irq_manager import Irq, IrqManager
 from opencis.util.component import RunnableComponent
 from opencis.cxl.component.root_complex.root_complex import (

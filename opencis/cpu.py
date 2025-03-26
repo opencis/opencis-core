@@ -8,9 +8,7 @@
 import asyncio
 from typing import Callable, Awaitable
 from tqdm.auto import tqdm
-import inspect
 
-from opencis.util.logger import logger
 from opencis.util.component import RunnableComponent
 from opencis.cxl.component.cxl_memory_hub import CxlMemoryHub
 
