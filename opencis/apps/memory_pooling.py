@@ -197,6 +197,7 @@ async def my_sys_sw_app(ig: int = None, iw: int = None, **kwargs):
                 mem_tracker.add_mem_range(
                     vppb, memory_base_tracker.hpa_base, size, MEM_ADDR_TYPE.CXL_UNCACHED
                 )
+            memory_base_tracker.hpa_base += size
 
     # System Memory
     sys_mem_size = root_complex.get_sys_mem_size()
