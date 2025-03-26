@@ -331,7 +331,7 @@ async def test_cxl_host_type3_ete():
         port_index=0,
         sys_mem_size=(16 * MB),
         sys_sw_app=lambda **kwargs: my_sys_sw_app(ig=ig, iw=iw, **kwargs),
-        user_app=sample_app,
+        user_app=lambda **kwargs: sample_app(keepalive=False, **kwargs),
         switch_port=switch_port,
         irq_port=irq_port,
         host_conn_port=host_port,

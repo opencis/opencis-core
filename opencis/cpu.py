@@ -31,6 +31,11 @@ class CPU(RunnableComponent):
         kwargs["cxl_memory_hub"] = self._cxl_memory_hub
         await self._sys_sw_app(*args, **kwargs)
 
+    async def _run_user_app(self, *args, **kwargs):
+        kwargs["cpu"] = self
+        kwargs["cxl_memory_hub"] = self._cxl_memory_hub
+        await self._user_app(*args, **kwargs)
+
     def create_message(self, message):
         return self._create_message(message)
 
@@ -94,10 +99,10 @@ class CPU(RunnableComponent):
         return await self._user_app(_cpu=self, _mem_hub=self._cxl_memory_hub)
 
     async def _run(self):
-        self._fut = asyncio.Future()
         await self._run_sys_sw_app()
-        self._app_task = asyncio.create_task(self._app_run_task())
+        self._app_task = asyncio.create_task(self._run_user_app())
         await self._change_status_to_running()
+        self._fut = asyncio.Future()
         await self._app_task
         await self._fut
 

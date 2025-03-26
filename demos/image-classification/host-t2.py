@@ -54,8 +54,8 @@ host_irq_handler = None
 total_samples = 0
 validation_results = []
 sampled_file_categories = []
-cpu = None
-mem_hub = None
+cpu: CPU = None
+mem_hub: CxlMemoryHub = None
 config = None
 start_signal = None
 stop_signal = None
@@ -237,12 +237,12 @@ def merge_validation_results():
     )
 
 
-async def my_img_classification_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
+async def my_img_classification_app(**kwargs):
     global cpu
-    cpu = _cpu
+    cpu = kwargs["cpu"]
 
     global mem_hub
-    mem_hub = _mem_hub
+    mem_hub = kwargs["cxl_memory_hub"]
 
     # Pass init-info mem location to the remote using MMIO
     CSV_DATA_MEM_OFFSET = 0x4000

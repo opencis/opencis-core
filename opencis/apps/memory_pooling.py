@@ -110,6 +110,7 @@ async def my_sys_sw_app(ig: int = None, iw: int = None, **kwargs):
     for device in pci_bus_driver.get_devices():
         if not device.is_bridge:
             continue
+
         cxl_memory_hub.add_mem_range(memory_base_tracker.cfg_base, pci_cfg_size, MEM_ADDR_TYPE.CFG)
         memory_base_tracker.cfg_base += pci_cfg_size
         for bar_info in device.bars:
@@ -127,6 +128,7 @@ async def my_sys_sw_app(ig: int = None, iw: int = None, **kwargs):
         dev_mem_sizes.append(device.get_memory_size())
         vppb = cxl_mem_driver.get_port_number(device)
         if vppb < 0:
+            logger.info(f"[SYS-SW] {vppb} is invalid")
             return False
         vppbs.append(vppb)
 
@@ -146,7 +148,7 @@ async def my_sys_sw_app(ig: int = None, iw: int = None, **kwargs):
                 device, hpa_base, interleaved_mem_size, ig=ig, iw=iw
             )
             if not successful:
-                raise Exception("FAILED DSP!!!!!!!!!!!!")
+                raise Exception("[SYS-SW] Failed to Configure CXL.mem Device")
 
         # setup HDM decoder for USP
         upstream_port = device.parent.parent
@@ -155,7 +157,7 @@ async def my_sys_sw_app(ig: int = None, iw: int = None, **kwargs):
             upstream_port, hpa_base, interleaved_mem_size, vppbs, ig=ig, iw=iw
         )
         if not successful:
-            raise Exception("FAILED USP!!!!!!!!!!!!")
+            raise Exception("[SYS-SW] Failed to Configure USP")
 
         # Add CXL.mem ranges
         if await device.get_bi_enable():
@@ -195,22 +197,6 @@ async def my_sys_sw_app(ig: int = None, iw: int = None, **kwargs):
                 mem_tracker.add_mem_range(
                     vppb, memory_base_tracker.hpa_base, size, MEM_ADDR_TYPE.CXL_UNCACHED
                 )
-
-    # # others
-    # for device in cxl_mem_driver.get_devices():
-    #     # Add Config address range
-    #     mem_tracker.add_mem_range(
-    #         vppb, memory_base_tracker.cfg_base, pci_cfg_size, MEM_ADDR_TYPE.CFG
-    #     )
-    #     memory_base_tracker.cfg_base += pci_cfg_size
-
-    #     # Add MMIO address ranges
-    #     for bar_info in device.pci_device_info.bars:
-    #         if bar_info.base_address == 0:
-    #             continue
-    #         mem_tracker.add_mem_range(
-    #             vppb, bar_info.base_address, bar_info.size, MEM_ADDR_TYPE.MMIO
-    #         )
 
     # System Memory
     sys_mem_size = root_complex.get_sys_mem_size()
@@ -316,15 +302,19 @@ async def my_sys_sw_app(ig: int = None, iw: int = None, **kwargs):
     # TODO: Sort and merge ranges
 
 
-async def sample_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
+async def sample_app(keepalive: bool, **kwargs):
+    cpu: CPU
+
+    cpu = kwargs["cpu"]
     logger.info("[USER-APP] Starting...")
-    await _cpu.store(0x100000000000, 0x40, 0xDEADBEEF)
-    val = await _cpu.load(0x100000000000, 0x40)
+    await cpu.store(0x100000000000, 0x40, 0xDEADBEEF)
+    val = await cpu.load(0x100000000000, 0x40)
     logger.info(f"0x{val:X}")
-    val = await _cpu.load(0x100000000040, 0x40)
+    val = await cpu.load(0x100000000040, 0x40)
     logger.info(f"0x{val:X}")
 
-    # await asyncio.Event().wait()  # keep the host app alive
+    if keepalive:
+        await asyncio.Event().wait()
 
 
 async def run_host(port_index: int, irq_port: int, ig: int, iw: int):
@@ -332,7 +322,7 @@ async def run_host(port_index: int, irq_port: int, ig: int, iw: int):
         port_index=port_index,
         sys_mem_size=(16 * MB),
         sys_sw_app=lambda **kwargs: my_sys_sw_app(ig=ig, iw=iw, **kwargs),
-        user_app=sample_app,
+        user_app=lambda **kwargs: sample_app(keepalive=True, **kwargs),
         irq_port=irq_port,
     )
     host = CxlHost(cxl_host_config)
