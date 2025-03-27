@@ -179,7 +179,7 @@ async def my_sys_sw_app(ig: int = None, iw: int = None, **kwargs):
         for device in cxl_mem_driver.get_devices():
             size = device.get_memory_size()
             successful = await cxl_mem_driver.attach_single_mem_device(
-                device, hpa_base, device.get_memory_size(), ig=ig, iw=iw
+                device, memory_base_tracker.hpa_base, size
             )
             sn = device.pci_device_info.serial_number
             vppb = cxl_mem_driver.get_port_number(device)

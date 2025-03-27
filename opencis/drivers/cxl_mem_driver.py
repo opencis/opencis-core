@@ -44,20 +44,10 @@ class CxlMemDriver(LabeledComponent):
         return downstream_port.pci_device_info.get_port_number()
 
     async def attach_single_mem_device(
-        self,
-        device: CxlDeviceInfo,
-        hpa_base: int,
-        size: int,
-        ig: INTERLEAVE_GRANULARITY = INTERLEAVE_GRANULARITY.SIZE_256B,
-        iw: INTERLEAVE_WAYS = INTERLEAVE_WAYS.WAY_1,
+        self, device: CxlDeviceInfo, hpa_base: int, size: int
     ) -> bool:
         device.log_prefix = "CxlMemDriver"
-        successful = await device.configure_hdm_decoder_device(
-            hpa_base=hpa_base,
-            hpa_size=size,
-            interleaving_granularity=ig.value,
-            interleaving_way=iw.value,
-        )
+        successful = await device.configure_hdm_decoder_device(hpa_base=hpa_base, hpa_size=size)
         if not successful:
             bdf_str = device.pci_device_info.get_bdf_string()
             logger.warning(self._create_message(f"Failed to configure HDM decoder of {bdf_str}"))
