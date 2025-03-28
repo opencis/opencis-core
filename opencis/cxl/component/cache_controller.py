@@ -44,6 +44,9 @@ class MemoryRange:
     size: int
     addr_type: MEM_ADDR_TYPE
 
+    def __hash__(self):
+        return hash((self.base_addr, self.size, self.addr_type))
+
 
 class COH_STATE_MACHINE(Enum):
     COH_STATE_INIT = auto()

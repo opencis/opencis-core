@@ -15,7 +15,8 @@ from opencis.drivers.cxl_bus_driver import CxlBusDriver
 from opencis.drivers.cxl_mem_driver import CxlMemDriver
 from opencis.drivers.pci_bus_driver import PciBusDriver
 from opencis.cxl.component.cxl_memory_hub import CxlMemoryHub, MEM_ADDR_TYPE
-from opencis.cxl.component.cxl_host import CxlHost
+from opencis.cxl.component.cxl_host import CxlHost, CxlHostConfig
+from opencis.cxl.component.hdm_decoder import INTERLEAVE_GRANULARITY, INTERLEAVE_WAYS
 from opencis.cpu import CPU
 from opencis.util.number_const import MB
 
@@ -73,13 +74,16 @@ class MemoryBaseTracker:
 host_fm_conn = None
 
 
-async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
+async def my_sys_sw_app(ig: int = None, iw: int = None, **kwargs):
+    cxl_memory_hub: CxlMemoryHub
+
     # Max addr for CFG is 0x9FFFFFFF, given max num bus = 8
     # Therefore, 0xFE000000 for MMIO does not overlap
     pci_cfg_base_addr = 0x10000000
     pci_mmio_base_addr = 0xFE000000
     cxl_hpa_base_addr = 0x100000000000
     sys_mem_base_addr = 0xFFFF888000000000
+    cxl_memory_hub = kwargs["cxl_memory_hub"]
 
     # PCI Device
     mem_tracker = CxlDeviceMemTracker(cxl_memory_hub)
@@ -114,38 +118,86 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
                 continue
             cxl_memory_hub.add_mem_range(bar_info.base_address, bar_info.size, MEM_ADDR_TYPE.MMIO)
 
+    ig = INTERLEAVE_GRANULARITY(int(ig)) if ig is not None else INTERLEAVE_GRANULARITY(0)
+    iw = INTERLEAVE_WAYS(int(iw)) if iw is not None else INTERLEAVE_WAYS(0)
+    iw_in_int = int(iw.name.rsplit("_", maxsplit=1)[-1])
+
+    dev_mem_sizes = []
+    vppbs = []
     for device in cxl_mem_driver.get_devices():
-        size = device.get_memory_size()
-        successful = await cxl_mem_driver.attach_single_mem_device(
-            device, memory_base_tracker.hpa_base, size
-        )
-        sn = device.pci_device_info.serial_number
+        dev_mem_sizes.append(device.get_memory_size())
         vppb = cxl_mem_driver.get_port_number(device)
-        if not successful:
-            logger.info(f"[SYS-SW] Failed to attach device {device}")
-            continue
-        logger.info(f"[SYS-SW] Attached to device, SN: {sn}, port: {vppb}")
+        if vppb < 0:
+            logger.info(f"[SYS-SW] {vppb} is invalid")
+            return False
+        vppbs.append(vppb)
 
-        mem_tracker.add_mem_range(
-            vppb, memory_base_tracker.cfg_base, pci_cfg_size, MEM_ADDR_TYPE.CFG
-        )
-        memory_base_tracker.cfg_base += pci_cfg_size
-        for bar_info in device.pci_device_info.bars:
-            if bar_info.base_address == 0:
-                continue
-            mem_tracker.add_mem_range(
-                vppb, bar_info.base_address, bar_info.size, MEM_ADDR_TYPE.MMIO
+    hpa_base = memory_base_tracker.hpa_base
+    if iw_in_int > 1:
+        # interleaving enabled
+        # The smallest memory size is used for determining interleaved memory size
+        # Only support all DSP device interleaving.
+        # TODO: add partial VCS interleaving.
+        min_size = min(dev_mem_sizes)
+        interleaved_mem_size = min_size * len(dev_mem_sizes)
+        logger.info(f"{dev_mem_sizes}, {interleaved_mem_size:x}")
+
+        # setup HDM decoder for devices
+        for device in cxl_mem_driver.get_devices():
+            successful = await cxl_mem_driver.config_cxl_mem_device(
+                device, hpa_base, interleaved_mem_size, ig=ig, iw=iw
             )
+            if not successful:
+                raise Exception("[SYS-SW] Failed to Configure CXL.mem Device")
 
+        # setup HDM decoder for USP
+        upstream_port = device.parent.parent
+        # usp = dsp.parent
+        successful = await cxl_mem_driver.config_usp(
+            upstream_port, hpa_base, interleaved_mem_size, vppbs, ig=ig, iw=iw
+        )
+        if not successful:
+            raise Exception("[SYS-SW] Failed to Configure USP")
+
+        # Add CXL.mem ranges
         if await device.get_bi_enable():
             mem_tracker.add_mem_range(
-                vppb, memory_base_tracker.hpa_base, size, MEM_ADDR_TYPE.CXL_CACHED_BI
+                vppbs[0],
+                memory_base_tracker.hpa_base,
+                interleaved_mem_size,
+                MEM_ADDR_TYPE.CXL_CACHED_BI,
             )
         else:
             mem_tracker.add_mem_range(
-                vppb, memory_base_tracker.hpa_base, size, MEM_ADDR_TYPE.CXL_UNCACHED
+                vppbs[0],
+                memory_base_tracker.hpa_base,
+                interleaved_mem_size,
+                MEM_ADDR_TYPE.CXL_UNCACHED,
             )
-        memory_base_tracker.hpa_base += size
+    else:
+        # interleave disabled
+        for device in cxl_mem_driver.get_devices():
+            size = device.get_memory_size()
+            successful = await cxl_mem_driver.attach_single_mem_device(
+                device, memory_base_tracker.hpa_base, size
+            )
+            sn = device.pci_device_info.serial_number
+            vppb = cxl_mem_driver.get_port_number(device)
+            if not successful:
+                logger.info(f"[SYS-SW] Failed to attach device {device}")
+                continue
+            logger.info(f"[SYS-SW] Attached to device, SN: {sn}, port: {vppb}")
+
+            # Add CXL.mem ranges
+            if await device.get_bi_enable():
+                mem_tracker.add_mem_range(
+                    vppb, memory_base_tracker.hpa_base, size, MEM_ADDR_TYPE.CXL_CACHED_BI
+                )
+            else:
+                mem_tracker.add_mem_range(
+                    vppb, memory_base_tracker.hpa_base, size, MEM_ADDR_TYPE.CXL_UNCACHED
+                )
+            memory_base_tracker.hpa_base += size
 
     # System Memory
     sys_mem_size = root_complex.get_sys_mem_size()
@@ -251,27 +303,32 @@ async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
     # TODO: Sort and merge ranges
 
 
-async def sample_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
+async def sample_app(keepalive: bool, **kwargs):
+    cpu: CPU
+
+    cpu = kwargs["cpu"]
     logger.info("[USER-APP] Starting...")
-    await _cpu.store(0x100000000000, 0x40, 0xDEADBEEF)
-    val = await _cpu.load(0x100000000000, 0x40)
+    await cpu.store(0x100000000000, 0x40, 0xDEADBEEF)
+    val = await cpu.load(0x100000000000, 0x40)
     logger.info(f"0x{val:X}")
-    val = await _cpu.load(0x100000000040, 0x40)
+    val = await cpu.load(0x100000000040, 0x40)
     logger.info(f"0x{val:X}")
 
-    await asyncio.Event().wait()  # keep the host app alive
+    if keepalive:
+        await asyncio.Event().wait()
 
 
-async def run_host(port_index: int, irq_port: int):
-    host = CxlHost(
+async def run_host(port_index: int, irq_port: int, ig: int, iw: int):
+    cxl_host_config = CxlHostConfig(
         port_index=port_index,
         sys_mem_size=(16 * MB),
-        sys_sw_app=my_sys_sw_app,
-        user_app=sample_app,
+        sys_sw_app=lambda **kwargs: my_sys_sw_app(ig=ig, iw=iw, **kwargs),
+        user_app=lambda **kwargs: sample_app(keepalive=True, **kwargs),
         irq_port=irq_port,
     )
+    host = CxlHost(cxl_host_config)
     await host.run()
 
 
 if __name__ == "__main__":
-    asyncio.run(run_host(port_index=0, irq_port=8500))
+    asyncio.run(run_host(port_index=0, irq_port=8500, ig=0, iw=2))
