@@ -18,7 +18,7 @@ from typing import Dict
 from tqdm.auto import tqdm
 
 from opencis.util.logger import logger
-from opencis.cxl.component.cxl_host import CxlHost
+from opencis.cxl.component.cxl_host import CxlHost, CxlHostConfig
 from opencis.cpu import CPU
 from opencis.util.number_const import MB
 from opencis.cxl.component.cxl_memory_hub import CxlMemoryHub, MEM_ADDR_TYPE
@@ -53,16 +53,17 @@ host_irq_handler = None
 total_samples = 0
 validation_results = []
 sampled_file_categories = []
-cpu = None
-mem_hub = None
+cpu: CPU = None
+mem_hub: CxlMemoryHub = None
 config = None
 start_signal = None
 stop_signal = None
 host = None
-start_tasks = None
+host_task = None
 
 
-async def my_sys_sw_app(cxl_memory_hub: CxlMemoryHub):
+async def my_sys_sw_app(**kwargs):
+    cxl_memory_hub = kwargs["cxl_memory_hub"]
     pci_cfg_base_addr = config.pci_cfg_base_addr
     pci_mmio_base_addr = config.pci_mmio_base_addr
     cxl_hpa_base_addr = config.cxl_hpa_base_addr
@@ -247,12 +248,12 @@ def merge_validation_results():
     )
 
 
-async def my_img_classification_app(_cpu: CPU, _mem_hub: CxlMemoryHub):
+async def my_img_classification_app(**kwargs):
     global cpu
-    cpu = _cpu
+    cpu = kwargs["cpu"]
 
     global mem_hub
-    mem_hub = _mem_hub
+    mem_hub = kwargs["cxl_memory_hub"]
 
     # Pass init-info mem location to the remote using MMIO
     logger.info("Host main process waiting...")
@@ -302,7 +303,7 @@ async def shutdown(signame=None):
             asyncio.create_task(host.stop()),
         ]
         await asyncio.gather(*stop_tasks, return_exceptions=True)
-        await asyncio.gather(*start_tasks)
+        host_task.cancel()
     except Exception as exc:
         print("[HOST]", exc.__traceback__)
     finally:
@@ -340,9 +341,9 @@ async def main():
     stop_signal = asyncio.Event()
 
     global host
-    global start_tasks
+    global host_task
 
-    host = CxlHost(
+    cxl_host_config = CxlHostConfig(
         port_index=0,
         sys_mem_size=(2 * MB),
         sys_sw_app=my_sys_sw_app,
@@ -351,10 +352,8 @@ async def main():
         switch_port=sw_portno,
         enable_hm=False,
     )
-    start_tasks = [
-        asyncio.create_task(host.run()),
-    ]
-    await host.wait_for_ready()
+    host = CxlHost(cxl_host_config)
+    host_task = asyncio.create_task(host.run())
 
     # install signal handlers
     lp = asyncio.get_event_loop()
