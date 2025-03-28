@@ -144,7 +144,7 @@ async def my_sys_sw_app(ig: int = None, iw: int = None, **kwargs):
 
         # setup HDM decoder for devices
         for device in cxl_mem_driver.get_devices():
-            successful = await cxl_mem_driver.config_single_mem_device(
+            successful = await cxl_mem_driver.config_cxl_mem_device(
                 device, hpa_base, interleaved_mem_size, ig=ig, iw=iw
             )
             if not successful:
