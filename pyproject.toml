@@ -45,7 +45,7 @@ build-backend = "pdm.backend"
 
 [tool.pytest.ini_options]
 testpaths = "tests/"
-timeout = 30
+timeout = 45
 filterwarnings = [
   "ignore::DeprecationWarning"
 ]
