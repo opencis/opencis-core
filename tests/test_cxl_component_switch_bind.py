@@ -23,7 +23,7 @@ from opencis.util.unaligned_bit_structure import UnalignedBitStructure
 # test_single_logical_device_bind_unbind() and test_multi_logical_device_bind_unbind() are similar
 # pylint: disable=duplicate-code
 @pytest.mark.asyncio
-async def test_single_logical_device_bind_unbind():
+async def test_single_logical_device_bind_unbind(request):
     # Connection between switch and device
     transport_connection = CxlConnection()
 
@@ -73,7 +73,7 @@ async def test_single_logical_device_bind_unbind():
         vppb_counts=vppb_counts,
         initial_bounds=initial_bounds,
         physical_ports=physical_ports,
-        irq_port=8500 + pytest.PORT.TEST_1,
+        irq_port=8500 + request.config.PORT.TEST_1,
         allocated_ld=allocated_ld,
     )
 
@@ -133,7 +133,7 @@ async def test_single_logical_device_bind_unbind():
 # test_single_logical_device_bind_unbind() and test_multi_logical_device_bind_unbind() are similar
 # pylint: disable=duplicate-code
 @pytest.mark.asyncio
-async def test_multi_logical_device_bind_unbind():
+async def test_multi_logical_device_bind_unbind(request):
     # Connection between switch and device
     transport_connection = CxlConnection()
 
@@ -184,7 +184,7 @@ async def test_multi_logical_device_bind_unbind():
         vppb_counts=vppb_counts,
         initial_bounds=initial_bounds,
         physical_ports=physical_ports,
-        irq_port=8500 + pytest.PORT.TEST_1,
+        irq_port=8500 + request.config.PORT.TEST_1,
         allocated_ld=allocated_ld,
     )
 
