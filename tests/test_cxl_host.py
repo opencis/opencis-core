@@ -33,10 +33,9 @@ from opencis.apps.cxl_switch import CxlSwitch
 from opencis.apps.single_logical_device import SingleLogicalDevice
 from opencis.apps.packet_trace_runner import PacketTraceRunner
 from opencis.util.number_const import MB
-from opencis.util.number import get_rand_range_generator
+from opencis.util.number import get_rand_unique_port
 
 BASE_TEST_PORT = 9300
-generator = get_rand_range_generator(BASE_TEST_PORT, 100)
 
 
 class SimpleJsonClient:
@@ -147,8 +146,8 @@ async def send_util_and_check_host(host_client, util_client, cmd):
 
 @pytest.mark.asyncio
 async def test_cxl_host_manager_send_util_and_recv_host():
-    host_port = next(generator)
-    util_port = next(generator)
+    host_port = get_rand_unique_port(BASE_TEST_PORT, 100)
+    util_port = get_rand_unique_port(BASE_TEST_PORT, 100)
 
     host_manager = HostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
@@ -175,8 +174,8 @@ async def send_and_check_res(util_client: SimpleJsonClient, cmd: str, res_expect
 
 @pytest.mark.asyncio
 async def test_cxl_host_manager_handle_res():
-    host_port = next(generator)
-    util_port = next(generator)
+    host_port = get_rand_unique_port(BASE_TEST_PORT, 100)
+    util_port = get_rand_unique_port(BASE_TEST_PORT, 100)
 
     host_manager = HostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
@@ -214,8 +213,8 @@ async def send_and_check_err(util_client: SimpleJsonClient, cmd: str, err_expect
 
 @pytest.mark.asyncio
 async def test_cxl_host_manager_handle_err():
-    host_port = next(generator)
-    util_port = next(generator)
+    host_port = get_rand_unique_port(BASE_TEST_PORT, 100)
+    util_port = get_rand_unique_port(BASE_TEST_PORT, 100)
 
     host_manager = HostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
@@ -252,8 +251,8 @@ async def test_cxl_host_manager_handle_err():
 
 @pytest.mark.asyncio
 async def test_cxl_host_util_client():
-    host_port = next(generator)
-    util_port = next(generator)
+    host_port = get_rand_unique_port(BASE_TEST_PORT, 100)
+    util_port = get_rand_unique_port(BASE_TEST_PORT, 100)
 
     host_manager = HostManager(host_port=host_port, util_port=util_port)
     asyncio.create_task(host_manager.run())
@@ -280,11 +279,11 @@ async def test_cxl_host_util_client():
 @pytest.mark.asyncio
 async def test_cxl_host_type3_ete():
     # pylint: disable=protected-access
-    host_port = next(generator)
-    util_port = next(generator)
-    switch_port = next(generator)
-    irq_port = next(generator)
-    mctp_port = next(generator)
+    host_port = get_rand_unique_port(BASE_TEST_PORT, 100)
+    util_port = get_rand_unique_port(BASE_TEST_PORT, 100)
+    switch_port = get_rand_unique_port(BASE_TEST_PORT, 100)
+    irq_port = get_rand_unique_port(BASE_TEST_PORT, 100)
+    mctp_port = get_rand_unique_port(BASE_TEST_PORT, 100)
 
     port_configs = [
         PortConfig(PORT_TYPE.USP),
@@ -301,7 +300,7 @@ async def test_cxl_host_type3_ete():
             vppb_counts=1,
             initial_bounds=[1],
             irq_host="127.0.0.1",
-            irq_port=next(generator),
+            irq_port=get_rand_unique_port(BASE_TEST_PORT, 100),
         )
     ]
     allocated_ld = {}
@@ -382,12 +381,12 @@ def get_trace_ports(file_name):
 @pytest.mark.asyncio
 async def test_cxl_qemu_host_type3():
     # pylint: disable=protected-access
-    switch_port = next(generator)
+    switch_port = get_rand_unique_port(BASE_TEST_PORT, 100)
     start_tasks = []
     env = parse_cxl_environment("configs/1vcs_4sld.yaml")
     env.switch_config.port = switch_port
     for vsconfig in env.switch_config.virtual_switch_configs:
-        vsconfig.irq_port = next(generator)
+        vsconfig.irq_port = get_rand_unique_port(BASE_TEST_PORT, 100)
     switch = CxlSwitch(env.switch_config, env.logical_device_configs, start_mctp=False)
     start_tasks.append(await switch.run_wait_ready())
 

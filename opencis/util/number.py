@@ -5,9 +5,12 @@
  See LICENSE for details.
 """
 
+import atexit
 import sys
 import os
 import random
+from functools import partial
+from random import randrange
 from typing import Generator
 
 
@@ -33,6 +36,29 @@ def get_rand_range_generator(base, length):
     for num in nums:
         print(f"port:{num}")
         yield num
+
+
+# Check if the port is already in use.
+# Use directory-based locking, VFS ensures no one else can
+# create the same directory at the same time system-wide.
+# This is required as this function can be called from different process contexts.
+def get_rand_unique_port(base, length):
+    def cleanup(port):
+        try:
+            os.rmdir(f".port_{port}")
+        except FileNotFoundError:
+            pass
+
+    while True:
+        port = randrange(base, base + length)
+        try:
+            os.mkdir(f".port_{port}")
+        except FileExistsError:
+            # Port is already in use, continue to the next iteration
+            continue
+        # Port is available
+        atexit.register(partial(cleanup, port))
+        return port
 
 
 def get_randbits(n_bits: int):
