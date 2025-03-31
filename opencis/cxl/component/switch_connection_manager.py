@@ -70,6 +70,7 @@ class SwitchConnectionManager(RunnableComponent):
         self._ports = [SwitchPort(port_config=port_config) for port_config in port_configs]
         self._server_task = None
         self._event_handler = None
+        self._clients = set()
 
     async def _run(self):
         try:
@@ -93,19 +94,17 @@ class SwitchConnectionManager(RunnableComponent):
     async def _stop(self):
         logger.info(self._create_message("Cancelling TCP server task"))
         self._server_task.cancel()
+        for transport in self._clients:
+            transport.close()
+        self._clients.clear()
         try:
             await self._server_task
         except CancelledError:
             logger.info(self._create_message("Cancelled TCP server"))
 
-        for port_index, port in enumerate(self._ports):
-            if port.packet_processor is not None:
-                logger.info(self._create_message(f"Stopping PacketProcessor for port {port_index}"))
-                await port.packet_processor.stop()
-                logger.info(self._create_message(f"Stopped PacketProcessor for port {port_index}"))
-
     async def _create_server(self):
         async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+            self._clients.add(writer.transport)
             port_index = None
             try:
                 logger.info(self._create_message("Found a new socket connection"))
@@ -142,6 +141,8 @@ class SwitchConnectionManager(RunnableComponent):
     async def _close_connection(
         self, writer: asyncio.StreamWriter, port_index: Optional[int] = None
     ):
+        self._clients.discard(writer.transport)
+        writer.transport.close()
         writer.close()
         try:
             await writer.wait_closed()
