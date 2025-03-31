@@ -39,5 +39,5 @@ class TEST_PORT(IntEnum):
     TEST_14 = auto()
 
 
-def pytest_configure():
-    pytest.PORT = TEST_PORT
+def pytest_configure(config):
+    config.PORT = TEST_PORT
