@@ -15,6 +15,7 @@ from opencis.cxl.device.cxl_type2_device import (
 )
 from opencis.cxl.device.root_port_device import CxlRootPortDevice
 from opencis.cxl.component.cxl_connection import CxlConnection
+from opencis.util.memory import get_memory_bin_name
 from opencis.util.number_const import MB
 
 
@@ -23,7 +24,7 @@ def test_type2_device():
         device_name="CXLType2Device",
         transport_connection=CxlConnection(),
         memory_size=256 * MB,
-        memory_file="mem.bin",
+        memory_file=get_memory_bin_name(),
     )
     CxlType2Device(device_config)
 
@@ -34,7 +35,7 @@ async def test_type2_device_run_stop(get_gold_std_reg_vals):
         device_name="CXLType2Device",
         transport_connection=CxlConnection(),
         memory_size=256 * MB,
-        memory_file="mem.bin",
+        memory_file=get_memory_bin_name(),
     )
     device = CxlType2Device(device_config)
 
@@ -58,7 +59,7 @@ async def test_type2_device_enumeration():
         device_name="CXLType2Device",
         transport_connection=transport_connection,
         memory_size=256 * MB,
-        memory_file="mem.bin",
+        memory_file=get_memory_bin_name(),
     )
     root_port_device = CxlRootPortDevice(downstream_connection=transport_connection, label="Port0")
     device = CxlType2Device(device_config)
