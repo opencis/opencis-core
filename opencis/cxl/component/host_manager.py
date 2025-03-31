@@ -13,7 +13,7 @@ from jsonrpcclient import parse_json, request_json
 import jsonrpcserver
 from jsonrpcserver.result import ERROR_INTERNAL_ERROR
 import websockets
-from websockets import WebSocketClientProtocol
+from websockets.legacy.client import WebSocketClientProtocol
 
 from opencis.util.logger import logger
 from opencis.util.component import RunnableComponent

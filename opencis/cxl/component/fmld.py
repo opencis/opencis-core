@@ -140,8 +140,7 @@ class FMLD(RunnableComponent):
         ]
 
         # Boundary check
-        if len(self._ld_dict) - start_ld_id < number_of_lds:
-            number_of_lds = len(self._ld_dict) - start_ld_id
+        number_of_lds = min(number_of_lds, len(self._ld_dict) - start_ld_id)
 
         response_number_of_lds = 0
         response_ld_allocated_list = []
