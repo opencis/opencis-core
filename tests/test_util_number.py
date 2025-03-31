@@ -1,8 +1,8 @@
 """
- Copyright (c) 2024, Eeum, Inc.
+Copyright (c) 2024, Eeum, Inc.
 
- This software is licensed under the terms of the Revised BSD License.
- See LICENSE for details.
+This software is licensed under the terms of the Revised BSD License.
+See LICENSE for details.
 """
 
 from opencis.util.number import round_up_to_power_of_2
