@@ -420,9 +420,9 @@ async def test_cxl_qemu_host_type3():
     except ValueError as e:
         error = e
     finally:
-        stop_tasks = [asyncio.create_task(switch.stop())]
-        stop_tasks.extend([asyncio.create_task(sld.stop()) for sld in slds])
-        await asyncio.gather(*stop_tasks)
+        for sld in slds:
+            await sld.stop()
+        await switch.stop()
         await asyncio.gather(*start_tasks)
         if error is not None:
             raise error
