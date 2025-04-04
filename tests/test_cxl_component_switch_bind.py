@@ -16,6 +16,7 @@ from opencis.cxl.device.downstream_port_device import DownstreamPortDevice
 from opencis.cxl.device.upstream_port_device import UpstreamPortDevice
 from opencis.cxl.device.pci_to_pci_bridge_device import PpbDevice
 from opencis.cxl.component.virtual_switch_manager import CxlVirtualSwitch
+from opencis.util.memory import get_memory_bin_name
 from opencis.util.number_const import MB
 from opencis.util.unaligned_bit_structure import UnalignedBitStructure
 
@@ -78,7 +79,7 @@ async def test_single_logical_device_bind_unbind():
     )
 
     memory_size = 256 * MB
-    memory_file = "mem.bin"
+    memory_file = get_memory_bin_name()
     device = SingleLogicalDevice(
         memory_size=memory_size,
         memory_file=memory_file,
@@ -189,7 +190,12 @@ async def test_multi_logical_device_bind_unbind():
     )
 
     memory_sizes = [256 * MB, 256 * MB, 256 * MB, 256 * MB]
-    memory_files = ["mem1.bin", "mem2.bin", "mem3.bin", "mem4.bin"]
+    memory_files = [
+        get_memory_bin_name(1),
+        get_memory_bin_name(2),
+        get_memory_bin_name(3),
+        get_memory_bin_name(4),
+    ]
     device = MultiLogicalDevice(
         memory_sizes=memory_sizes,
         memory_files=memory_files,
