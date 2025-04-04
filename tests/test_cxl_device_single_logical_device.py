@@ -11,6 +11,7 @@ import pytest
 from opencis.apps.single_logical_device import SingleLogicalDevice
 from opencis.cxl.device.root_port_device import CxlRootPortDevice
 from opencis.cxl.component.cxl_connection import CxlConnection
+from opencis.util.memory import get_memory_bin_name
 from opencis.util.number_const import MB
 
 # This test will cause many duplicate code between MH-SLD, disable duplicate-code lint here
@@ -19,7 +20,7 @@ from opencis.util.number_const import MB
 
 def test_single_logical_device():
     memory_size = 256 * MB
-    memory_file = "mem.bin"
+    memory_file = get_memory_bin_name()
     transport_connection = CxlConnection()
     SingleLogicalDevice(
         memory_size=memory_size,
@@ -33,7 +34,7 @@ def test_single_logical_device():
 @pytest.mark.asyncio
 async def test_single_logical_device_run_stop(get_gold_std_reg_vals):
     memory_size = 256 * MB
-    memory_file = "mem.bin"
+    memory_file = get_memory_bin_name()
     transport_connection = CxlConnection()
     device = SingleLogicalDevice(
         memory_size=memory_size,
@@ -59,7 +60,7 @@ async def test_single_logical_device_run_stop(get_gold_std_reg_vals):
 @pytest.mark.asyncio
 async def test_single_logical_device_enumeration():
     memory_size = 256 * MB
-    memory_file = "mem.bin"
+    memory_file = get_memory_bin_name()
     transport_connection = CxlConnection()
     root_port_device = CxlRootPortDevice(downstream_connection=transport_connection, label="Port0")
     device = SingleLogicalDevice(

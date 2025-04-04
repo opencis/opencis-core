@@ -32,6 +32,7 @@ from opencis.cxl.environment import parse_cxl_environment
 from opencis.apps.cxl_switch import CxlSwitch
 from opencis.apps.single_logical_device import SingleLogicalDevice
 from opencis.apps.packet_trace_runner import PacketTraceRunner
+from opencis.util.memory import get_memory_bin_name
 from opencis.util.number_const import MB
 from opencis.util.number import get_rand_range_generator
 
@@ -314,7 +315,7 @@ async def test_cxl_host_type3_ete():
     sld = SingleLogicalDevice(
         port_index=1,
         memory_size=0x1000000,
-        memory_file=f"mem{switch_port}.bin",
+        memory_file=get_memory_bin_name(switch_port),
         serial_number="DDDDDDDDDDDDDDDD",
         port=switch_port,
     )
@@ -396,7 +397,7 @@ async def test_cxl_qemu_host_type3():
         sld = SingleLogicalDevice(
             port_index=config.port_index,
             memory_size=config.memory_size,
-            memory_file=f"mem{switch_port}-{i}.bin",
+            memory_file=get_memory_bin_name(switch_port, i),
             serial_number=config.serial_number,
             host=env.switch_config.host,
             port=env.switch_config.port,

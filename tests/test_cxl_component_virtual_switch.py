@@ -25,6 +25,7 @@ from opencis.cxl.device.cxl_type3_device import CxlType3Device, CXL_T3_DEV_TYPE
 from opencis.cxl.component.virtual_switch_manager import (
     CxlVirtualSwitch,
 )
+from opencis.util.memory import get_memory_bin_name
 from opencis.util.unaligned_bit_structure import UnalignedBitStructure
 from opencis.cxl.transport.transaction import (
     CXL_MEM_M2SBIRSP_OPCODE,
@@ -91,7 +92,7 @@ def create_cxl_topology(bind: bool = False, memory_size: int = 0x100000) -> Tupl
         sld = CxlType3Device(
             transport_connection=connection,
             memory_size=memory_size,
-            memory_file=f"mem{port_index}.bin",
+            memory_file=get_memory_bin_name(port_index),
             serial_number="EEEEEEEEEEEEEEEE",
             dev_type=CXL_T3_DEV_TYPE.SLD,
         )
