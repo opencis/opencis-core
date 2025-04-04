@@ -74,7 +74,7 @@ async def test_single_logical_device_bind_unbind():
         vppb_counts=vppb_counts,
         initial_bounds=initial_bounds,
         physical_ports=physical_ports,
-        irq_port=8500 + pytest.PORT.TEST_1,
+        irq_port=0,
         allocated_ld=allocated_ld,
     )
 
@@ -185,7 +185,7 @@ async def test_multi_logical_device_bind_unbind():
         vppb_counts=vppb_counts,
         initial_bounds=initial_bounds,
         physical_ports=physical_ports,
-        irq_port=8500 + pytest.PORT.TEST_1,
+        irq_port=0,
         allocated_ld=allocated_ld,
     )
 
