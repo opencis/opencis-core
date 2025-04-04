@@ -70,6 +70,7 @@ class SwitchConnectionManager(RunnableComponent):
         self._ports = [SwitchPort(port_config=port_config) for port_config in port_configs]
         self._server_task = None
         self._event_handler = None
+        self._clients = set()
 
     async def _run(self):
         try:
@@ -93,22 +94,36 @@ class SwitchConnectionManager(RunnableComponent):
     async def _stop(self):
         logger.info(self._create_message("Cancelling TCP server task"))
         self._server_task.cancel()
+        for client in self._clients.copy():
+            logger.info(
+                self._create_message(
+                    f'Closing client connection: {client.get_extra_info("peername")}'
+                )
+            )
+            client.close()
+        for client in self._clients.copy():
+            await client.wait_closed()
+            logger.info(
+                self._create_message(
+                    f'Closed client connection: {client.get_extra_info("peername")}'
+                )
+            )
+        self._clients.clear()
         try:
             await self._server_task
         except CancelledError:
             logger.info(self._create_message("Cancelled TCP server"))
 
-        for port_index, port in enumerate(self._ports):
-            if port.packet_processor is not None:
-                logger.info(self._create_message(f"Stopping PacketProcessor for port {port_index}"))
-                await port.packet_processor.stop()
-                logger.info(self._create_message(f"Stopped PacketProcessor for port {port_index}"))
-
     async def _create_server(self):
         async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+            self._clients.add(writer)
             port_index = None
             try:
-                logger.info(self._create_message("Found a new socket connection"))
+                logger.info(
+                    self._create_message(
+                        f"Found a new socket connection: {writer.get_extra_info('peername')}"
+                    )
+                )
                 port_index = await self._wait_for_connection_request(reader)
                 await self._send_confirmation(writer)
                 logger.info(
@@ -142,20 +157,27 @@ class SwitchConnectionManager(RunnableComponent):
     async def _close_connection(
         self, writer: asyncio.StreamWriter, port_index: Optional[int] = None
     ):
+        description = writer.get_extra_info("peername")
+        self._clients.discard(writer)
         writer.close()
         try:
             await writer.wait_closed()
         except Exception as e:
             logger.error(
                 self._create_message(
-                    f"{self.__class__.__name__} error: {str(e)}, {traceback.format_exc()}"
+                    f"{self.__class__.__name__} error while closing {description}: "
+                    f"{str(e)}, {traceback.format_exc()}"
                 )
             )
 
         if port_index is None:
-            logger.info(self._create_message("Closed connection"))
+            logger.info(self._create_message(f"Closed client connection: {description}"))
         else:
-            logger.info(self._create_message(f"Closed connection for port {port_index}"))
+            logger.info(
+                self._create_message(
+                    f"Closed client connection {description} for port {port_index}"
+                )
+            )
 
     async def _send_confirmation(self, writer: asyncio.StreamWriter):
         sideband_response = BaseSidebandPacket.create(SIDEBAND_TYPES.CONNECTION_ACCEPT)

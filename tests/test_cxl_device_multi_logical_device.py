@@ -384,5 +384,7 @@ async def test_multi_logical_device_ld_id():
     await mld_task
 
     # Stop pseudo server
+    mld_pseudo_server_writer.close()
+    await mld_pseudo_server_writer.wait_closed()
     server.close()
     await server.wait_closed()
