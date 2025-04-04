@@ -12,17 +12,16 @@ from asyncio import (
     Task,
     create_task,
     gather,
-    start_server,
     open_connection,
     Lock,
 )
-import asyncio
 from asyncio.exceptions import CancelledError
 from enum import Enum
 from typing import Callable
 
 from opencis.util.component import RunnableComponent
 from opencis.util.logger import logger
+from opencis.util.server import ServerComponent
 
 
 class ShortMsgBase(Enum):
@@ -34,7 +33,7 @@ class ShortMsgBase(Enum):
 class ShortMsgConn(RunnableComponent):
     _msg_to_interrupt_event: dict[int, dict[ShortMsgBase, Callable]]
     _callbacks: list[Callable]
-    _server_task: Task
+    _server_component: Task
 
     def __init__(
         self,
@@ -156,18 +155,14 @@ class ShortMsgConn(RunnableComponent):
                 )
             )
 
-    async def _create_server(self):
-        self._run_status = True
-
-        async def _new_conn(reader: StreamReader, writer: StreamWriter):
-            remote_dev_id = await reader.readexactly(16)
-            remote_dev_id_int = int.from_bytes(remote_dev_id, "little")
-            self._connections[remote_dev_id_int] = (reader, writer)
-            self._msg_handlers.append(create_task(self._msg_handler(reader, writer)))
-
-        server = await start_server(_new_conn, self._addr, self._port, limit=2)
-        logger.debug(self._create_message(f"Starting ShortMsg server on {self._addr}:{self._port}"))
-        return server
+    async def _new_conn(self, reader: StreamReader, writer: StreamWriter):
+        logger.debug(
+            self._create_message(f"New ShortMsg connection: {writer.get_extra_info('peername')}")
+        )
+        remote_dev_id = await reader.readexactly(16)
+        remote_dev_id_int = int.from_bytes(remote_dev_id, "little")
+        self._connections[remote_dev_id_int] = (reader, writer)
+        self._msg_handlers.append(create_task(self._msg_handler(reader, writer)))
 
     async def send_irq_request(self, request: ShortMsgBase, device: int = 0):
         """
@@ -200,11 +195,17 @@ class ShortMsgConn(RunnableComponent):
     async def _run(self):
         try:
             if self._server:
-                server = await self._create_server()
-                self._server_task = create_task(server.serve_forever())
-                while not server.is_serving():
-                    await asyncio.sleep(0.1)
-                self._tasks.append(self._server_task)
+                self._server_component = ServerComponent(
+                    handle_client=self._new_conn,
+                    host=self._addr,
+                    port=self._port,
+                    limit=2,
+                )
+                server_task = create_task(self._server_component.run())
+                await self._server_component.wait_for_ready()
+                self._port = self._server_component.get_port()
+                self._run_status = True
+                self._tasks.append(server_task)
             else:
                 pass
             await self._change_status_to_running()
@@ -228,3 +229,6 @@ class ShortMsgConn(RunnableComponent):
         for handler in self._msg_handlers:
             handler.cancel()
         logger.debug(self._create_message("ShortMsg handlers cancelled"))
+
+    def get_port(self):
+        return self._port

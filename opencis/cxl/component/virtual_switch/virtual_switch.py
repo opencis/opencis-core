@@ -298,3 +298,6 @@ class CxlVirtualSwitch(RunnableComponent):
 
     def register_event_handler(self, event_handler: AsyncEventHandlerType):
         self._event_handler = event_handler
+
+    def get_irq_port(self):
+        return self._irq_manager.get_port()

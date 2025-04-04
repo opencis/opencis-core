@@ -93,3 +93,6 @@ class VirtualSwitchManager(RunnableComponent):
     def register_event_handler(self, event_handler: AsyncEventHandlerType):
         for vcs in self._virtual_switches:
             vcs.register_event_handler(event_handler)
+
+    def get_port(self, switch_index):
+        return self._virtual_switches[switch_index].get_irq_port()

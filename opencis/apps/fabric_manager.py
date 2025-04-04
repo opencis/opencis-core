@@ -117,3 +117,6 @@ class CxlFabricManager(RunnableComponent):
         await self._connection_manager.stop()
         await self._socketio_server.stop()
         await self._api_client.stop()
+
+    def get_host_fm_port(self):
+        return self._host_fm_conn_server.get_port()

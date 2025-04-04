@@ -58,6 +58,8 @@ class HostMgrConnServer(RunnableComponent):
     async def serve(self):
         self._fut = asyncio.Future()
         self._host_server = await websockets.serve(self._serve, self._host, self._port)
+        if self._port == 0:
+            self._port = self._host_server.sockets[0].getsockname()[1]
         await self._change_status_to_running()
         res = await self._fut
         logger.debug(self._create_message(f"{res}"))
@@ -72,6 +74,9 @@ class HostMgrConnServer(RunnableComponent):
         self._fut.set_result("Host Done")
         self._host_server.close()
         await self._host_server.wait_closed()
+
+    def get_port(self):
+        return self._port
 
 
 class HostMgrConnClient(RunnableComponent):
@@ -184,6 +189,8 @@ class UtilConnServer(RunnableComponent):
     async def serve(self):
         self._fut = asyncio.Future()
         self._util_server = await websockets.serve(self._serve, self._host, self._port)
+        if self._port == 0:
+            self._port = self._util_server.sockets[0].getsockname()[1]
         await self._change_status_to_running()
         res = await self._fut
         logger.debug(self._create_message(f"{res}"))
@@ -198,6 +205,9 @@ class UtilConnServer(RunnableComponent):
         self._fut.set_result("Host Done")
         self._util_server.close()
         await self._util_server.wait_closed()
+
+    def get_port(self):
+        return self._port
 
 
 class UtilConnClient:
@@ -268,3 +278,9 @@ class HostManager(RunnableComponent):
             asyncio.create_task(self._util_conn_server.stop()),
         ]
         await asyncio.gather(*tasks)
+
+    def get_host_port(self):
+        return self._host_conn_server.get_port()
+
+    def get_util_port(self):
+        return self._util_conn_server.get_port()

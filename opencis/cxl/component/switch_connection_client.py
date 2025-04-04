@@ -98,6 +98,9 @@ class SwitchConnectionClient(RunnableComponent):
     def get_port_index(self):
         return self._port_index
 
+    def set_port(self, port: int):
+        self._port = port
+
     async def _run(self):
         if self._retry:
             time_out = 120

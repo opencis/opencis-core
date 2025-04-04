@@ -34,10 +34,6 @@ from opencis.apps.single_logical_device import SingleLogicalDevice
 from opencis.apps.packet_trace_runner import PacketTraceRunner
 from opencis.util.memory import get_memory_bin_name
 from opencis.util.number_const import MB
-from opencis.util.number import get_rand_range_generator
-
-BASE_TEST_PORT = 9300
-generator = get_rand_range_generator(BASE_TEST_PORT, 100)
 
 
 class SimpleJsonClient:
@@ -148,13 +144,12 @@ async def send_util_and_check_host(host_client, util_client, cmd):
 
 @pytest.mark.asyncio
 async def test_cxl_host_manager_send_util_and_recv_host():
-    host_port = next(generator)
-    util_port = next(generator)
-
-    host_manager = HostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=0, util_port=0)
     asyncio.create_task(host_manager.run())
     await host_manager.wait_for_ready()
-    host_client, util_client = await init_clients(host_port, util_port)
+    host_client, util_client = await init_clients(
+        host_port=host_manager.get_host_port(), util_port=host_manager.get_util_port()
+    )
 
     cmd = request_json("UTIL:CXL_HOST_READ", params={"port": 0, "addr": 0x40})
     await send_util_and_check_host(host_client, util_client, cmd)
@@ -176,15 +171,12 @@ async def send_and_check_res(util_client: SimpleJsonClient, cmd: str, res_expect
 
 @pytest.mark.asyncio
 async def test_cxl_host_manager_handle_res():
-    host_port = next(generator)
-    util_port = next(generator)
-
-    host_manager = HostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=0, util_port=0)
     asyncio.create_task(host_manager.run())
     await host_manager.wait_for_ready()
     host = DummyHost()
-    asyncio.create_task(host.conn_open(port=host_port))
-    util_client = SimpleJsonClient(port=util_port)
+    asyncio.create_task(host.conn_open(port=host_manager.get_host_port()))
+    util_client = SimpleJsonClient(port=host_manager.get_util_port())
     await host.wait_connected()
 
     addr = 0x40
@@ -215,15 +207,12 @@ async def send_and_check_err(util_client: SimpleJsonClient, cmd: str, err_expect
 
 @pytest.mark.asyncio
 async def test_cxl_host_manager_handle_err():
-    host_port = next(generator)
-    util_port = next(generator)
-
-    host_manager = HostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=0, util_port=0)
     asyncio.create_task(host_manager.run())
     await host_manager.wait_for_ready()
     dummy_host = DummyHost()
-    asyncio.create_task(dummy_host.conn_open(port=host_port))
-    util_client = SimpleJsonClient(port=util_port)
+    asyncio.create_task(dummy_host.conn_open(port=host_manager.get_host_port()))
+    util_client = SimpleJsonClient(port=host_manager.get_util_port())
     await dummy_host.wait_connected()
     data = 0xA5A5
     valid_addr = 0x40
@@ -253,16 +242,13 @@ async def test_cxl_host_manager_handle_err():
 
 @pytest.mark.asyncio
 async def test_cxl_host_util_client():
-    host_port = next(generator)
-    util_port = next(generator)
-
-    host_manager = HostManager(host_port=host_port, util_port=util_port)
+    host_manager = HostManager(host_port=0, util_port=0)
     asyncio.create_task(host_manager.run())
     await host_manager.wait_for_ready()
     dummy_host = DummyHost()
-    asyncio.create_task(dummy_host.conn_open(port=host_port))
+    asyncio.create_task(dummy_host.conn_open(port=host_manager.get_host_port()))
     await dummy_host.wait_connected()
-    util_client = UtilConnClient(port=util_port)
+    util_client = UtilConnClient(port=host_manager.get_util_port())
 
     data = 0xA5A5
     valid_addr = 0x40
@@ -281,17 +267,11 @@ async def test_cxl_host_util_client():
 @pytest.mark.asyncio
 async def test_cxl_host_type3_ete():
     # pylint: disable=protected-access
-    host_port = next(generator)
-    util_port = next(generator)
-    switch_port = next(generator)
-    irq_port = next(generator)
-    mctp_port = next(generator)
-
     port_configs = [
         PortConfig(PORT_TYPE.USP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    sw_conn_manager = SwitchConnectionManager(port_configs, port=switch_port)
+    sw_conn_manager = SwitchConnectionManager(port_configs, port=0)
     physical_port_manager = PhysicalPortManager(
         switch_connection_manager=sw_conn_manager, port_configs=port_configs
     )
@@ -302,7 +282,7 @@ async def test_cxl_host_type3_ete():
             vppb_counts=1,
             initial_bounds=[1],
             irq_host="127.0.0.1",
-            irq_port=next(generator),
+            irq_port=0,
         )
     ]
     allocated_ld = {}
@@ -312,42 +292,46 @@ async def test_cxl_host_type3_ete():
         physical_port_manager=physical_port_manager,
         allocated_ld=allocated_ld,
     )
-    sld = SingleLogicalDevice(
-        port_index=1,
-        memory_size=0x1000000,
-        memory_file=get_memory_bin_name(switch_port),
-        serial_number="DDDDDDDDDDDDDDDD",
-        port=switch_port,
-    )
 
-    # host_fm_conn_port port number conflict?
-    fabric_manager = CxlFabricManager(mctp_port=mctp_port, host_fm_conn_port=8700)
-    host_manager = HostManager(host_port=host_port, util_port=util_port)
+    fabric_manager = CxlFabricManager(mctp_port=0, host_fm_conn_port=0)
+    host_manager = HostManager(host_port=0, util_port=0)
 
     # 256B / No interleave
     ig = 0
     iw = 0
 
-    cxl_host_config = CxlHostConfig(
-        port_index=0,
-        sys_mem_size=(16 * MB),
-        sys_sw_app=lambda **kwargs: my_sys_sw_app(ig=ig, iw=iw, **kwargs),
-        user_app=lambda **kwargs: sample_app(keepalive=False, **kwargs),
-        switch_port=switch_port,
-        irq_port=irq_port,
-        host_conn_port=host_port,
-        enable_hm=False,
-    )
-    host = CxlHost(cxl_host_config)
     start_tasks = [
         await fabric_manager.run_wait_ready(),
         await sw_conn_manager.run_wait_ready(),
         await physical_port_manager.run_wait_ready(),
         await virtual_switch_manager.run_wait_ready(),
         await host_manager.run_wait_ready(),
-        await sld.run_wait_ready(),
-        await host.run_wait_ready(),
     ]
+
+    sld = SingleLogicalDevice(
+        port_index=1,
+        memory_size=0x1000000,
+        memory_file=get_memory_bin_name(),
+        serial_number="DDDDDDDDDDDDDDDD",
+        port=sw_conn_manager.get_port(),
+    )
+    await sld.run_wait_ready()
+
+    print(f"irq_port: {virtual_switch_manager.get_port(0)}")
+    cxl_host_config = CxlHostConfig(
+        port_index=0,
+        sys_mem_size=(16 * MB),
+        sys_sw_app=lambda **kwargs: my_sys_sw_app(
+            ig=ig, iw=iw, host_fm_conn_port=fabric_manager.get_host_fm_port(), **kwargs
+        ),
+        user_app=lambda **kwargs: sample_app(keepalive=False, **kwargs),
+        switch_port=sw_conn_manager.get_port(),
+        irq_port=virtual_switch_manager.get_port(0),
+        host_conn_port=host_manager.get_host_port(),
+        enable_hm=False,
+    )
+    host = CxlHost(cxl_host_config)
+    await host.run_wait_ready()
 
     data = 0xA5A5
     valid_addr = 0x40
@@ -383,21 +367,21 @@ def get_trace_ports(file_name):
 @pytest.mark.asyncio
 async def test_cxl_qemu_host_type3():
     # pylint: disable=protected-access
-    switch_port = next(generator)
     start_tasks = []
     env = parse_cxl_environment("configs/1vcs_4sld.yaml")
-    env.switch_config.port = switch_port
+    env.switch_config.port = 0
     for vsconfig in env.switch_config.virtual_switch_configs:
-        vsconfig.irq_port = next(generator)
+        vsconfig.irq_port = 0
     switch = CxlSwitch(env.switch_config, env.logical_device_configs, start_mctp=False)
     start_tasks.append(await switch.run_wait_ready())
+    env.switch_config.port = switch.get_port()
 
     slds = []
     for i, config in enumerate(env.single_logical_device_configs):
         sld = SingleLogicalDevice(
             port_index=config.port_index,
             memory_size=config.memory_size,
-            memory_file=get_memory_bin_name(switch_port, i),
+            memory_file=get_memory_bin_name(i),
             serial_number=config.serial_number,
             host=env.switch_config.host,
             port=env.switch_config.port,
@@ -410,7 +394,7 @@ async def test_cxl_qemu_host_type3():
     trace_runner = PacketTraceRunner(
         pcap_file,
         "0.0.0.0",
-        switch_port,
+        env.switch_config.port,
         trace_switch_port,
         trace_device_port,
     )
