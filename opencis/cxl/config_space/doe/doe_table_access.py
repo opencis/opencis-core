@@ -95,13 +95,22 @@ class DoeTableAccessProtocol(DoeMailboxProtocolBase):
     def __init__(self, entries: List[CDAT_ENTRY]):
         self._entries = []
 
-        # TODO: Calculate checksum
         cdat_header = CdatHeader()
         cdat_header.length = len(cdat_header)
         self._entries.append(cdat_header)
         for entry in entries:
             cdat_header.length += entry.length
             self._entries.append(entry)
+
+        # CDAT requires all the bytes in the CDAT header and entries added up to be 0
+        value = 0
+        for i in range(0, cdat_header.get_size()):
+            value += cdat_header.read_bytes(i, i)
+        for entry in entries:
+            size = entry.get_size()
+            for i in range(0, size):
+                value += entry.read_bytes(i, i)
+        cdat_header.checksum = (-value) % 256
 
     def process_request(self, mailbox_context: DoeMailboxContext) -> bool:
         logger.debug("[DOE] Processing DOE Table Access")
