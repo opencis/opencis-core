@@ -315,7 +315,7 @@ async def test_cxl_host_type3_ete():
         serial_number="DDDDDDDDDDDDDDDD",
         port=sw_conn_manager.get_port(),
     )
-    await sld.run_wait_ready()
+    start_tasks += [await sld.run_wait_ready()]
 
     print(f"irq_port: {virtual_switch_manager.get_port(0)}")
     cxl_host_config = CxlHostConfig(
@@ -331,7 +331,7 @@ async def test_cxl_host_type3_ete():
         enable_hm=False,
     )
     host = CxlHost(cxl_host_config)
-    await host.run_wait_ready()
+    start_tasks += [await host.run_wait_ready()]
 
     data = 0xA5A5
     valid_addr = 0x40
