@@ -123,6 +123,9 @@ class CxlSwitch(RunnableComponent):
 
         self._run_as_child = switch_config.run_as_child
 
+    def get_port(self):
+        return self._switch_connection_manager.get_port()
+
     def _initialize_mctp_endpoint(self):
         ident_payload = IdentifyResponsePayload(
             device_id=SW_SWITCH_DID, component_type=IdentifyComponentType.SWITCH
