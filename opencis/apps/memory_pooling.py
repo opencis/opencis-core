@@ -74,7 +74,7 @@ class MemoryBaseTracker:
 host_fm_conn = None
 
 
-async def my_sys_sw_app(ig: int = None, iw: int = None, **kwargs):
+async def my_sys_sw_app(ig: int = None, iw: int = None, host_fm_conn_port: int = 8700, **kwargs):
     cxl_memory_hub: CxlMemoryHub
 
     # Max addr for CFG is 0x9FFFFFFF, given max num bus = 8
@@ -90,7 +90,12 @@ async def my_sys_sw_app(ig: int = None, iw: int = None, **kwargs):
     root_complex = cxl_memory_hub.get_root_complex()
     root_port = cxl_memory_hub.get_root_port()
     host_fm_conn_client = ShortMsgConn(
-        "FM_Client", port=8700, server=False, msg_width=16, msg_type=HostFMMsg, device_id=root_port
+        "FM_Client",
+        port=host_fm_conn_port,
+        server=False,
+        msg_width=16,
+        msg_type=HostFMMsg,
+        device_id=root_port,
     )
     # pylint: disable=global-statement
     global host_fm_conn  # To prevent the connection from GC'ed after function's done

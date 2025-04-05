@@ -16,6 +16,7 @@ from opencis.cxl.component.mctp.mctp_packet_processor import (
     MCTP_PACKET_PROCESSOR_TYPE,
 )
 from opencis.util.component import RunnableComponent
+from opencis.util.server import ServerComponent
 
 # pylint: disable=duplicate-code
 
@@ -40,57 +41,43 @@ class MctpConnectionManager(RunnableComponent):
         self._connection_timeout_ms = connection_timeout_ms
         # TODO: Support receiving connections from CXL Devices
         self._switch_port = MctpPort()
-        self._server_task = None
+        self._server_component = ServerComponent(
+            handle_client=self._handle_client,
+            host=self._host,
+            port=self._port,
+            stop_callback=self._stop_callback,
+        )
 
     async def _run(self):
-        # pylint: disable=bare-except
-        try:
-            logger.info(self._create_message(f"Creating TCP server at port {self._port}"))
-            server = await self._create_server()
-            self._server_task = asyncio.create_task(server.serve_forever())
-            logger.info(self._create_message("Starting TCP server task"))
-            while not server.is_serving():
-                await asyncio.sleep(0.1)
-            await self._change_status_to_running()
-            await self._server_task
-        except Exception as e:
-            logger.debug(self._create_message(f"Exception: {str(e)}"))
-        except:
-            logger.info(self._create_message("Stopped TCP server"))
-            if self._switch_port.packet_processor is not None:
-                logger.info(self._create_message("Stopping PacketProcessor for Switch Port"))
-                await self._switch_port.packet_processor.stop()
-                logger.info(self._create_message("Stopped PacketProcessor for Switch Port"))
+        server_task = asyncio.create_task(self._server_component.run())
+        await self._server_component.wait_for_ready()
+        self._port = self._server_component.get_port()
+        await self._change_status_to_running()
+        await server_task
+
+    async def _stop_callback(self):
+        if self._switch_port.packet_processor is not None:
+            logger.info(self._create_message("Stopping PacketProcessor for Switch Port"))
+            await self._switch_port.packet_processor.stop()
+            logger.info(self._create_message("Stopped PacketProcessor for Switch Port"))
 
     async def _stop(self):
         logger.info(self._create_message("Canceling TCP server task"))
-        self._server_task.cancel()
+        await self._server_component.stop()
 
-    async def _create_server(self):
-        async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-            try:
-                logger.info(self._create_message("Found a new socket connection"))
-                if self._switch_port.connected:
-                    logger.warning(
-                        self._create_message("Connection already exists for Switch Port")
-                    )
-                else:
-                    logger.info(self._create_message("Binding incoming connection to Switch Port"))
-                    self._switch_port.connected = True
-                    await self._start_packet_processor(reader, writer)
-            except Exception as e:
-                logger.warning(self._create_message(str(e)))
+    async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        try:
+            logger.info(self._create_message("Found a new socket connection"))
+            if self._switch_port.connected:
+                logger.warning(self._create_message("Connection already exists for Switch Port"))
+            else:
+                logger.info(self._create_message("Binding incoming connection to Switch Port"))
+                self._switch_port.connected = True
+                await self._start_packet_processor(reader, writer)
+        except Exception as e:
+            logger.warning(self._create_message(str(e)))
 
-            self._switch_port.connected = False
-            await self._close_connection(writer)
-
-        server = await asyncio.start_server(handle_client, self._host, self._port)
-        return server
-
-    async def _close_connection(self, writer: asyncio.StreamWriter):
-        writer.close()
-        await writer.wait_closed()
-        logger.info(self._create_message("Closed connnection"))
+        self._switch_port.connected = False
 
     async def _start_packet_processor(
         self,

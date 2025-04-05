@@ -43,6 +43,9 @@ class HostMgrConnServer(RunnableComponent):
             "HOST_INIT": self._host_init,
         }
 
+    def get_port(self):
+        return self._port
+
     async def _host_init(self, port: int) -> jsonrpcserver.Result:
         logger.info(self._create_message(f"Connection opened by CxlHost:Port{port}"))
         return jsonrpcserver.Success({"port": port})
@@ -58,6 +61,8 @@ class HostMgrConnServer(RunnableComponent):
     async def serve(self):
         self._fut = asyncio.Future()
         self._host_server = await websockets.serve(self._serve, self._host, self._port)
+        if self._port == 0:
+            self._port = self._host_server.sockets[0].getsockname()[1]
         await self._change_status_to_running()
         res = await self._fut
         logger.debug(self._create_message(f"{res}"))
@@ -152,6 +157,9 @@ class UtilConnServer(RunnableComponent):
         self._util_server = None
         self._get_host_conn_callback = get_host_conn_callback
 
+    def get_port(self):
+        return self._port
+
     async def _process_cmd(self, cmd: str, port: int) -> jsonrpcserver.Result:
         ws = await self._get_host_conn_callback(port)
         if ws is None:
@@ -184,6 +192,8 @@ class UtilConnServer(RunnableComponent):
     async def serve(self):
         self._fut = asyncio.Future()
         self._util_server = await websockets.serve(self._serve, self._host, self._port)
+        if self._port == 0:
+            self._port = self._util_server.sockets[0].getsockname()[1]
         await self._change_status_to_running()
         res = await self._fut
         logger.debug(self._create_message(f"{res}"))
@@ -242,6 +252,12 @@ class HostManager(RunnableComponent):
             host_host, host_port, self._set_host_conn_callback
         )
         self._util_conn_server = UtilConnServer(util_host, util_port, self._get_host_conn_callback)
+
+    def get_host_port(self):
+        return self._host_conn_server.get_port()
+
+    def get_util_port(self):
+        return self._util_conn_server.get_port()
 
     async def _set_host_conn_callback(self, port: int, ws) -> WebSocketClientProtocol:
         self._host_connections[port] = ws

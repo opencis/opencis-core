@@ -6,7 +6,7 @@ See LICENSE for details.
 """
 
 import asyncio
-from asyncio import CancelledError, create_task, gather
+from asyncio import create_task, gather
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Optional, List, Callable, Coroutine, Any, cast
@@ -29,6 +29,7 @@ from opencis.cxl.component.cxl_component import (
 from opencis.cxl.component.common import CXL_COMPONENT_TYPE
 from opencis.util.component import RunnableComponent
 from opencis.util.logger import logger
+from opencis.util.server import ServerComponent
 
 
 @dataclass
@@ -68,116 +69,41 @@ class SwitchConnectionManager(RunnableComponent):
         self._port = port
         self._connection_timeout_ms = connection_timeout_ms
         self._ports = [SwitchPort(port_config=port_config) for port_config in port_configs]
-        self._server_task = None
+        self._server_component = ServerComponent(
+            handle_client=self._handle_client,
+            host=self._host,
+            port=self._port,
+        )
         self._event_handler = None
-        self._clients = set()
 
-    async def _run(self):
+    async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        port_index = None
         try:
-            logger.info(self._create_message("Creating TCP server"))
-            server = await self._create_server()
-            self._server_task = asyncio.create_task(server.serve_forever())
-            logger.info(self._create_message("Starting TCP server task"))
-            while not server.is_serving():
-                await asyncio.sleep(0.1)
-            await self._change_status_to_running()
-            await self._server_task
+            logger.info(self._create_message("Found a new socket connection"))
+            port_index = await self._wait_for_connection_request(reader)
+            await self._send_confirmation(writer)
+            logger.info(self._create_message(f"Binding incoming connection to port {port_index}"))
+            await self._update_connection_status(port_index, connected=True)
+            await self._start_packet_processor(reader, writer, port_index)
         except Exception as e:
             logger.error(
                 self._create_message(
                     f"{self.__class__.__name__} error: {str(e)}, {traceback.format_exc()}"
                 )
             )
-        except CancelledError:
-            logger.info(self._create_message("Stopped TCP server"))
 
-    async def _stop(self):
-        logger.info(self._create_message("Cancelling TCP server task"))
-        self._server_task.cancel()
-        for client in self._clients.copy():
-            logger.info(
-                self._create_message(
-                    f'Closing client connection: {client.get_extra_info("peername")}'
-                )
-            )
-            client.close()
-        for client in self._clients.copy():
-            await client.wait_closed()
-            logger.info(
-                self._create_message(
-                    f'Closed client connection: {client.get_extra_info("peername")}'
-                )
-            )
-        self._clients.clear()
-        try:
-            await self._server_task
-        except CancelledError:
-            logger.info(self._create_message("Cancelled TCP server"))
-
-    async def _create_server(self):
-        async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-            self._clients.add(writer)
-            port_index = None
-            try:
-                logger.info(
-                    self._create_message(
-                        f"Found a new socket connection: {writer.get_extra_info('peername')}"
-                    )
-                )
-                port_index = await self._wait_for_connection_request(reader)
-                await self._send_confirmation(writer)
-                logger.info(
-                    self._create_message(f"Binding incoming connection to port {port_index}")
-                )
-                await self._update_connection_status(port_index, connected=True)
-                await self._start_packet_processor(reader, writer, port_index)
-            except Exception as e:
-                logger.error(
-                    self._create_message(
-                        f"{self.__class__.__name__} error: {str(e)}, {traceback.format_exc()}"
-                    )
-                )
-
-            if port_index is None:
-                await self._send_rejection(writer)
-            else:
-                await self._update_connection_status(port_index, connected=False)
-            await self._close_connection(writer, port_index)
-
-        logger.info(self._create_message(f"Listening to port {self._port}"))
-        server = await asyncio.start_server(handle_client, self._host, self._port)
-        return server
+        if port_index is None:
+            await self._send_rejection(writer)
+            # Connection closed log printed from ServerComponent
+        else:
+            await self._update_connection_status(port_index, connected=False)
+            logger.info(self._create_message(f"Closed client connection for port {port_index}"))
 
     async def _update_connection_status(self, port_id: int, connected: bool):
         self._ports[port_id].connected = connected
         if not self._event_handler:
             return
         await self._event_handler(PortUpdateEvent(port_id=port_id, connected=connected))
-
-    async def _close_connection(
-        self, writer: asyncio.StreamWriter, port_index: Optional[int] = None
-    ):
-        description = writer.get_extra_info("peername")
-        self._clients.discard(writer)
-        writer.close()
-        try:
-            await writer.wait_closed()
-        except Exception as e:
-            logger.error(
-                self._create_message(
-                    f"{self.__class__.__name__} error while closing {description}: "
-                    f"{str(e)}, {traceback.format_exc()}"
-                )
-            )
-
-        if port_index is None:
-            logger.info(self._create_message(f"Closed client connection: {description}"))
-        else:
-            logger.info(
-                self._create_message(
-                    f"Closed client connection {description} for port {port_index}"
-                )
-            )
 
     async def _send_confirmation(self, writer: asyncio.StreamWriter):
         sideband_response = BaseSidebandPacket.create(SIDEBAND_TYPES.CONNECTION_ACCEPT)
@@ -261,3 +187,16 @@ class SwitchConnectionManager(RunnableComponent):
 
     def register_event_handler(self, event_handler: AsyncEventHandlerType):
         self._event_handler = event_handler
+
+    def get_port(self):
+        return self._port
+
+    async def _run(self):
+        server_task = create_task(self._server_component.run())
+        await self._server_component.wait_for_ready()
+        self._port = self._server_component.get_port()
+        await self._change_status_to_running()
+        await server_task
+
+    async def _stop(self):
+        await self._server_component.stop()

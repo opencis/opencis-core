@@ -73,6 +73,13 @@ class VirtualSwitchManager(RunnableComponent):
             total_bound_vppbs += virtual_switch.get_bound_vppb_counts()
         return total_bound_vppbs
 
+    def get_port(self, switch_index):
+        return self._virtual_switches[switch_index].get_irq_port()
+
+    def register_event_handler(self, event_handler: AsyncEventHandlerType):
+        for vcs in self._virtual_switches:
+            vcs.register_event_handler(event_handler)
+
     async def _run(self):
         run_tasks = []
         for virtual_switch in self._virtual_switches:
@@ -89,7 +96,3 @@ class VirtualSwitchManager(RunnableComponent):
         for virtual_switch in self._virtual_switches:
             tasks.append(create_task(virtual_switch.stop()))
         await gather(*tasks)
-
-    def register_event_handler(self, event_handler: AsyncEventHandlerType):
-        for vcs in self._virtual_switches:
-            vcs.register_event_handler(event_handler)

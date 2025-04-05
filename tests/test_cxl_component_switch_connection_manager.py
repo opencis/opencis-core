@@ -39,11 +39,6 @@ from opencis.cxl.transport.transaction import (
     CXL_MEM_M2SBIRSP_OPCODE,
     CXL_MEM_S2MBISNP_OPCODE,
 )
-from opencis.util.number import get_rand_range_generator
-
-
-BASE_TEST_PORT = 9100
-generator = get_rand_range_generator(BASE_TEST_PORT, 100)
 
 
 def test_switch_connection_manager_check_ports():
@@ -53,8 +48,7 @@ def test_switch_connection_manager_check_ports():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = next(generator)
-    manager = SwitchConnectionManager(port_configs, port=port)
+    manager = SwitchConnectionManager(port_configs, port=0)
     for port in range(len(port_configs)):
         connection = manager.get_cxl_connection(port)
         assert isinstance(connection, CxlConnection)
@@ -70,8 +64,7 @@ async def test_switch_connection_manager_run_and_stop():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = next(generator)
-    manager = SwitchConnectionManager(port_configs, port=port)
+    manager = SwitchConnectionManager(port_configs, port=0)
 
     async def wait_and_stop():
         await manager.wait_for_ready()
@@ -89,8 +82,7 @@ async def test_switch_connection_manager_run_and_run():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = next(generator)
-    manager = SwitchConnectionManager(port_configs, port=port)
+    manager = SwitchConnectionManager(port_configs, port=0)
 
     async def wait_and_run():
         await manager.wait_for_ready()
@@ -110,8 +102,7 @@ async def test_switch_connection_manager_stop_before_run():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = next(generator)
-    manager = SwitchConnectionManager(port_configs, port=port)
+    manager = SwitchConnectionManager(port_configs, port=0)
 
     with pytest.raises(Exception, match="Cannot stop when it is not running"):
         await manager.stop()
@@ -125,10 +116,9 @@ async def test_switch_connection_manager_handle_connection():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = next(generator)
-    manager = SwitchConnectionManager(port_configs, port=port)
+    manager = SwitchConnectionManager(port_configs, port=0)
     client = SwitchConnectionClient(
-        port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
+        port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=0
     )
 
     async def start():
@@ -139,6 +129,7 @@ async def test_switch_connection_manager_handle_connection():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
         logger.info("[PyTest] Starting SwitchConnectionClient")
+        client.set_port(manager.get_port())
         await client.run()
 
     async def stop():
@@ -165,10 +156,9 @@ async def test_switch_connection_manager_handle_connection_oob():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = next(generator)
-    manager = SwitchConnectionManager(port_configs, port=port)
+    manager = SwitchConnectionManager(port_configs, port=0)
     client = SwitchConnectionClient(
-        port_index=4, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
+        port_index=4, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=0
     )
 
     async def start():
@@ -180,6 +170,7 @@ async def test_switch_connection_manager_handle_connection_oob():
         logger.info("[PyTest] SwitchConnectionManager is ready")
         logger.info("[PyTest] Starting SwitchConnectionClient")
         with pytest.raises(Exception, match="Connection rejected"):
+            client.set_port(manager.get_port())
             await client.run()
         await manager.stop()
 
@@ -200,10 +191,9 @@ async def test_switch_connection_manager_handle_connection_after_connection():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = next(generator)
-    manager = SwitchConnectionManager(port_configs, port=port)
+    manager = SwitchConnectionManager(port_configs, port=0)
     client = SwitchConnectionClient(
-        port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
+        port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=0
     )
 
     async def start():
@@ -214,6 +204,7 @@ async def test_switch_connection_manager_handle_connection_after_connection():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
         logger.info("[PyTest] Starting SwitchConnectionClient")
+        client.set_port(manager.get_port())
         await client.run()
 
     async def stop():
@@ -243,10 +234,9 @@ async def test_switch_connection_manager_handle_connection_errors():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = next(generator)
-    manager = SwitchConnectionManager(port_configs, port=port)
+    manager = SwitchConnectionManager(port_configs, port=0)
     client = SwitchConnectionClient(
-        port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
+        port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=0
     )
 
     async def start():
@@ -257,14 +247,17 @@ async def test_switch_connection_manager_handle_connection_errors():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
         logger.info("[PyTest] Starting SwitchConnectionClient")
+        client.set_port(manager.get_port())
         await client.run()
 
     async def wait_and_connect():
         await manager.wait_for_ready()
         with pytest.raises(Exception, match="Connection rejected"):
+            client.set_port(manager.get_port())
             client.inject_error(INJECTED_ERRORS.NON_SIDEBAND)
             await client.run()
         with pytest.raises(Exception, match="Connection rejected"):
+            client.set_port(manager.get_port())
             client.inject_error(INJECTED_ERRORS.NON_CONNNECTION_REQUEST)
             await client.run()
         await manager.stop()
@@ -281,10 +274,9 @@ async def test_switch_connection_manager_handle_cfg_packet():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = next(generator)
-    manager = SwitchConnectionManager(port_configs, port=port)
+    manager = SwitchConnectionManager(port_configs, port=0)
     client = SwitchConnectionClient(
-        port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
+        port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=0
     )
 
     async def start():
@@ -295,6 +287,7 @@ async def test_switch_connection_manager_handle_cfg_packet():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
         logger.info("[PyTest] Starting SwitchConnectionClient")
+        client.set_port(manager.get_port())
         await client.run()
 
     async def send_packets_and_stop():
@@ -333,10 +326,9 @@ async def test_switch_connection_manager_handle_mmio_packet():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = next(generator)
-    manager = SwitchConnectionManager(port_configs, port=port)
+    manager = SwitchConnectionManager(port_configs, port=0)
     client = SwitchConnectionClient(
-        port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
+        port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=0
     )
 
     async def start():
@@ -347,6 +339,7 @@ async def test_switch_connection_manager_handle_mmio_packet():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
         logger.info("[PyTest] Starting SwitchConnectionClient")
+        client.set_port(manager.get_port())
         await client.run()
 
     async def send_packets_and_stop():
@@ -384,10 +377,9 @@ async def test_switch_connection_manager_handle_cxl_mem_packet_m2s():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = next(generator)
-    manager = SwitchConnectionManager(port_configs, port=port)
+    manager = SwitchConnectionManager(port_configs, port=0)
     client = SwitchConnectionClient(
-        port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
+        port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=0
     )
 
     async def start():
@@ -398,6 +390,7 @@ async def test_switch_connection_manager_handle_cxl_mem_packet_m2s():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
         logger.info("[PyTest] Starting SwitchConnectionClient")
+        client.set_port(manager.get_port())
         await client.run()
 
     async def send_packets_and_stop():
@@ -437,10 +430,9 @@ async def test_switch_connection_manager_handle_cfg_completion():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = next(generator)
-    manager = SwitchConnectionManager(port_configs, port=port)
+    manager = SwitchConnectionManager(port_configs, port=0)
     client = SwitchConnectionClient(
-        port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
+        port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=0
     )
 
     async def start():
@@ -451,6 +443,7 @@ async def test_switch_connection_manager_handle_cfg_completion():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
         logger.info("[PyTest] Starting SwitchConnectionClient")
+        client.set_port(manager.get_port())
         await client.run()
 
     async def send_packets_and_stop():
@@ -504,10 +497,9 @@ async def test_switch_connection_manager_handle_mmio_completion():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = next(generator)
-    manager = SwitchConnectionManager(port_configs, port=port)
+    manager = SwitchConnectionManager(port_configs, port=0)
     client = SwitchConnectionClient(
-        port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
+        port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=0
     )
 
     async def start():
@@ -518,6 +510,7 @@ async def test_switch_connection_manager_handle_mmio_completion():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
         logger.info("[PyTest] Starting SwitchConnectionClient")
+        client.set_port(manager.get_port())
         await client.run()
 
     async def send_packets_and_stop():
@@ -572,10 +565,9 @@ async def test_switch_connection_manager_handle_cxl_mem_s2m():
         PortConfig(PORT_TYPE.DSP),
         PortConfig(PORT_TYPE.DSP),
     ]
-    port = next(generator)
-    manager = SwitchConnectionManager(port_configs, port=port)
+    manager = SwitchConnectionManager(port_configs, port=0)
     client = SwitchConnectionClient(
-        port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=port
+        port_index=0, component_type=CXL_COMPONENT_TYPE.R, retry=False, port=0
     )
 
     async def start():
@@ -586,6 +578,7 @@ async def test_switch_connection_manager_handle_cxl_mem_s2m():
         await manager.wait_for_ready()
         logger.info("[PyTest] SwitchConnectionManager is ready")
         logger.info("[PyTest] Starting SwitchConnectionClient")
+        client.set_port(manager.get_port())
         await client.run()
 
     async def send_packets_and_stop():
