@@ -41,15 +41,14 @@ class MctpConnectionManager(RunnableComponent):
         self._connection_timeout_ms = connection_timeout_ms
         # TODO: Support receiving connections from CXL Devices
         self._switch_port = MctpPort()
-        self._server_component = None
-
-    async def _run(self):
         self._server_component = ServerComponent(
             handle_client=self._handle_client,
             host=self._host,
             port=self._port,
             stop_callback=self._stop_callback,
         )
+
+    async def _run(self):
         server_task = asyncio.create_task(self._server_component.run())
         await self._server_component.wait_for_ready()
         self._port = self._server_component.get_port()

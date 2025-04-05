@@ -43,6 +43,9 @@ class HostMgrConnServer(RunnableComponent):
             "HOST_INIT": self._host_init,
         }
 
+    def get_port(self):
+        return self._port
+
     async def _host_init(self, port: int) -> jsonrpcserver.Result:
         logger.info(self._create_message(f"Connection opened by CxlHost:Port{port}"))
         return jsonrpcserver.Success({"port": port})
@@ -74,9 +77,6 @@ class HostMgrConnServer(RunnableComponent):
         self._fut.set_result("Host Done")
         self._host_server.close()
         await self._host_server.wait_closed()
-
-    def get_port(self):
-        return self._port
 
 
 class HostMgrConnClient(RunnableComponent):
@@ -157,6 +157,9 @@ class UtilConnServer(RunnableComponent):
         self._util_server = None
         self._get_host_conn_callback = get_host_conn_callback
 
+    def get_port(self):
+        return self._port
+
     async def _process_cmd(self, cmd: str, port: int) -> jsonrpcserver.Result:
         ws = await self._get_host_conn_callback(port)
         if ws is None:
@@ -206,9 +209,6 @@ class UtilConnServer(RunnableComponent):
         self._util_server.close()
         await self._util_server.wait_closed()
 
-    def get_port(self):
-        return self._port
-
 
 class UtilConnClient:
     def __init__(self, host: str = "0.0.0.0", port: int = 8400):
@@ -253,6 +253,12 @@ class HostManager(RunnableComponent):
         )
         self._util_conn_server = UtilConnServer(util_host, util_port, self._get_host_conn_callback)
 
+    def get_host_port(self):
+        return self._host_conn_server.get_port()
+
+    def get_util_port(self):
+        return self._util_conn_server.get_port()
+
     async def _set_host_conn_callback(self, port: int, ws) -> WebSocketClientProtocol:
         self._host_connections[port] = ws
 
@@ -278,9 +284,3 @@ class HostManager(RunnableComponent):
             asyncio.create_task(self._util_conn_server.stop()),
         ]
         await asyncio.gather(*tasks)
-
-    def get_host_port(self):
-        return self._host_conn_server.get_port()
-
-    def get_util_port(self):
-        return self._util_conn_server.get_port()

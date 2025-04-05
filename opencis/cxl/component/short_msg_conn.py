@@ -53,6 +53,14 @@ class ShortMsgConn(RunnableComponent):
         self._msg_to_interrupt_event = {}
         self._general_interrupt_event = {}
         self._server = server
+        if server:
+            self._server_component = ServerComponent(
+                handle_client=self._new_conn,
+                host=self._addr,
+                port=self._port,
+            )
+        else:
+            self._server_component = None
         self._connections: dict[int, tuple[StreamReader, StreamWriter]] = {}
         self._tasks: list[Task] = []
         self._msg_handlers: list[Task] = []
@@ -64,6 +72,9 @@ class ShortMsgConn(RunnableComponent):
         self._run_status = False
         self._msg_tasks: list[Task] = []
         self._msg_type = msg_type
+
+    def get_port(self):
+        return self._port
 
     def register_interrupt_handler(
         self, short_msg: ShortMsgBase, msg_recv_cb: Callable, dev_id: int = 0
@@ -195,12 +206,6 @@ class ShortMsgConn(RunnableComponent):
     async def _run(self):
         try:
             if self._server:
-                self._server_component = ServerComponent(
-                    handle_client=self._new_conn,
-                    host=self._addr,
-                    port=self._port,
-                    limit=2,
-                )
                 server_task = create_task(self._server_component.run())
                 await self._server_component.wait_for_ready()
                 self._port = self._server_component.get_port()
@@ -229,6 +234,3 @@ class ShortMsgConn(RunnableComponent):
         for handler in self._msg_handlers:
             handler.cancel()
         logger.debug(self._create_message("ShortMsg handlers cancelled"))
-
-    def get_port(self):
-        return self._port

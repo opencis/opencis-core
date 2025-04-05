@@ -52,6 +52,9 @@ class CxlFabricManager(RunnableComponent):
         self._host_fm_conn_server.register_general_handler(HostFMMsg.CONFIRM, self._host_callback())
         self._use_test_runner = use_test_runner
 
+    def get_host_fm_port(self):
+        return self._host_fm_conn_server.get_port()
+
     def _host_callback(self):
         async def _func(_: int, data: HostFMMsg):
             print(f"Received {data.readable} from host (root port={data.root_port})")
@@ -117,6 +120,3 @@ class CxlFabricManager(RunnableComponent):
         await self._connection_manager.stop()
         await self._socketio_server.stop()
         await self._api_client.stop()
-
-    def get_host_fm_port(self):
-        return self._host_fm_conn_server.get_port()

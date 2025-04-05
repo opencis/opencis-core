@@ -69,23 +69,12 @@ class SwitchConnectionManager(RunnableComponent):
         self._port = port
         self._connection_timeout_ms = connection_timeout_ms
         self._ports = [SwitchPort(port_config=port_config) for port_config in port_configs]
-        self._server_component = None
-        self._event_handler = None
-
-    async def _run(self):
         self._server_component = ServerComponent(
             handle_client=self._handle_client,
             host=self._host,
             port=self._port,
         )
-        server_task = create_task(self._server_component.run())
-        await self._server_component.wait_for_ready()
-        self._port = self._server_component.get_port()
-        await self._change_status_to_running()
-        await server_task
-
-    async def _stop(self):
-        await self._server_component.stop()
+        self._event_handler = None
 
     async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         port_index = None
@@ -201,3 +190,13 @@ class SwitchConnectionManager(RunnableComponent):
 
     def get_port(self):
         return self._port
+
+    async def _run(self):
+        server_task = create_task(self._server_component.run())
+        await self._server_component.wait_for_ready()
+        self._port = self._server_component.get_port()
+        await self._change_status_to_running()
+        await server_task
+
+    async def _stop(self):
+        await self._server_component.stop()

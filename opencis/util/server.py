@@ -21,9 +21,8 @@ class ServerComponent(RunnableComponent):
         handle_client: Callable,
         host: str = "0.0.0.0",
         port: int = 0,
-        limit: int = 0,
         stop_callback: Callable = None,
-        label=None,
+        label: str = None,
     ):
         if label is None:
             # Get caller function name
@@ -36,12 +35,47 @@ class ServerComponent(RunnableComponent):
 
         self._host = host
         self._port = port
-        self._limit = limit
         self._handle_client = handle_client
         self._stop_callback = stop_callback
         self._descriptor = f"TCP server ({label})"
         self._server_task = None
         self._clients = set()
+
+    def get_port(self):
+        return self._port
+
+    async def _create_server(self):
+        async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+            self._clients.add(writer)
+            logger.info(
+                self._create_message(
+                    f"Found a new socket connection: {writer.get_extra_info('peername')}"
+                )
+            )
+            await self._handle_client(reader, writer)
+            # Handled, now close the connection
+            self._clients.discard(writer)
+            description = writer.get_extra_info("peername")
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except Exception as e:
+                logger.error(
+                    self._create_message(
+                        f"Error while closing {description}: {str(e)}, {traceback.format_exc()}"
+                    )
+                )
+            logger.info(self._create_message(f"Closed client connection: {description}"))
+
+        logger.info(self._create_message(f"Starting {self._descriptor} server"))
+        server = await asyncio.start_server(handle_client, self._host, self._port)
+        if self._port == 0:
+            # Ephemeral port is chosen by the OS
+            self._port = server.sockets[0].getsockname()[1]
+        logger.info(
+            self._create_message(f"{self._descriptor} listening on {self._host}:{self._port}")
+        )
+        return server
 
     async def _run(self):
         try:
@@ -85,44 +119,3 @@ class ServerComponent(RunnableComponent):
             await self._server_task
         except CancelledError:
             logger.info(self._create_message(f"Cancelled {self._descriptor}"))
-
-    async def _create_server(self):
-        async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-            self._clients.add(writer)
-            logger.info(
-                self._create_message(
-                    f"Found a new socket connection: {writer.get_extra_info('peername')}"
-                )
-            )
-            await self._handle_client(reader, writer)
-            # Handled, now close the connection
-            self._clients.discard(writer)
-            description = writer.get_extra_info("peername")
-            writer.close()
-            try:
-                await writer.wait_closed()
-            except Exception as e:
-                logger.error(
-                    self._create_message(
-                        f"Error while closing {description}: {str(e)}, {traceback.format_exc()}"
-                    )
-                )
-            logger.info(self._create_message(f"Closed client connection: {description}"))
-
-        logger.info(self._create_message(f"Starting {self._descriptor} server"))
-        if self._limit == 0:
-            server = await asyncio.start_server(handle_client, self._host, self._port)
-        else:
-            server = await asyncio.start_server(
-                handle_client, self._host, self._port, limit=self._limit
-            )
-        if self._port == 0:
-            # Ephemeral port is chosen by the OS
-            self._port = server.sockets[0].getsockname()[1]
-        logger.info(
-            self._create_message(f"{self._descriptor} listening on {self._host}:{self._port}")
-        )
-        return server
-
-    def get_port(self):
-        return self._port

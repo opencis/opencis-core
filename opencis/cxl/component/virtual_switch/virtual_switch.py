@@ -296,8 +296,8 @@ class CxlVirtualSwitch(RunnableComponent):
     def get_ld_id(self, vppb_id: int) -> int:
         return self._vppb_ld_id_map[vppb_id]
 
-    def register_event_handler(self, event_handler: AsyncEventHandlerType):
-        self._event_handler = event_handler
-
     def get_irq_port(self):
         return self._irq_manager.get_port()
+
+    def register_event_handler(self, event_handler: AsyncEventHandlerType):
+        self._event_handler = event_handler
