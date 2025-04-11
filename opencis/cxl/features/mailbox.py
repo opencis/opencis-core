@@ -206,6 +206,7 @@ class CxlMailbox:
             return
 
         # TODO: generate MSI or MSIX interrupt
+        return
 
     def enable_mb_doorbell_interrupt(self):
         if not self.capabilities["mb_doorbell_interrupt_capable"]:
