@@ -10,6 +10,7 @@ from asyncio import create_task, gather, sleep, Queue
 import asyncio
 from typing import cast
 
+from opencis.cxl.transport.common import BasePacket
 from opencis.util.logger import logger
 from opencis.util.component import RunnableComponent
 from opencis.pci.component.fifo_pair import FifoPair
@@ -376,7 +377,7 @@ class HomeAgent(RunnableComponent):
                 )
                 break
 
-            base_packet = cast(CxlMemBasePacket, packet)
+            base_packet = cast(BasePacket, packet)
             if not base_packet.is_cxl_mem():
                 raise Exception(f"Received unexpected packet: {base_packet.get_type()}")
 
