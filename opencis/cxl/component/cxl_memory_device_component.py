@@ -179,6 +179,7 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
         identity: MemoryDeviceIdentity,
         decoder_count: HDM_DECODER_COUNT = HDM_DECODER_COUNT.DECODER_1,
         memory_file: str = "mem.bin",
+        memory_size: Optional[int] = None,
         label: Optional[str] = None,
         cache_lines: int = 0,
         cache_line_size: int = 64 * KB,
@@ -222,16 +223,14 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
             bi_capable=True,
         )
         self._hdm_decoder_manager = DeviceHdmDecoderManager(hdm_decoder_capabilities, label=label)
+        if memory_size is None:
+            memory_size = self._identity.get_total_capacity() // SIZE_256MB
         if "/dev" in memory_file:
-            self._memory_accessor = CharDriverAccessor(
-                memory_file, self._identity.get_total_capacity()
-            )
+            self._memory_accessor = CharDriverAccessor(memory_file, memory_size)
         elif memory_file == "":
             self._memory_accessor = None
         else:
-            self._memory_accessor = FileAccessor(
-                memory_file, self._identity.get_total_capacity() // SIZE_256MB
-            )
+            self._memory_accessor = FileAccessor(memory_file, memory_size)
 
         self._cache_info: List[CXLCacheCacheLineInfo] = []
         self._cache_lines = cache_lines
