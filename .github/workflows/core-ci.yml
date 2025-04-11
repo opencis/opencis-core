@@ -14,7 +14,7 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
       - name: Install Python packages via uv
-        run: uv python pin 3.11 && uv sync
+        run: uv python pin 3.13 && uv sync
       - name: Run pytest
         run: make test
   code-quality:
@@ -26,7 +26,7 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v4
       - name: Install Python packages via uv
-        run: uv python pin 3.11 && uv sync
+        run: uv python pin 3.13 && uv sync
       - name: Run pylint
         run: make lint
       - name: Run black
