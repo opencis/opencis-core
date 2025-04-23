@@ -23,6 +23,7 @@ class ServerComponent(RunnableComponent):
         port: int = 0,
         stop_callback: Callable = None,
         label: str = None,
+        leave_opened: bool = False,
     ):
         if label is None:
             # Get caller function name
@@ -38,6 +39,7 @@ class ServerComponent(RunnableComponent):
         self._handle_client = handle_client
         self._stop_callback = stop_callback
         self._descriptor = f"TCP server ({label})"
+        self._leave_opened = leave_opened
         self._server_task = None
         self._clients = set()
 
@@ -53,19 +55,20 @@ class ServerComponent(RunnableComponent):
                 )
             )
             await self._handle_client(reader, writer)
-            # Handled, now close the connection
-            self._clients.discard(writer)
-            description = writer.get_extra_info("peername")
-            writer.close()
-            try:
-                await writer.wait_closed()
-            except Exception as e:
-                logger.error(
-                    self._create_message(
-                        f"Error while closing {description}: {str(e)}, {traceback.format_exc()}"
+            if not self._leave_opened:
+                # Handled, now close the connection
+                self._clients.discard(writer)
+                description = writer.get_extra_info("peername")
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except Exception as e:
+                    logger.error(
+                        self._create_message(
+                            f"Error while closing {description}: {str(e)}, {traceback.format_exc()}"
+                        )
                     )
-                )
-            logger.info(self._create_message(f"Closed client connection: {description}"))
+                logger.info(self._create_message(f"Closed client connection: {description}"))
 
         logger.info(self._create_message(f"Starting {self._descriptor} server"))
         server = await asyncio.start_server(handle_client, self._host, self._port)
