@@ -58,6 +58,7 @@ class ShortMsgConn(RunnableComponent):
                 handle_client=self._new_conn,
                 host=self._addr,
                 port=self._port,
+                leave_opened=True,
             )
         else:
             self._server_component = None
