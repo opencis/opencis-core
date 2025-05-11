@@ -66,6 +66,20 @@ def get_ld_allocation(port_index: int, start_ld_id: int, ld_allocation_list_limi
     )
 
 
+@fabric_manager_group.command(name="freeze")
+@click.argument("vcs", nargs=1, type=BASED_INT)
+@click.argument("vppb", nargs=1, type=BASED_INT)
+def fm_freeze(vcs: int, vppb: int):
+    asyncio.run(socketio_client.freeze(vcs, vppb))
+
+
+@fabric_manager_group.command(name="unfreeze")
+@click.argument("vcs", nargs=1, type=BASED_INT)
+@click.argument("vppb", nargs=1, type=BASED_INT)
+def fm_unfreeze(vcs: int, vppb: int):
+    asyncio.run(socketio_client.unfreeze(vcs, vppb))
+
+
 # TODO: Implement set_ld_allocation
 # @fabric_manager_group.command(name="set-ld-allocation")
 # @click.argument("port_index", nargs=1, type=BASED_INT)

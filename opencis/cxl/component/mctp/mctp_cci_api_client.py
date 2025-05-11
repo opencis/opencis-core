@@ -8,6 +8,14 @@ See LICENSE for details.
 from asyncio import Condition
 from typing import cast, Any, Tuple, Optional, Callable, Dict, Coroutine
 
+from opencis.cxl.cci.fabric_manager.virtual_switch.freeze_vppb import (
+    FreezeVppbCommand,
+    FreezeVppbRequestPayload,
+)
+from opencis.cxl.cci.fabric_manager.virtual_switch.unfreeze_vppb import (
+    UnfreezeVppbCommand,
+    UnfreezeVppbRequestPayload,
+)
 from opencis.cxl.component.mctp.mctp_connection import MctpConnection
 from opencis.cxl.transport.transaction import (
     CciMessagePacket,
@@ -328,3 +336,39 @@ class MctpCciApiClient(RunnableComponent):
             response_message_packet.get_payload()
         )
         return (return_code, response)
+
+    async def freeze_vppb(
+        self, request: FreezeVppbRequestPayload, wait_for_completion: bool = True
+    ) -> Tuple[CCI_RETURN_CODE, Optional[CCI_RETURN_CODE]]:
+        response_message_packet = await self._send_cci_command(
+            FreezeVppbCommand.create_cci_request, request
+        )
+
+        return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
+        if wait_for_completion:
+            return_code = await self._wait_for_background_operation()
+        has_error = return_code not in (
+            CCI_RETURN_CODE.SUCCESS,
+            CCI_RETURN_CODE.BACKGROUND_COMMAND_STARTED,
+        )
+        if has_error:
+            return (return_code, None)
+        return (return_code, return_code)
+
+    async def unfreeze_vppb(
+        self, request: UnfreezeVppbRequestPayload, wait_for_completion: bool = True
+    ) -> Tuple[CCI_RETURN_CODE, Optional[CCI_RETURN_CODE]]:
+        response_message_packet = await self._send_cci_command(
+            UnfreezeVppbCommand.create_cci_request, request
+        )
+
+        return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
+        if wait_for_completion:
+            return_code = await self._wait_for_background_operation()
+        has_error = return_code not in (
+            CCI_RETURN_CODE.SUCCESS,
+            CCI_RETURN_CODE.BACKGROUND_COMMAND_STARTED,
+        )
+        if has_error:
+            return (return_code, None)
+        return (return_code, return_code)

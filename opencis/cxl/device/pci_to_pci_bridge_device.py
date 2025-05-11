@@ -240,6 +240,14 @@ class PpbDevice(RunnableComponent):
         task = self._down_routings.pop(ld_id)
         await task.stop()
 
+    async def freeze(self, ld_id: int):
+        task = self._down_routings[ld_id]
+        await task.stop()
+
+    async def unfreeze(self, ld_id: int):
+        task = self._down_routings[ld_id]
+        await task.run_wait_ready()
+
     async def _run(self):
         logger.info(self._create_message("Starting"))
         self._routing_tasks.add_task(self._up_routing.run())
