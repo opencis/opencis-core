@@ -25,6 +25,8 @@ from opencis.cxl.component.mctp.mctp_cci_api_client import (
     CciMessagePacket,
     GetLdAllocationsRequestPayload,
     SetLdAllocationsRequestPayload,
+    FreezeVppbRequestPayload,
+    UnfreezeVppbRequestPayload,
 )
 from opencis.cxl.cci.common import (
     CCI_VENDOR_SPECIFIC_OPCODE,
@@ -168,6 +170,8 @@ class FabricManagerSocketIoServer(RunnableComponent):
         self._register_handler("device:get")
         self._register_handler("vcs:bind")
         self._register_handler("vcs:unbind")
+        self._register_handler("vcs:freeze")
+        self._register_handler("vcs:unfreeze")
         self._register_handler("mld:get")
         self._register_handler("mld:getAllocation")
         self._register_handler("mld:setAllocation")
@@ -211,6 +215,10 @@ class FabricManagerSocketIoServer(RunnableComponent):
                 response = await self._get_ld_allocation(data)
             elif event_type == "mld:setAllocation":
                 response = await self._set_ld_allocation(data)
+            elif event_type == "vcs:freeze":
+                response = await self._freeze_vppb(data)
+            elif event_type == "vcs:unfreeze":
+                response = await self._unfreeze_vppb(data)
             logger.info(self._create_message(f"Response: {pformat(response)}"))
             logger.debug(self._create_message("Completed SocketIO Request"))
             return response
@@ -313,6 +321,26 @@ class FabricManagerSocketIoServer(RunnableComponent):
                 result=[response.number_of_lds, response.start_ld_id, response.ld_allocation_list],
             )
         return CommandResponse(error=return_code.name)
+
+    async def _freeze_vppb(self, data) -> CommandResponse:
+        request = FreezeVppbRequestPayload(
+            vcs_id=data["virtualCxlSwitchId"],
+            vppb_id=data["vppbId"],
+        )
+        (return_code, response) = await self._mctp_client.freeze_vppb(request)
+        if response is not None:
+            return CommandResponse(error="", result=response.name)
+        return CommandResponse(error="", result=return_code.name)
+
+    async def _unfreeze_vppb(self, data) -> CommandResponse:
+        request = UnfreezeVppbRequestPayload(
+            vcs_id=data["virtualCxlSwitchId"],
+            vppb_id=data["vppbId"],
+        )
+        (return_code, response) = await self._mctp_client.unfreeze_vppb(request)
+        if response is not None:
+            return CommandResponse(error="", result=response.name)
+        return CommandResponse(error="", result=return_code.name)
 
     async def _send_update_physical_ports_notification(self):
         # Emitting event without arguments

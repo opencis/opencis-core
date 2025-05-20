@@ -270,6 +270,36 @@ class CxlVirtualSwitch(RunnableComponent):
         # TODO: Free ld id?
         await self._irq_manager.send_irq_request(Irq.DEV_REMOVED)
 
+    async def freeze_vppb(self, vppb_index: int):
+        logger.info(self._create_message(f"Freezing physical port from vPPB {vppb_index}"))
+        if self._physical_ports_vppb_map.get(vppb_index, None) is not None:
+            ld_id = self._downstream_vppbs[vppb_index].get_ld_id()
+            await self._physical_ports_vppb_map[vppb_index].get_ppb_device().freeze(ld_id)
+        else:
+            logger.error(
+                self._create_message(f"vPPB {vppb_index} is not bound to any physical port")
+            )
+            raise Exception(f"vPPB {vppb_index} is not bound to any physical port")
+
+        logger.info(
+            self._create_message(f"Succcessfully froze physical port from vPPB {vppb_index}")
+        )
+
+    async def unfreeze_vppb(self, vppb_index: int):
+        logger.info(self._create_message(f"Unfreezing physical port from vPPB {vppb_index}"))
+        if self._physical_ports_vppb_map.get(vppb_index, None) is not None:
+            ld_id = self._downstream_vppbs[vppb_index].get_ld_id()
+            await self._physical_ports_vppb_map[vppb_index].get_ppb_device().unfreeze(ld_id)
+        else:
+            logger.error(
+                self._create_message(f"vPPB {vppb_index} is not bound to any physical port")
+            )
+            raise Exception(f"vPPB {vppb_index} is not bound to any physical port")
+
+        logger.info(
+            self._create_message(f"Succcessfully unfroze physical port from vPPB {vppb_index}")
+        )
+
     async def _call_event_handler(self, vppb_id: int, binding_status: PPB_BINDING_STATUS):
         if not self._event_handler:
             return
