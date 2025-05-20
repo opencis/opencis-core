@@ -252,11 +252,10 @@ class MctpCciApiClient(RunnableComponent):
         return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
         if wait_for_completion:
             return_code = await self._wait_for_background_operation()
-        has_error = return_code not in (
+        if return_code not in (
             CCI_RETURN_CODE.SUCCESS,
             CCI_RETURN_CODE.BACKGROUND_COMMAND_STARTED,
-        )
-        if has_error:
+        ):
             return (return_code, None)
         return (return_code, return_code)
 
@@ -270,11 +269,10 @@ class MctpCciApiClient(RunnableComponent):
         return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
         if wait_for_completion:
             return_code = await self._wait_for_background_operation()
-        has_error = return_code not in (
+        if return_code not in (
             CCI_RETURN_CODE.SUCCESS,
             CCI_RETURN_CODE.BACKGROUND_COMMAND_STARTED,
-        )
-        if has_error:
+        ):
             return (return_code, None)
         return (return_code, return_code)
 
@@ -347,11 +345,10 @@ class MctpCciApiClient(RunnableComponent):
         return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
         if wait_for_completion:
             return_code = await self._wait_for_background_operation()
-        has_error = return_code not in (
+        if return_code not in (
             CCI_RETURN_CODE.SUCCESS,
             CCI_RETURN_CODE.BACKGROUND_COMMAND_STARTED,
-        )
-        if has_error:
+        ):
             return (return_code, None)
         return (return_code, return_code)
 
@@ -365,10 +362,9 @@ class MctpCciApiClient(RunnableComponent):
         return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
         if wait_for_completion:
             return_code = await self._wait_for_background_operation()
-        has_error = return_code not in (
+        if return_code not in (
             CCI_RETURN_CODE.SUCCESS,
             CCI_RETURN_CODE.BACKGROUND_COMMAND_STARTED,
-        )
-        if has_error:
+        ):
             return (return_code, None)
         return (return_code, return_code)
