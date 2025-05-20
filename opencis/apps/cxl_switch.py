@@ -47,6 +47,8 @@ from opencis.cxl.cci.fabric_manager.virtual_switch import (
     GetVirtualCxlSwitchInfoCommand,
     BindVppbCommand,
     UnbindVppbCommand,
+    FreezeVppbCommand,
+    UnfreezeVppbCommand,
 )
 from opencis.cxl.cci.vendor_specfic import (
     NotifySwitchUpdateRequestPayload,
@@ -139,6 +141,8 @@ class CxlSwitch(RunnableComponent):
             BindVppbCommand(self._physical_port_manager, self._virtual_switch_manager),
             UnbindVppbCommand(self._virtual_switch_manager),
             GetConnectedDevicesCommand(self._physical_port_manager),
+            FreezeVppbCommand(self._virtual_switch_manager),
+            UnfreezeVppbCommand(self._virtual_switch_manager),
         ]
         self._mctp_cci_executor.register_cci_commands(commands)
 

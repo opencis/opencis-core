@@ -156,6 +156,24 @@ async def set_ld_allocation(
     await sio.disconnect()
 
 
+async def freeze(vcs: int, vppb: int):
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "vcs:freeze",
+        {"virtualCxlSwitchId": vcs, "vppbId": vppb},
+    )
+    await sio.disconnect()
+
+
+async def unfreeze(vcs: int, vppb: int):
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "vcs:unfreeze",
+        {"virtualCxlSwitchId": vcs, "vppbId": vppb},
+    )
+    await sio.disconnect()
+
+
 # Main asynchronous function to start the client
 async def start_client():
     await sio.connect("http://0.0.0.0:8200")

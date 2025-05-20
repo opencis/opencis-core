@@ -102,6 +102,11 @@ class CCI_FM_API_COMMAND_OPCODE(IntEnum):
     GET_DC_REGION_EXTENT_LISTS = 0x5603
     INITIATE_DYNAMIC_CAPACITY_ADD = 0x5604
     INITIATE_DYNAMIC_CAPACITY_RELEASE = 0x5605
+    # Custom commands added by Eeum.
+    # As per CXL spec's "Table 8-215. CXL FM API Command Opcodes",
+    # 52h is for VCS and currently only used till 03h.
+    FREEZE_VPPB = 0x5215
+    UNFREEZE_VPPB = 0x5216
 
 
 class CCI_VENDOR_SPECIFIC_OPCODE(IntEnum):
