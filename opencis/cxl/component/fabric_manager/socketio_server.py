@@ -25,6 +25,8 @@ from opencis.cxl.component.mctp.mctp_cci_api_client import (
     CciMessagePacket,
     GetLdAllocationsRequestPayload,
     SetLdAllocationsRequestPayload,
+    FreezeVppbRequestPayload,
+    UnfreezeVppbRequestPayload,
 )
 from opencis.cxl.cci.common import (
     CCI_VENDOR_SPECIFIC_OPCODE,
@@ -321,7 +323,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
         return CommandResponse(error=return_code.name)
 
     async def _freeze_vppb(self, data) -> CommandResponse:
-        request = UnbindVppbRequestPayload(
+        request = FreezeVppbRequestPayload(
             vcs_id=data["virtualCxlSwitchId"],
             vppb_id=data["vppbId"],
         )
@@ -331,7 +333,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
         return CommandResponse(error="", result=return_code.name)
 
     async def _unfreeze_vppb(self, data) -> CommandResponse:
-        request = UnbindVppbRequestPayload(
+        request = UnfreezeVppbRequestPayload(
             vcs_id=data["virtualCxlSwitchId"],
             vppb_id=data["vppbId"],
         )

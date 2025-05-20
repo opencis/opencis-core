@@ -8,14 +8,6 @@ See LICENSE for details.
 from asyncio import Condition
 from typing import cast, Any, Tuple, Optional, Callable, Dict, Coroutine
 
-from opencis.cxl.cci.fabric_manager.virtual_switch.freeze_vppb import (
-    FreezeVppbCommand,
-    FreezeVppbRequestPayload,
-)
-from opencis.cxl.cci.fabric_manager.virtual_switch.unfreeze_vppb import (
-    UnfreezeVppbCommand,
-    UnfreezeVppbRequestPayload,
-)
 from opencis.cxl.component.mctp.mctp_connection import MctpConnection
 from opencis.cxl.transport.transaction import (
     CciMessagePacket,
@@ -43,6 +35,10 @@ from opencis.cxl.cci.fabric_manager.virtual_switch import (
     BindVppbRequestPayload,
     UnbindVppbCommand,
     UnbindVppbRequestPayload,
+    FreezeVppbCommand,
+    FreezeVppbRequestPayload,
+    UnfreezeVppbCommand,
+    UnfreezeVppbRequestPayload,
 )
 from opencis.cxl.cci.fabric_manager.mld_components import (
     GetLdInfoCommand,
