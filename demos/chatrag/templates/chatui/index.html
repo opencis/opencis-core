@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ChatRAG</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"/>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .chat-scroll { scroll-behavior: smooth; }
+    .typing { animation: blink 1s steps(2, start) infinite; }
+    @keyframes blink { to { visibility: hidden; } }
+
+    .chatbox {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      scrollbar-width: thin;
+      scrollbar-color: #cbd5e1 transparent;
+    }
+    .chatbox::-webkit-scrollbar {
+      width: 8px;
+    }
+    .chatbox::-webkit-scrollbar-thumb {
+      background-color: #cbd5e1;
+      border-radius: 4px;
+    }
+
+    .markdown-body pre {
+      background-color: #f4f4f4;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      overflow-x: auto;
+    }
+    .markdown-body code {
+      background-color: #f0f0f0;
+      padding: 0.2rem 0.4rem;
+      border-radius: 0.3rem;
+      font-size: 0.9rem;
+    }
+    .markdown-body table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1em 0;
+    }
+    .markdown-body th, .markdown-body td {
+      border: 1px solid #ccc;
+      padding: 0.5em;
+      text-align: left;
+    }
+    .markdown-body ul {
+      list-style: none;
+      padding-left: 1.5rem;
+    }
+    .markdown-body ul li {
+      position: relative;
+      padding-left: 1.5rem;
+      margin-bottom: 0.5em;
+    }
+    .markdown-body ul li::before {
+      content: '✔';
+      position: absolute;
+      left: 0;
+      top: 0.1em;
+      color: #22c55e;
+    }
+
+    .truncate-filename {
+      max-width: 10rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .pulse:hover {
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-gray-100 to-blue-50 min-h-screen flex flex-col items-center justify-start py-8 px-4">
+  <div class="w-full max-w-5xl bg-white rounded-2xl shadow-xl flex flex-col h-[95vh] relative">
+
+    <!-- ✅ Floating Action Buttons at bottom-right -->
+    <div class="absolute bottom-28 right-4 flex flex-row items-center space-x-2 z-10">
+      <button onclick="chatbox.scrollTop = chatbox.scrollHeight" class="text-xs bg-gray-300 hover:bg-gray-400 text-white px-3 py-1 rounded-full">↓ Bottom</button>
+      <button onclick="clearChat()" class="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-full">🗑️ Reset</button>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-white p-4 border-b flex justify-between items-center rounded-t-2xl">
+      <h1 class="text-xl font-semibold text-gray-800">🧠 ChatRAG Assistant</h1>
+      <form id="upload-form" class="flex items-center space-x-2" enctype="multipart/form-data">
+        <label for="file-input" class="truncate-filename border border-gray-300 rounded p-1 text-sm bg-white cursor-pointer">Choose File</label>
+        <input type="file" name="file" id="file-input" class="hidden">
+        <span id="filename-display" class="truncate-filename text-sm text-gray-600"></span>
+        <button type="submit" class="bg-green-500 text-white px-4 py-1 rounded hover:bg-green-600">Upload</button>
+      </form>
+    </header>
+
+    <!-- Upload Status -->
+    <div id="upload-status" class="text-sm text-gray-500 px-4 py-1"></div>
+
+    <!-- Chat Content -->
+    <main id="chatbox" class="chatbox chat-scroll">
+      <div id="empty-state" class="text-center text-gray-400">Start by uploading a document or asking a question.</div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white p-4 border-t rounded-b-2xl">
+      <form id="input-form" class="flex items-center gap-2">
+        <input type="text" id="question" placeholder="Ask something..." class="flex-1 border border-gray-300 p-3 rounded-full shadow-sm">
+        <button type="submit" class="bg-blue-600 text-white px-5 py-2 rounded-full hover:bg-blue-700 pulse">➤</button>
+      </form>
+    </footer>
+  </div>
+
+  <!-- Script -->
+  <script>
+    const chatbox = document.getElementById("chatbox");
+    const uploadStatus = document.getElementById("upload-status");
+    const emptyState = document.getElementById("empty-state");
+    let history = JSON.parse(localStorage.getItem("chatHistory")) || [];
+
+    marked.setOptions({ gfm: true, breaks: true });
+
+    function formatListMarkdown(text) {
+      return text
+        .replace(/\n\s*- /g, '\n- ')
+        .replace(/\n(\d+)[\.)]\s+/g, '\n$1. ');
+    }
+
+    function renderHistory() {
+      chatbox.innerHTML = "";
+      emptyState.style.display = history.length === 0 ? "block" : "none";
+      history.forEach(({ role, text, time }) => appendMessage(role, text, time));
+    }
+
+    function appendMessage(role, text, timestamp = new Date().toLocaleTimeString()) {
+      const wrapper = document.createElement("div");
+      wrapper.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+
+      const content = document.createElement("div");
+      content.className = `p-4 rounded-2xl markdown-body ${role === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-50 border'}`;
+      content.innerHTML = marked.parse(formatListMarkdown(text || "[No response]"));
+
+      const timeTag = document.createElement("div");
+      timeTag.className = "text-xs text-gray-400 mt-1 text-right";
+      timeTag.textContent = timestamp;
+      content.appendChild(timeTag);
+
+      const avatar = document.createElement("img");
+      avatar.src = role === 'user'
+        ? "https://cdn-icons-png.flaticon.com/512/847/847969.png"
+        : "https://cdn-icons-png.flaticon.com/512/4712/4712103.png";
+      avatar.className = "w-6 h-6 rounded-full object-cover";
+
+      const container = document.createElement("div");
+      container.className = "flex items-start gap-2 max-w-xl";
+      if (role === 'bot') {
+        container.appendChild(avatar);
+        container.appendChild(content);
+      } else {
+        container.appendChild(content);
+        container.appendChild(avatar);
+      }
+
+      wrapper.appendChild(container);
+      chatbox.appendChild(wrapper);
+      chatbox.scrollTop = chatbox.scrollHeight;
+    }
+
+    function saveMessage(role, text) {
+      const timestamp = new Date().toLocaleTimeString();
+      history.push({ role, text, time: timestamp });
+      localStorage.setItem("chatHistory", JSON.stringify(history));
+    }
+
+    function clearChat() {
+      localStorage.removeItem("chatHistory");
+      history = [];
+      chatbox.innerHTML = "";
+      emptyState.style.display = "block";
+      document.getElementById("filename-display").textContent = "";
+    }
+
+    function showTypingIndicator() {
+      const indicator = document.createElement("div");
+      indicator.id = "typing-indicator";
+      indicator.className = "italic text-sm text-gray-500 typing";
+      indicator.textContent = "Assistant is typing...";
+      chatbox.appendChild(indicator);
+      chatbox.scrollTop = chatbox.scrollHeight;
+    }
+
+    function removeTypingIndicator() {
+      const indicator = document.getElementById("typing-indicator");
+      if (indicator) indicator.remove();
+    }
+
+    renderHistory();
+
+    document.getElementById("input-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const input = document.getElementById("question");
+      const question = input.value.trim();
+      if (!question) return;
+      appendMessage("user", question);
+      saveMessage("user", question);
+      input.value = "";
+      emptyState.style.display = "none";
+      showTypingIndicator();
+      try {
+        const response = await fetch("/query/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question })
+        });
+        const data = await response.json();
+        removeTypingIndicator();
+        const answer = data.answer || data.message || data.error || "[No response]";
+        appendMessage("bot", answer);
+        saveMessage("bot", answer);
+      } catch (err) {
+        removeTypingIndicator();
+        appendMessage("bot", "[Error fetching response]");
+        console.error("Fetch error:", err);
+      }
+    });
+
+    document.getElementById("upload-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const fileInput = document.getElementById("file-input");
+      if (!fileInput.files.length) return;
+      uploadStatus.textContent = "Uploading and parsing file...";
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+      const res = await fetch("/upload/", { method: "POST", body: formData });
+      const result = await res.json();
+      uploadStatus.textContent = "";
+      document.getElementById("filename-display").textContent = "";
+      appendMessage("bot", result.message);
+      saveMessage("bot", result.message);
+    });
+
+    document.getElementById("file-input").addEventListener("change", function () {
+      const file = this.files[0];
+      if (file) {
+        const display = document.getElementById("filename-display");
+        display.textContent = file.name.length > 30 ? file.name.slice(0, 27) + "..." : file.name;
+      }
+    });
+
+    document.getElementById("question").addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById("input-form").dispatchEvent(new Event("submit"));
+      }
+    });
+
+    document.addEventListener("dragover", (e) => e.preventDefault());
+    document.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const fileInput = document.getElementById("file-input");
+      if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        const event = new Event("change", { bubbles: true });
+        fileInput.dispatchEvent(event);
+      }
+    });
+  </script>
+</body>
+</html>
