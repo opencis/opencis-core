@@ -6,9 +6,10 @@ from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_ollama.llms import OllamaLLM
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
 
-from hybrid_faiss_store import HybridFAISSStore
 from memory_backend import MemoryBackend, AlignedMemoryBackend, StructuredMemoryAdapter
+from memory_vector_search import MemoryVectorSearch
 
 import shutil
 from pathlib import Path
@@ -17,11 +18,18 @@ UPLOAD_DIR = Path("uploads")
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
-# Initialize LLM and storage backend once
+# Initialize LLM and memory backend
 llm = OllamaLLM(model="gemma3:4b")
 mem_backend = MemoryBackend()
 aligned = AlignedMemoryBackend(mem_backend.load, mem_backend.store)
 store = StructuredMemoryAdapter(aligned)
+
+embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+retriever = MemoryVectorSearch(store, embedding_model)
+
+app.state.retriever_chain = RetrievalQA.from_chain_type(
+    llm=llm, retriever=retriever
+)
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -43,24 +51,9 @@ async def upload_file(file: UploadFile = File(...)):
 
     documents = loader.load()
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-    texts = splitter.split_documents(documents)
-    raw_texts = [t.page_content for t in texts]
-    metadatas = [t.metadata for t in texts]
+    chunks = splitter.split_documents(documents)
 
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    db = await HybridFAISSStore.from_texts(
-        texts=raw_texts,
-        embedding=embeddings,
-        backend=store,
-        use_memory_backend=True,
-        metadatas=metadatas
-    )
-
-    retriever = await db.as_retriever()
-
-    app.state.retriever_chain = RetrievalQA.from_chain_type(
-        llm=llm, retriever=retriever
-    )
+    await retriever.add_documents(chunks)
 
     return JSONResponse({"message": "File uploaded and processed."})
 
