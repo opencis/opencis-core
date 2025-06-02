@@ -1,59 +1,58 @@
+import asyncio
 import numpy as np
+from typing import List, Tuple
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_core.retrievers import BaseRetriever
-from typing import List
+
 from memory_backend import StructuredMemoryAdapter
 
 
-def cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
-    if not np.any(vec1) or not np.any(vec2):
-        return 0.0
-    return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
-
-
 class MemoryVectorSearch(BaseRetriever):
-    def __init__(self, store: StructuredMemoryAdapter, embedding_model: Embeddings):
-        self.store = store
-        self.embedding_model = embedding_model
+    def __init__(self, store: StructuredMemoryAdapter, embedding_model: Embeddings, **kwargs):
+        super().__init__(**kwargs)
+        object.__setattr__(self, "_store", store)
+        object.__setattr__(self, "_embedding_model", embedding_model)
+        object.__setattr__(self, "_index", [])  # List[Tuple[vec_addr, vec_size, doc_addr, doc_size]]
 
     async def add_documents(self, documents: List[Document]) -> None:
-        for i, doc in enumerate(documents):
-            key = f"doc_{i}"
-            await self.store.set(f"{key}_text", doc.page_content.encode())
-            await self.store.set(f"{key}_meta", str(doc.metadata).encode())
-            embedding = self.embedding_model.embed_query(doc.page_content)
-            await self.store.set(f"{key}_vec", np.array(embedding).astype(np.float32).tobytes())
-        await self.store.set("doc_count", str(len(documents)).encode())
+        texts = [doc.page_content for doc in documents]
+        embeddings = self._embedding_model.embed_documents(texts)
 
-    async def _get_relevant_documents(self, query: str) -> List[Document]:
-        count_bytes = await self.store.get("doc_count")
-        if not count_bytes:
-            return []
+        for embedding, document in zip(embeddings, documents):
+            vec_bytes = np.array(embedding, dtype=np.float32).tobytes()
+            vec_addr, vec_size = await self._store.store_object(vec_bytes)
 
-        num_docs = int(count_bytes.decode())
-        query_embedding = np.array(self.embedding_model.embed_query(query), dtype=np.float32)
+            doc_bytes = document.json().encode("utf-8")
+            doc_addr, doc_size = await self._store.store_object(doc_bytes)
 
-        best_score = -1
-        best_doc = None
+            self._index.append((vec_addr, vec_size, doc_addr, doc_size))
 
-        for i in range(num_docs):
-            key = f"doc_{i}"
-            vec_bytes = await self.store.get(f"{key}_vec")
-            if not vec_bytes:
-                continue
+    async def _async_get_relevant_documents(self, query: str):
+        query_vec = np.array(self._embedding_model.embed_query(query), dtype=np.float32)
+        query_norm = np.linalg.norm(query_vec)
+        scored = []
 
-            stored_vec = np.frombuffer(vec_bytes, dtype=np.float32)
-            score = cosine_similarity(query_embedding, stored_vec)
-            if score > best_score:
-                best_score = score
-                best_doc = key
+        for vec_addr, vec_size, doc_addr, doc_size in self._index:
+            vec_bytes = await self._store.load_object(vec_addr, vec_size)
+            vec = np.frombuffer(vec_bytes, dtype=np.float32)
 
-        if best_doc is None:
-            return []
+            dot = np.dot(query_vec, vec)
+            denom = query_norm * np.linalg.norm(vec)
+            similarity = dot / denom if denom else 0.0
 
-        text_bytes = await self.store.get(f"{best_doc}_text")
-        meta_bytes = await self.store.get(f"{best_doc}_meta")
-        text = text_bytes.decode() if text_bytes else ""
-        metadata = eval(meta_bytes.decode()) if meta_bytes else {}
-        return [Document(page_content=text, metadata=metadata)]
+            scored.append((similarity, doc_addr, doc_size))
+
+        scored.sort(key=lambda x: -x[0])
+        top_k = scored[:4]
+
+        results = []
+        for _, doc_addr, doc_size in top_k:
+            doc_bytes = await self._store.load_object(doc_addr, doc_size)
+            doc_str = doc_bytes.decode("utf-8")
+            results.append(Document.parse_raw(doc_str))
+
+        return results
+
+    def get_relevant_documents(self, query: str):
+        return asyncio.run(self._async_get_relevant_documents(query))

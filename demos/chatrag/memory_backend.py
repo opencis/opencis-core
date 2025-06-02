@@ -9,12 +9,12 @@ class MemoryBackend:
 
     async def load(self, addr: int, size: int) -> int:
         assert size == 64
-        print(f"loading a:{addr:x} s:{size:x}")
+        # print(f"loading a:{addr:x} s:{size:x}")
         return int.from_bytes(self.memory.get(addr, b"\x00" * 64), "little")
 
     async def store(self, addr: int, size: int, value: int):
         assert size == 64
-        print(f"storing:{addr:x} s:{size:x}")
+        # print(f"storing:{addr:x} s:{size:x}")
         self.memory[addr] = value.to_bytes(64, "little")
 
 
