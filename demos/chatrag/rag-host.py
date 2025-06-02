@@ -1,10 +1,29 @@
+"""
+Copyright (c) 2024-2025, Eeum, Inc.
+
+This software is licensed under the terms of the Revised BSD License.
+See LICENSE for details.
+"""
+
 #!/usr/bin/env python
 
 import asyncio
 import os
 import sys
-from signal import SIGCONT, SIGINT, SIGIO
+from signal import SIGCONT
 from dataclasses import dataclass
+from pathlib import Path
+import shutil
+import uvicorn
+
+from langchain_ollama.llms import OllamaLLM
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain.chains.retrieval_qa.base import RetrievalQA
+from fastapi import FastAPI, File, UploadFile, Request
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import JSONResponse, HTMLResponse
+from langchain_community.document_loaders import PyPDFLoader, TextLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 from opencis.cpu import CPU
 from opencis.util.logger import logger
@@ -17,17 +36,6 @@ from opencis.drivers.cxl_mem_driver import CxlMemDriver
 
 from memory_backend import AlignedMemoryBackend, StructuredMemoryAdapter
 from memory_vector_search import MemoryVectorSearch
-from langchain_ollama.llms import OllamaLLM
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain.chains import RetrievalQA
-from fastapi import FastAPI, File, UploadFile, Request
-from fastapi.templating import Jinja2Templates
-from fastapi.responses import JSONResponse, HTMLResponse
-from langchain_community.document_loaders import PyPDFLoader, TextLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from pathlib import Path
-import shutil
-import uvicorn
 
 
 @dataclass
@@ -44,9 +52,6 @@ class AppConfig:
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 
 
-accel_info = {}  # not used further, retained for symmetry
-
-
 class CxlMemoryBackend:
     def __init__(self, cpu: CPU, base_addr: int):
         self.cpu = cpu
@@ -54,7 +59,7 @@ class CxlMemoryBackend:
 
     def set_base_addr(self, addr: int):
         self.base_addr = addr
-        
+
     async def load(self, addr: int, size: int) -> int:
         addr += self.base_addr
         return await self.cpu.load(addr, size)
@@ -71,16 +76,11 @@ async def my_sys_sw_app(**kwargs):
     pci_bus_driver = PciBusDriver(cxl_memory_hub.get_root_complex())
     await pci_bus_driver.init(config.pci_mmio_base_addr)
 
-    accel_id = 0
     for i, device in enumerate(pci_bus_driver.get_devices()):
-        if not device.is_bridge:
-            accel_info[accel_id] = device.bars[0].base_address
-            accel_id += 1
-
         cxl_memory_hub.add_mem_range(
             config.pci_cfg_base_addr + (i * config.pci_cfg_size),
             config.pci_cfg_size,
-            MEM_ADDR_TYPE.CFG
+            MEM_ADDR_TYPE.CFG,
         )
         for bar in device.bars:
             if bar.base_address:
@@ -103,7 +103,9 @@ async def my_sys_sw_app(**kwargs):
     cxl_memory_hub.add_mem_range(config.sys_mem_base_addr, sys_mem_size, MEM_ADDR_TYPE.DRAM)
 
     for r in cxl_memory_hub.get_memory_ranges():
-        logger.info(f"[SYS-SW] MemoryRange: base: 0x{r.base_addr:X}, size: 0x{r.size:X}, type: {r.addr_type}")
+        logger.info(
+            f"[SYS-SW] MemoryRange: base: 0x{r.base_addr:X}, size: 0x{r.size:X}, type: {r.addr_type}"
+        )
 
 
 def create_langchain_app(cpu: CPU) -> FastAPI:
@@ -136,7 +138,11 @@ def create_langchain_app(cpu: CPU) -> FastAPI:
             shutil.copyfileobj(file.file, buffer)
 
         ext = file_path.suffix.lower()
-        loader = PyPDFLoader(str(file_path)) if ext == ".pdf" else TextLoader(str(file_path), encoding="utf-8")
+        loader = (
+            PyPDFLoader(str(file_path))
+            if ext == ".pdf"
+            else TextLoader(str(file_path), encoding="utf-8")
+        )
         documents = loader.load()
         splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
         chunks = splitter.split_documents(documents)
@@ -156,8 +162,6 @@ def create_langchain_app(cpu: CPU) -> FastAPI:
     return app
 
 
-start_signal = asyncio.Event()
-stop_signal = asyncio.Event()
 host = None
 host_task = None
 
@@ -168,30 +172,14 @@ async def my_user_app(**kwargs):
     config = uvicorn.Config(app, host="0.0.0.0", port=AppConfig().fastapi_port, loop="asyncio")
     server = uvicorn.Server(config)
 
-    # await start_signal.wait()
     t = asyncio.create_task(server.serve())
     await asyncio.gather(t)
-    # stop_signal.set()
-
-
-async def shutdown(signame=None):
-    try:
-        await host.stop()
-        host_task.cancel()
-    finally:
-        os._exit(0)
-
-
-async def run_demo(signame=None):
-    start_signal.set()
-    await stop_signal.wait()
-    os.kill(os.getppid(), SIGINT)
 
 
 async def main():
     global host, host_task
     sw_portno = int(sys.argv[1])
-    # accel_count = int(sys.argv[2])  # Ignored
+
     cxl_host_config = CxlHostConfig(
         port_index=AppConfig().cxl_port_index,
         sys_mem_size=AppConfig().sys_mem_size,
@@ -203,10 +191,6 @@ async def main():
     )
     host = CxlHost(cxl_host_config)
     host_task = asyncio.create_task(host.run())
-
-    loop = asyncio.get_event_loop()
-    loop.add_signal_handler(SIGINT, lambda: asyncio.create_task(shutdown()))
-    loop.add_signal_handler(SIGIO, lambda: asyncio.create_task(run_demo()))
 
     os.kill(os.getppid(), SIGCONT)
     await asyncio.Event().wait()

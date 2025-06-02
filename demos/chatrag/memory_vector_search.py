@@ -1,11 +1,18 @@
-import asyncio
+"""
+Copyright (c) 2024-2025, Eeum, Inc.
+
+This software is licensed under the terms of the Revised BSD License.
+See LICENSE for details.
+"""
+
+from typing import List, Optional
 import numpy as np
-from typing import List, Tuple
+from memory_backend import StructuredMemoryAdapter
+
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_core.retrievers import BaseRetriever
-
-from memory_backend import StructuredMemoryAdapter
+from langchain_core.runnables.config import RunnableConfig
 
 
 class MemoryVectorSearch(BaseRetriever):
@@ -29,6 +36,22 @@ class MemoryVectorSearch(BaseRetriever):
             doc_addr, doc_size = await self._store.store_object(doc_bytes)
 
             self._index.append((vec_addr, vec_size, doc_addr, doc_size))
+
+    def get_relevant_documents(
+        self,
+        query: str,
+        *,
+        config: Optional[RunnableConfig] = None,
+    ) -> List[Document]:
+        raise NotImplementedError("This retriever is async-only. Use ainvoke().")
+
+    async def _aget_relevant_documents(
+        self,
+        query: str,
+        *,
+        config: Optional[RunnableConfig] = None,
+    ) -> List[Document]:
+        return await self._async_get_relevant_documents(query)
 
     async def _async_get_relevant_documents(self, query: str):
         query_vec = np.array(self._embedding_model.embed_query(query), dtype=np.float32)
@@ -55,6 +78,3 @@ class MemoryVectorSearch(BaseRetriever):
             results.append(Document.parse_raw(doc_str))
 
         return results
-
-    def get_relevant_documents(self, query: str):
-        return asyncio.run(self._async_get_relevant_documents(query))
