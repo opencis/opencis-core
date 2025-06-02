@@ -1,4 +1,3 @@
-
 import pickle
 from typing import Tuple, Callable
 
@@ -19,7 +18,9 @@ class MemoryBackend:
 
 
 class AlignedMemoryBackend:
-    def __init__(self, load_fn: Callable[[int, int], int], store_fn: Callable[[int, int, int], None]):
+    def __init__(
+        self, load_fn: Callable[[int, int], int], store_fn: Callable[[int, int, int], None]
+    ):
         self.load = load_fn
         self.store = store_fn
 
@@ -34,19 +35,19 @@ class AlignedMemoryBackend:
         data = bytearray()
         for offset in range(aligned_start, aligned_end, 64):
             chunk = await self.load(offset, 64)
-            data.extend(chunk.to_bytes(64, 'little'))
+            data.extend(chunk.to_bytes(64, "little"))
         start_offset = addr - aligned_start
-        return bytes(data[start_offset:start_offset + size])
+        return bytes(data[start_offset : start_offset + size])
 
     async def write_bytes(self, addr: int, data: bytes):
         print(f"WRITE_BYTES: addr=0x{addr:X}, data_len={len(data)}")
         aligned_start, aligned_end = self._align_range(addr, len(data))
         start_offset = addr - aligned_start
         padded = bytearray((aligned_end - aligned_start))
-        padded[start_offset:start_offset + len(data)] = data
+        padded[start_offset : start_offset + len(data)] = data
 
         for offset in range(0, len(padded), 64):
-            chunk = int.from_bytes(padded[offset:offset + 64], 'little')
+            chunk = int.from_bytes(padded[offset : offset + 64], "little")
             await self.store(aligned_start + offset, 64, chunk)
 
 

@@ -27,13 +27,13 @@ store = StructuredMemoryAdapter(aligned)
 embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 retriever = MemoryVectorSearch(store, embedding_model)
 
-app.state.retriever_chain = RetrievalQA.from_chain_type(
-    llm=llm, retriever=retriever
-)
+app.state.retriever_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
+
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse("chatui/index.html", {"request": request})
+
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):

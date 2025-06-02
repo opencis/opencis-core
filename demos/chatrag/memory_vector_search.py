@@ -13,7 +13,9 @@ class MemoryVectorSearch(BaseRetriever):
         super().__init__(**kwargs)
         object.__setattr__(self, "_store", store)
         object.__setattr__(self, "_embedding_model", embedding_model)
-        object.__setattr__(self, "_index", [])  # List[Tuple[vec_addr, vec_size, doc_addr, doc_size]]
+        object.__setattr__(
+            self, "_index", []
+        )  # List[Tuple[vec_addr, vec_size, doc_addr, doc_size]]
 
     async def add_documents(self, documents: List[Document]) -> None:
         texts = [doc.page_content for doc in documents]
