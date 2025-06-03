@@ -24,9 +24,6 @@ from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_ollama.llms import OllamaLLM
 
-from memory_backend import AlignedMemoryBackend, StructuredMemoryAdapter
-from memory_vector_search import MemoryVectorSearch
-
 from opencis.cpu import CPU
 from opencis.cxl.component.cxl_host import CxlHost, CxlHostConfig
 from opencis.cxl.component.cxl_memory_hub import CxlMemoryHub, MEM_ADDR_TYPE
@@ -35,6 +32,11 @@ from opencis.drivers.cxl_mem_driver import CxlMemDriver
 from opencis.drivers.pci_bus_driver import PciBusDriver
 from opencis.util.logger import logger
 from opencis.util.number_const import MB
+from opencis.apps.backend.memory_backend import (
+    AlignedMemoryBackend,
+    StructuredMemoryAdapter,
+)
+from .memory_vector_search import MemoryVectorSearch
 
 
 @dataclass
@@ -49,23 +51,6 @@ class AppConfig:
     fastapi_port: int = 9000
     ollama_model: str = "gemma3:4b"
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
-
-
-class CxlMemoryBackend:
-    def __init__(self, cpu: CPU, base_addr: int):
-        self.cpu = cpu
-        self.base_addr = base_addr
-
-    def set_base_addr(self, addr: int):
-        self.base_addr = addr
-
-    async def load(self, addr: int, size: int) -> int:
-        addr += self.base_addr
-        return await self.cpu.load(addr, size)
-
-    async def store(self, addr: int, size: int, value: int):
-        addr += self.base_addr
-        await self.cpu.store(addr, size, value)
 
 
 async def my_sys_sw_app(**kwargs):
@@ -110,8 +95,7 @@ async def my_sys_sw_app(**kwargs):
 
 def create_langchain_app(cpu: CPU) -> FastAPI:
     config = AppConfig()
-    backend = CxlMemoryBackend(cpu, config.cxl_hpa_base_addr)
-    aligned = AlignedMemoryBackend(backend.load, backend.store)
+    aligned = AlignedMemoryBackend(cpu.load, cpu.store, config.cxl_hpa_base_addr)
     store = StructuredMemoryAdapter(aligned)
 
     llm = OllamaLLM(model=config.ollama_model)

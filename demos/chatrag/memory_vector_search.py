@@ -7,12 +7,13 @@ See LICENSE for details.
 
 from typing import List, Optional, Any
 import numpy as np
-from memory_backend import StructuredMemoryAdapter
 
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables.config import RunnableConfig
+
+from opencis.apps.backend.memory_backend import StructuredMemoryAdapter
 
 
 class MemoryVectorSearch(BaseRetriever):
@@ -20,9 +21,8 @@ class MemoryVectorSearch(BaseRetriever):
         super().__init__(**kwargs)
         object.__setattr__(self, "_store", store)
         object.__setattr__(self, "_embedding_model", embedding_model)
-        object.__setattr__(
-            self, "_index", []
-        )  # List[Tuple[vec_addr, vec_size, doc_addr, doc_size]]
+        # List[Tuple[vec_addr, vec_size, doc_addr, doc_size]]
+        object.__setattr__(self, "_index", [])
 
     async def add_documents(self, documents: List[Document]) -> None:
         texts = [doc.page_content for doc in documents]

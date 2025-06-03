@@ -9,27 +9,27 @@ import pickle
 from typing import Tuple, Callable
 
 
-class MemoryBackend:
-    def __init__(self):
-        self.memory = {}
-
-    async def load(self, addr: int, size: int) -> int:
-        assert size == 64
-        # print(f"loading a:{addr:x} s:{size:x}")
-        return int.from_bytes(self.memory.get(addr, b"\x00" * 64), "little")
-
-    async def store(self, addr: int, size: int, value: int):
-        assert size == 64
-        # print(f"storing:{addr:x} s:{size:x}")
-        self.memory[addr] = value.to_bytes(64, "little")
-
-
 class AlignedMemoryBackend:
     def __init__(
-        self, load_fn: Callable[[int, int], int], store_fn: Callable[[int, int, int], None]
+        self,
+        load_fn: Callable[[int, int], int],
+        store_fn: Callable[[int, int, int], None],
+        hpa_base_addr: int = 0,
     ):
-        self.load = load_fn
-        self.store = store_fn
+        self._base_addr = hpa_base_addr
+        self._load_fn = load_fn
+        self._store_fn = store_fn
+
+    def set_base_addr(self, addr: int):
+        self._base_addr = addr
+
+    async def load(self, addr: int, size: int) -> int:
+        addr += self._base_addr
+        return await self._load_fn(addr, size)
+
+    async def store(self, addr: int, size: int, value: int):
+        addr += self._base_addr
+        await self._store_fn(addr, size, value)
 
     def _align_range(self, addr: int, size: int) -> Tuple[int, int]:
         aligned_start = addr & ~0x3F
@@ -50,7 +50,7 @@ class AlignedMemoryBackend:
         print(f"WRITE_BYTES: addr=0x{addr:X}, data_len={len(data)}")
         aligned_start, aligned_end = self._align_range(addr, len(data))
         start_offset = addr - aligned_start
-        padded = bytearray((aligned_end - aligned_start))
+        padded = bytearray(aligned_end - aligned_start)
         padded[start_offset : start_offset + len(data)] = data
 
         for offset in range(0, len(padded), 64):
