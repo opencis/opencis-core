@@ -5,7 +5,7 @@ This software is licensed under the terms of the Revised BSD License.
 See LICENSE for details.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Any
 import numpy as np
 from memory_backend import StructuredMemoryAdapter
 
@@ -16,7 +16,7 @@ from langchain_core.runnables.config import RunnableConfig
 
 
 class MemoryVectorSearch(BaseRetriever):
-    def __init__(self, store: StructuredMemoryAdapter, embedding_model: Embeddings, **kwargs):
+    def __init__(self, store: StructuredMemoryAdapter, embedding_model: Embeddings, **kwargs: Any):
         super().__init__(**kwargs)
         object.__setattr__(self, "_store", store)
         object.__setattr__(self, "_embedding_model", embedding_model)
@@ -37,11 +37,15 @@ class MemoryVectorSearch(BaseRetriever):
 
             self._index.append((vec_addr, vec_size, doc_addr, doc_size))
 
+    def _get_relevant_documents(self, query: str, **kwargs: Any) -> List[Document]:
+        raise NotImplementedError("Sync method not supported. Use `ainvoke()` or `arun()`.")
+
     def get_relevant_documents(
         self,
         query: str,
         *,
         config: Optional[RunnableConfig] = None,
+        **kwargs: Any,
     ) -> List[Document]:
         raise NotImplementedError("This retriever is async-only. Use ainvoke().")
 
@@ -50,10 +54,12 @@ class MemoryVectorSearch(BaseRetriever):
         query: str,
         *,
         config: Optional[RunnableConfig] = None,
+        **kwargs: Any,
     ) -> List[Document]:
+        # pylint: disable=unused-argument
         return await self._async_get_relevant_documents(query)
 
-    async def _async_get_relevant_documents(self, query: str):
+    async def _async_get_relevant_documents(self, query: str) -> List[Document]:
         query_vec = np.array(self._embedding_model.embed_query(query), dtype=np.float32)
         query_norm = np.linalg.norm(query_vec)
         scored = []

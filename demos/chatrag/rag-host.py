@@ -8,34 +8,33 @@ See LICENSE for details.
 #!/usr/bin/env python
 
 import asyncio
-import os
+import shutil
 import sys
-from signal import SIGCONT
 from dataclasses import dataclass
 from pathlib import Path
-import shutil
+
 import uvicorn
-
-from langchain_ollama.llms import OllamaLLM
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain.chains.retrieval_qa.base import RetrievalQA
 from fastapi import FastAPI, File, UploadFile, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import JSONResponse, HTMLResponse
-from langchain_community.document_loaders import PyPDFLoader, TextLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-from opencis.cpu import CPU
-from opencis.util.logger import logger
-from opencis.util.number_const import MB
-from opencis.cxl.component.cxl_host import CxlHost, CxlHostConfig
-from opencis.cxl.component.cxl_memory_hub import CxlMemoryHub, MEM_ADDR_TYPE
-from opencis.drivers.pci_bus_driver import PciBusDriver
-from opencis.drivers.cxl_bus_driver import CxlBusDriver
-from opencis.drivers.cxl_mem_driver import CxlMemDriver
+from langchain.chains.retrieval_qa.base import RetrievalQA
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import PyPDFLoader, TextLoader
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_ollama.llms import OllamaLLM
 
 from memory_backend import AlignedMemoryBackend, StructuredMemoryAdapter
 from memory_vector_search import MemoryVectorSearch
+
+from opencis.cpu import CPU
+from opencis.cxl.component.cxl_host import CxlHost, CxlHostConfig
+from opencis.cxl.component.cxl_memory_hub import CxlMemoryHub, MEM_ADDR_TYPE
+from opencis.drivers.cxl_bus_driver import CxlBusDriver
+from opencis.drivers.cxl_mem_driver import CxlMemDriver
+from opencis.drivers.pci_bus_driver import PciBusDriver
+from opencis.util.logger import logger
+from opencis.util.number_const import MB
 
 
 @dataclass
@@ -104,7 +103,8 @@ async def my_sys_sw_app(**kwargs):
 
     for r in cxl_memory_hub.get_memory_ranges():
         logger.info(
-            f"[SYS-SW] MemoryRange: base: 0x{r.base_addr:X}, size: 0x{r.size:X}, type: {r.addr_type}"
+            f"[SYS-SW] MemoryRange: base: 0x{r.base_addr:X}, "
+            f"size: 0x{r.size:X}, type: {r.addr_type}"
         )
 
 
@@ -162,10 +162,6 @@ def create_langchain_app(cpu: CPU) -> FastAPI:
     return app
 
 
-host = None
-host_task = None
-
-
 async def my_user_app(**kwargs):
     cpu: CPU = kwargs["cpu"]
     app = create_langchain_app(cpu)
@@ -177,7 +173,6 @@ async def my_user_app(**kwargs):
 
 
 async def main():
-    global host, host_task
     sw_portno = int(sys.argv[1])
 
     cxl_host_config = CxlHostConfig(
@@ -191,9 +186,7 @@ async def main():
     )
     host = CxlHost(cxl_host_config)
     host_task = asyncio.create_task(host.run())
-
-    os.kill(os.getppid(), SIGCONT)
-    await asyncio.Event().wait()
+    await host_task
 
 
 if __name__ == "__main__":
