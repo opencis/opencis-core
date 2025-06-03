@@ -74,15 +74,17 @@ async def test_multi_logical_device_ld_id():
         mld_pseudo_server_writer = writer
         assert mld_pseudo_server_writer is not None, "mld_pseudo_server_writer is NoneType"
 
-    server = await asyncio.start_server(handle_client, "127.0.0.1", 8100)
+    server = await asyncio.start_server(handle_client, "127.0.0.1", 0)
+    sockets = server.sockets
+    port = sockets[0].getsockname()[1]
     # This is cleaned up via 'server.wait_closed()' below
     asyncio.create_task(server.serve_forever())
 
     await server.start_serving()
 
-    # Setup CxlPacketProcessor for MLD - connect to 127.0.0.1:8100
+    # Setup CxlPacketProcessor for MLD
     mld_packet_processor_reader, mld_packet_processor_writer = await asyncio.open_connection(
-        "127.0.0.1", 8100
+        "127.0.0.1", port
     )
     mld_packet_processor = CxlPacketProcessor(
         mld_packet_processor_reader,
