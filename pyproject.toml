@@ -68,9 +68,21 @@ dependencies = [
     "pyshark>=0.6",
     "scapy>=2.6.1",
     "pytest-xdist>=3.5.0",
+    "fastapi>=0.115.12",
+    "uvicorn>=0.34.2",
+    "langchain>=0.3.25",
+    "langchain-community>=0.3.24",
+    "langchain-ollama>=0.3.3",
+    "python-multipart>=0.0.20",
+    "pypdf>=5.5.0",
+    "sentence-transformers>=4.1.0",
+    "faiss-cpu>=1.11.0",
+    "langchain-huggingface>=0.2.0",
+    "langchain-google-genai>=2.1.5",
+    "multidict>6.3.2",
 ]
 name = "opencis"
-version = "0.4.0"
+version = "0.5"
 description = "OpenCXL"
 readme = "README.md"
 
