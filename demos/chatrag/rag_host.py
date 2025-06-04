@@ -173,8 +173,11 @@ def create_langchain_app(cpu: CPU) -> FastAPI:
             for file in UPLOAD_DIR.iterdir():
                 if file.is_file():
                     file.unlink()
-            return JSONResponse({"message": "All uploaded files deleted."})
-        return JSONResponse({"message": "Upload directory does not exist."})
+
+        retriever = app.state.retriever_chain.retriever
+        retriever.clear()
+
+        return JSONResponse({"message": "All uploaded files and vector DB entries deleted."})
 
     @app.post("/query/")
     async def query_route(request: Request):

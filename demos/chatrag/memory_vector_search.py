@@ -94,3 +94,6 @@ class MemoryVectorSearch(BaseRetriever):
             results.append(Document.model_validate_json(doc_str))
 
         return results
+
+    def clear(self):
+        self._index.clear()
