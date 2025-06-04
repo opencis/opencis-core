@@ -35,7 +35,7 @@ from opencis.apps.backend.memory_backend import (
     AlignedMemoryBackend,
     StructuredMemoryAdapter,
 )
-from .memory_vector_search import MemoryVectorSearch
+from demos.chatrag.memory_vector_search import MemoryVectorSearch
 
 
 @dataclass

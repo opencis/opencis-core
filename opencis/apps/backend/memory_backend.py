@@ -10,6 +10,7 @@ from typing import Tuple, Callable
 
 from opencis.util.logger import logger
 
+
 class AlignedMemoryBackend:
     def __init__(
         self,

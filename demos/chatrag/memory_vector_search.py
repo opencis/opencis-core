@@ -16,6 +16,21 @@ from langchain_core.runnables.config import RunnableConfig
 from opencis.apps.backend.memory_backend import StructuredMemoryAdapter
 
 
+def cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
+    norm1 = np.linalg.norm(vec1)
+    norm2 = np.linalg.norm(vec2)
+    denom = norm1 * norm2
+    return float(np.dot(vec1, vec2) / denom) if denom else 0.0
+
+
+def l2_distance(vec1: np.ndarray, vec2: np.ndarray) -> float:
+    return float(np.sum((vec1 - vec2) ** 2))
+
+
+def inner_product_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
+    return float(np.dot(vec1, vec2))
+
+
 class MemoryVectorSearch(BaseRetriever):
     def __init__(self, store: StructuredMemoryAdapter, embedding_model: Embeddings, **kwargs: Any):
         super().__init__(**kwargs)
@@ -23,6 +38,7 @@ class MemoryVectorSearch(BaseRetriever):
         object.__setattr__(self, "_embedding_model", embedding_model)
         # List[Tuple[vec_addr, vec_size, doc_addr, doc_size]]
         object.__setattr__(self, "_index", [])
+        self._similarity_fn = cosine_similarity
 
     async def add_documents(self, documents: List[Document]) -> None:
         texts = [doc.page_content for doc in documents]
@@ -32,7 +48,7 @@ class MemoryVectorSearch(BaseRetriever):
             vec_bytes = np.array(embedding, dtype=np.float32).tobytes()
             vec_addr, vec_size = await self._store.store_object(vec_bytes)
 
-            doc_bytes = document.json().encode("utf-8")
+            doc_bytes = document.model_dump_json().encode("utf-8")
             doc_addr, doc_size = await self._store.store_object(doc_bytes)
 
             self._index.append((vec_addr, vec_size, doc_addr, doc_size))
@@ -57,30 +73,24 @@ class MemoryVectorSearch(BaseRetriever):
         **kwargs: Any,
     ) -> List[Document]:
         # pylint: disable=unused-argument
-        return await self._async_get_relevant_documents(query)
+        return await self._async_get_relevant_documents(query, 4)
 
-    async def _async_get_relevant_documents(self, query: str) -> List[Document]:
+    async def _async_get_relevant_documents(self, query: str, k: int) -> List[Document]:
+        scores = []
         query_vec = np.array(self._embedding_model.embed_query(query), dtype=np.float32)
-        query_norm = np.linalg.norm(query_vec)
-        scored = []
-
         for vec_addr, vec_size, doc_addr, doc_size in self._index:
             vec_bytes = await self._store.load_object(vec_addr, vec_size)
             vec = np.frombuffer(vec_bytes, dtype=np.float32)
+            similarity = self._similarity_fn(query_vec, vec)
+            scores.append((similarity, doc_addr, doc_size))
 
-            dot = np.dot(query_vec, vec)
-            denom = query_norm * np.linalg.norm(vec)
-            similarity = dot / denom if denom else 0.0
-
-            scored.append((similarity, doc_addr, doc_size))
-
-        scored.sort(key=lambda x: -x[0])
-        top_k = scored[:4]
+        scores.sort(key=lambda x: -x[0])
+        top_k = scores[:k]
 
         results = []
         for _, doc_addr, doc_size in top_k:
             doc_bytes = await self._store.load_object(doc_addr, doc_size)
             doc_str = doc_bytes.decode("utf-8")
-            results.append(Document.parse_raw(doc_str))
+            results.append(Document.model_validate_json(doc_str))
 
         return results
