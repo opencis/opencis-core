@@ -171,6 +171,11 @@
     chatbox.innerHTML = "";
     emptyState.style.display = "block";
     document.getElementById("filename-display").textContent = "";
+
+    fetch("/upload/", { method: "DELETE" })
+      .then(res => res.json())
+      .then(data => console.log(data.message))
+      .catch(err => console.error("File delete failed:", err));
   }
 
   function renderHistory() {

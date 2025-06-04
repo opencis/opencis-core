@@ -167,6 +167,15 @@ def create_langchain_app(cpu: CPU) -> FastAPI:
         await retriever.add_documents(chunks)
         return JSONResponse({"message": "File uploaded and processed."})
 
+    @app.delete("/upload/")
+    async def delete_uploaded_files():
+        if UPLOAD_DIR.exists():
+            for file in UPLOAD_DIR.iterdir():
+                if file.is_file():
+                    file.unlink()
+            return JSONResponse({"message": "All uploaded files deleted."})
+        return JSONResponse({"message": "Upload directory does not exist."})
+
     @app.post("/query/")
     async def query_route(request: Request):
         data = await request.json()
