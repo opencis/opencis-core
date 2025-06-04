@@ -9,10 +9,10 @@ See LICENSE for details.
 
 import asyncio
 import shutil
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import click
 import uvicorn
 from fastapi import FastAPI, File, UploadFile, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -20,9 +20,8 @@ from fastapi.templating import Jinja2Templates
 
 from langchain.chains.retrieval_qa.base import RetrievalQA
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_ollama.llms import OllamaLLM
+from langchain_community.document_loaders import PyPDFLoader, TextLoader
 
 from opencis.cpu import CPU
 from opencis.cxl.component.cxl_host import CxlHost, CxlHostConfig
@@ -48,22 +47,57 @@ class AppConfig:
     sys_mem_base_addr: int = 0xFFFF888000000000
     sys_mem_size: int = 2 * MB
     cxl_port_index: int = 0
+    switch_port: int = 8000
     fastapi_port: int = 9000
-    ollama_model: str = "gemma3:4b"
+    model_name: str = "gemma3:4b"
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    llm_source: str = "ollama"
+    api_token: str = ""
+
+
+app_config = AppConfig()
+
+
+def get_llm():
+    # pylint: disable=import-outside-toplevel
+    source = app_config.llm_source
+    model = app_config.model_name
+
+    if source == "ollama":
+        from langchain_ollama.llms import OllamaLLM
+
+        return OllamaLLM(model=model)
+
+    if source == "huggingface":
+        from langchain.llms import huggingface_hub
+
+        return huggingface_hub.HuggingFaceHub(
+            repo_id=model, huggingfacehub_api_token=app_config.api_token
+        )
+
+    if source == "openai":
+        from langchain.llms import openai
+
+        return openai.OpenAI(model_name=model, openai_api_key=app_config.api_token)
+
+    if source == "anthropic":
+        from langchain.llms import anthropic
+
+        return anthropic.Anthropic(model_name=model, api_key=app_config.api_token)
+
+    raise ValueError(f"Unsupported LLM source: {source}")
 
 
 async def my_sys_sw_app(**kwargs):
     cxl_memory_hub: CxlMemoryHub = kwargs["cxl_memory_hub"]
-    config = AppConfig()
 
     pci_bus_driver = PciBusDriver(cxl_memory_hub.get_root_complex())
-    await pci_bus_driver.init(config.pci_mmio_base_addr)
+    await pci_bus_driver.init(app_config.pci_mmio_base_addr)
 
     for i, device in enumerate(pci_bus_driver.get_devices()):
         cxl_memory_hub.add_mem_range(
-            config.pci_cfg_base_addr + (i * config.pci_cfg_size),
-            config.pci_cfg_size,
+            app_config.pci_cfg_base_addr + (i * app_config.pci_cfg_size),
+            app_config.pci_cfg_size,
             MEM_ADDR_TYPE.CFG,
         )
         for bar in device.bars:
@@ -75,7 +109,7 @@ async def my_sys_sw_app(**kwargs):
     await cxl_bus_driver.init()
     await cxl_mem_driver.init()
 
-    hpa_base = config.cxl_hpa_base_addr
+    hpa_base = app_config.cxl_hpa_base_addr
     for device in cxl_mem_driver.get_devices():
         size = device.get_memory_size()
         success = await cxl_mem_driver.attach_single_mem_device(device, hpa_base, size)
@@ -84,7 +118,7 @@ async def my_sys_sw_app(**kwargs):
             hpa_base += size
 
     sys_mem_size = cxl_memory_hub.get_root_complex().get_sys_mem_size()
-    cxl_memory_hub.add_mem_range(config.sys_mem_base_addr, sys_mem_size, MEM_ADDR_TYPE.DRAM)
+    cxl_memory_hub.add_mem_range(app_config.sys_mem_base_addr, sys_mem_size, MEM_ADDR_TYPE.DRAM)
 
     for r in cxl_memory_hub.get_memory_ranges():
         logger.info(
@@ -94,12 +128,11 @@ async def my_sys_sw_app(**kwargs):
 
 
 def create_langchain_app(cpu: CPU) -> FastAPI:
-    config = AppConfig()
-    aligned = AlignedMemoryBackend(cpu.load, cpu.store, config.cxl_hpa_base_addr)
+    aligned = AlignedMemoryBackend(cpu.load, cpu.store, app_config.cxl_hpa_base_addr)
     store = StructuredMemoryAdapter(aligned)
 
-    llm = OllamaLLM(model=config.ollama_model)
-    embedding_model = HuggingFaceEmbeddings(model_name=config.embedding_model)
+    llm = get_llm()
+    embedding_model = HuggingFaceEmbeddings(model_name=app_config.embedding_model)
     retriever = MemoryVectorSearch(store, embedding_model)
 
     retriever_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
@@ -149,7 +182,7 @@ def create_langchain_app(cpu: CPU) -> FastAPI:
 async def my_user_app(**kwargs):
     cpu: CPU = kwargs["cpu"]
     app = create_langchain_app(cpu)
-    config = uvicorn.Config(app, host="0.0.0.0", port=AppConfig().fastapi_port, loop="asyncio")
+    config = uvicorn.Config(app, host="0.0.0.0", port=app_config.fastapi_port, loop="asyncio")
     server = uvicorn.Server(config)
 
     t = asyncio.create_task(server.serve())
@@ -157,15 +190,13 @@ async def my_user_app(**kwargs):
 
 
 async def main():
-    sw_portno = int(sys.argv[1])
-
     cxl_host_config = CxlHostConfig(
-        port_index=AppConfig().cxl_port_index,
-        sys_mem_size=AppConfig().sys_mem_size,
+        port_index=app_config.cxl_port_index,
+        sys_mem_size=app_config.sys_mem_size,
         user_app=my_user_app,
         sys_sw_app=my_sys_sw_app,
         host_name="LangchainHost",
-        switch_port=sw_portno,
+        switch_port=app_config.switch_port,
         enable_hm=False,
     )
     host = CxlHost(cxl_host_config)
@@ -173,5 +204,25 @@ async def main():
     await host_task
 
 
-if __name__ == "__main__":
+@click.command()
+@click.option("--switch_port", default=8000, type=int, help="CXL Switch port")
+@click.option("--server-port", default=9000, type=int, help="Port to run the FastAPI server on.")
+@click.option(
+    "--llm-source",
+    type=click.Choice(["ollama", "huggingface", "openai", "anthropic"], case_sensitive=False),
+    default="ollama",
+    help="Choose LLM provider: 'ollama', 'huggingface', 'openai', or 'anthropic'.",
+)
+@click.option("--api-token", type=str, default="", help="API token for remote LLM provider")
+@click.option("--model-name", type=str, default="gemma3:4b", help="Name of the model to use")
+def cli(switch_port, server_port, llm_source, api_token, model_name):
+    app_config.fastapi_port = server_port
+    app_config.llm_source = llm_source.lower()
+    app_config.api_token = api_token
+    app_config.switch_port = switch_port
+    app_config.model_name = model_name
     asyncio.run(main())
+
+
+if __name__ == "__main__":
+    cli()  # pylint: disable=no-value-for-parameter
