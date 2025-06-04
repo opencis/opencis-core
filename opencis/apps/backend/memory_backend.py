@@ -8,6 +8,7 @@ See LICENSE for details.
 import pickle
 from typing import Tuple, Callable
 
+from opencis.util.logger import logger
 
 class AlignedMemoryBackend:
     def __init__(
@@ -37,7 +38,7 @@ class AlignedMemoryBackend:
         return aligned_start, aligned_end
 
     async def read_bytes(self, addr: int, size: int) -> bytes:
-        print(f"READ_BYTES: addr=0x{addr:X}, size={size}")
+        logger.debug(f"READ_BYTES: addr=0x{addr:X}, size={size}")
         aligned_start, aligned_end = self._align_range(addr, size)
         data = bytearray()
         for offset in range(aligned_start, aligned_end, 64):
@@ -47,7 +48,7 @@ class AlignedMemoryBackend:
         return bytes(data[start_offset : start_offset + size])
 
     async def write_bytes(self, addr: int, data: bytes):
-        print(f"WRITE_BYTES: addr=0x{addr:X}, data_len={len(data)}")
+        logger.debug(f"WRITE_BYTES: addr=0x{addr:X}, data_len={len(data)}")
         aligned_start, aligned_end = self._align_range(addr, len(data))
         start_offset = addr - aligned_start
         padded = bytearray(aligned_end - aligned_start)
@@ -71,10 +72,10 @@ class StructuredMemoryAdapter:
 
     async def store_object(self, obj) -> Tuple[int, int]:
         raw = pickle.dumps(obj)
-        original_len = len(raw)
-        addr = self._allocate(original_len)
+        raw_len = len(raw)
+        addr = self._allocate(raw_len)
         await self.backend.write_bytes(addr, raw)
-        return addr, original_len
+        return addr, raw_len
 
     async def load_object(self, addr: int, size: int):
         raw = await self.backend.read_bytes(addr, size)

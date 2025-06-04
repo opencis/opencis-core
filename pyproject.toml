@@ -80,7 +80,7 @@ dependencies = [
     "langchain-huggingface>=0.2.0",
 ]
 name = "opencis"
-version = "0.4.0"
+version = "0.5"
 description = "OpenCXL"
 readme = "README.md"
 
