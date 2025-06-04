@@ -80,10 +80,10 @@ def get_llm():
 
         return openai.OpenAI(model_name=model, openai_api_key=app_config.api_token)
 
-    if source == "anthropic":
-        from langchain.llms import anthropic
+    if source == "gemini":
+        from langchain_google_genai import ChatGoogleGenerativeAI
 
-        return anthropic.Anthropic(model_name=model, api_key=app_config.api_token)
+        return ChatGoogleGenerativeAI(model=model, google_api_key=app_config.api_token)
 
     raise ValueError(f"Unsupported LLM source: {source}")
 
@@ -209,9 +209,9 @@ async def main():
 @click.option("--server-port", default=9000, type=int, help="Port to run the FastAPI server on.")
 @click.option(
     "--llm-source",
-    type=click.Choice(["ollama", "huggingface", "openai", "anthropic"], case_sensitive=False),
+    type=click.Choice(["ollama", "huggingface", "openai", "gemini"], case_sensitive=False),
     default="ollama",
-    help="Choose LLM provider: 'ollama', 'huggingface', 'openai', or 'anthropic'.",
+    help="Choose LLM provider: 'ollama', 'huggingface', 'openai', or 'gemini'.",
 )
 @click.option("--api-token", type=str, default="", help="API token for remote LLM provider")
 @click.option("--model-name", type=str, default="gemma3:4b", help="Name of the model to use")

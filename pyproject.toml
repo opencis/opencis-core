@@ -78,6 +78,8 @@ dependencies = [
     "sentence-transformers>=4.1.0",
     "faiss-cpu>=1.11.0",
     "langchain-huggingface>=0.2.0",
+    "langchain-google-genai>=2.1.5",
+    "multidict>6.3.2",
 ]
 name = "opencis"
 version = "0.5"
