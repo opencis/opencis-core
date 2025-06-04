@@ -63,22 +63,42 @@
 </head>
 <body class="bg-gray-100 text-gray-900 min-h-screen flex items-center justify-center p-6">
   <div class="w-full max-w-5xl bg-white rounded-2xl shadow-lg flex flex-col h-[90vh] px-6 py-5 relative">
+
+    <!-- Floating Buttons -->
     <div class="absolute bottom-28 right-10 flex flex-row items-center space-x-2 z-10">
       <button onclick="chatbox.scrollTop = chatbox.scrollHeight"
-        class="text-xs bg-gray-300 hover:bg-gray-400 text-white px-3 py-1 rounded-full shadow-md">↓ Bottom</button>
+        class="text-sm font-medium px-4 py-1.5 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300 transition shadow">↓ Bottom</button>
       <button onclick="clearChat()"
-        class="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-full shadow-md">🗑️ Reset</button>
+        class="text-sm font-medium px-4 py-1.5 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300 transition shadow">Reset</button>
     </div>
 
-    <header class="bg-white pb-4 border-b border-gray-200 flex justify-between items-center">
-      <h1 class="text-2xl font-semibold text-gray-800 tracking-tight">ChatRAG Assistant</h1>
-      <form id="upload-form" class="flex items-center space-x-2" enctype="multipart/form-data">
-        <label for="file-input" class="border border-gray-300 rounded p-1 text-sm bg-white cursor-pointer">Choose File</label>
-        <input type="file" name="file" id="file-input" class="hidden">
-        <span id="filename-display" class="text-sm text-gray-600"></span>
-        <button type="submit" class="bg-green-500 text-white px-4 py-1 rounded hover:bg-green-600">Upload</button>
-      </form>
+    <!-- Header -->
+    <header class="bg-white pb-2 border-b border-gray-200">
+      <div class="flex justify-between items-center">
+        <!-- Logo + Title -->
+        <div class="flex items-center space-x-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M7 8h10M7 12h6m-6 4h10M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H7l-4 4V6a2 2 0 012-2z" />
+          </svg>
+          <h1 class="text-2xl font-semibold text-gray-800 tracking-tight">ChatRAG Assistant</h1>
+        </div>
+
+        <!-- Upload Form -->
+        <form id="upload-form" class="flex items-center space-x-2" enctype="multipart/form-data">
+          <label for="file-input"
+            class="text-sm font-medium px-4 py-1.5 rounded-md border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 shadow-sm cursor-pointer transition">
+            Choose File
+          </label>
+          <input type="file" name="file" id="file-input" class="hidden">
+          <button type="submit"
+            class="text-sm font-medium px-5 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition shadow">
+            Upload
+          </button>
+        </form>
+      </div>
     </header>
+    <div id="filename-display" class="text-sm text-gray-600 mt-1 overflow-x-auto whitespace-nowrap w-full"></div>
 
     <div id="upload-status" class="text-sm text-gray-500 py-1"></div>
     <main id="chatbox" class="chatbox chat-scroll">
@@ -101,6 +121,9 @@
   const chatbox = document.getElementById("chatbox");
   const uploadStatus = document.getElementById("upload-status");
   const emptyState = document.getElementById("empty-state");
+  const filenameDisplay = document.getElementById("filename-display");
+  const fileInput = document.getElementById("file-input");
+
   let history = JSON.parse(localStorage.getItem("chatHistory")) || [];
   marked.setOptions({ gfm: true, breaks: true });
 
@@ -130,7 +153,7 @@
     content.appendChild(timeTag);
 
     const messageWrapper = document.createElement("div");
-    messageWrapper.className = `flex gap-2 ${role === 'user' ? 'flex-row-reverse' : 'flex-row'} max-w-[50%] w-full`;
+    messageWrapper.className = `flex gap-2 ${role === 'user' ? 'flex-row-reverse' : 'flex-row'} max-w-[80%] w-full`;
     messageWrapper.appendChild(avatar);
     messageWrapper.appendChild(content);
     wrapper.appendChild(messageWrapper);
@@ -143,7 +166,7 @@
     wrapper.id = "typing-indicator";
     wrapper.className = "flex justify-start";
     const indicator = document.createElement("div");
-    indicator.className = "typing-indicator flex items-center gap-1 bg-gray-100 border border-gray-300 shadow-sm p-3 rounded-lg max-w-[50%]";
+    indicator.className = "typing-indicator flex items-center gap-1 bg-gray-100 border border-gray-300 shadow-sm p-3 rounded-lg max-w-[80%]";
     for (let i = 0; i < 3; i++) {
       const dot = document.createElement("span");
       dot.className = "dot bg-gray-500 w-2 h-2 rounded-full";
@@ -170,7 +193,8 @@
     history = [];
     chatbox.innerHTML = "";
     emptyState.style.display = "block";
-    document.getElementById("filename-display").textContent = "";
+    filenameDisplay.textContent = "";
+    fileInput.value = "";
 
     fetch("/upload/", { method: "DELETE" })
       .then(res => res.json())
@@ -216,7 +240,6 @@
 
   document.getElementById("upload-form").addEventListener("submit", async function (e) {
     e.preventDefault();
-    const fileInput = document.getElementById("file-input");
     if (!fileInput.files.length) return;
     uploadStatus.textContent = "Uploading and parsing file...";
     const formData = new FormData();
@@ -224,16 +247,15 @@
     const res = await fetch("/upload/", { method: "POST", body: formData });
     const result = await res.json();
     uploadStatus.textContent = "";
-    document.getElementById("filename-display").textContent = "";
+    filenameDisplay.textContent = "";
     appendMessage("bot", result.message);
     saveMessage("bot", result.message);
   });
 
-  document.getElementById("file-input").addEventListener("change", function () {
+  fileInput.addEventListener("change", function () {
     const file = this.files[0];
     if (file) {
-      const display = document.getElementById("filename-display");
-      display.textContent = file.name.length > 30 ? file.name.slice(0, 27) + "..." : file.name;
+      filenameDisplay.textContent = file.name;
     }
   });
 
@@ -247,7 +269,6 @@
   document.addEventListener("dragover", (e) => e.preventDefault());
   document.addEventListener("drop", (e) => {
     e.preventDefault();
-    const fileInput = document.getElementById("file-input");
     if (e.dataTransfer.files.length) {
       fileInput.files = e.dataTransfer.files;
       const event = new Event("change", { bubbles: true });

@@ -73,7 +73,7 @@ class MemoryVectorSearch(BaseRetriever):
         **kwargs: Any,
     ) -> List[Document]:
         # pylint: disable=unused-argument
-        return await self._async_get_relevant_documents(query, 4)
+        return await self._async_get_relevant_documents(query, 5)
 
     async def _async_get_relevant_documents(self, query: str, k: int) -> List[Document]:
         scores = []
