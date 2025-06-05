@@ -94,7 +94,7 @@ async def test_multi_logical_device_ld_id():
         packet_reader = PacketReader(reader, label="configure_bar")
         packet_writer = writer
 
-        logger.info("[PyTest] Settting Bar Address")
+        logger.info("[PyTest] Setting BAR Address")
         # NOTE: Test Config Space Type0 Write - BAR WRITE
         packet = CxlIoCfgWrPacket.create(
             create_bdf(0, 0, 0),

@@ -144,15 +144,9 @@ def parse_multi_logical_device_configs(
 
         # Get memory files (if not provided, default to "mld_mem{port_index}_{index}.bin")
         memory_files = []
-        try:
-            for index, item in enumerate(device.get("logical_devices", [])):
-                if len(item) == 0:
-                    memory_file = item["memory_file"]
-                else:
-                    memory_file = f"mld_mem{port_index}_{index}.bin"
-                memory_files.append(memory_file)
-        except KeyError as exc:
-            raise ValueError("Missing 'memory_file' for 'logical_devices' entry.") from exc
+        for index, item in enumerate(device.get("logical_devices", [])):
+            memory_file = item.get("memory_file", f"mld_mem{port_index}_{index}.bin")
+            memory_files.append(memory_file)
 
         assert len(memory_sizes) == len(
             memory_files
