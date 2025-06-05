@@ -25,7 +25,7 @@ def emit_struct(name, layout):
 
 
 def emit_composite(packet_name, layout, field_sizes):
-    lines = [f"cdef class {packet_name}(PacketBuffer):"]
+    lines = [f"cdef class Raw{packet_name}(PacketBuffer):"]
     offset = 0
     field_entries = []
 
@@ -47,7 +47,8 @@ def emit_composite(packet_name, layout, field_sizes):
         total_bits += sum(w for _, _, w in field_sizes[struct])
     total_bytes = (total_bits + 7) // 8
 
-    lines.append(f"    DEF ACTUAL_SIZE = {total_bytes}\n")
+    lines.append(f"    cdef readonly int ACTUAL_SIZE")
+    lines.append(f"    cdef int _data_length")
 
     # Declare cdef fields
     for entry in field_entries:
@@ -71,7 +72,9 @@ def emit_composite(packet_name, layout, field_sizes):
     # __cinit__ with safe bytearray allocation
     lines.append("    def __cinit__(self, unsigned char[::1] buf = None):")
     lines.append("        if buf is None:")
-    lines.append("            buf = bytearray(self.ACTUAL_SIZE)")
+    lines.append(f"            raw_buf = bytearray({total_bytes})")
+    lines.append("            buf = raw_buf")
+    lines.append(f"        self.ACTUAL_SIZE = {total_bytes}")
     lines.append("        self.buf = buf")
 
     offset = 0
@@ -84,13 +87,21 @@ def emit_composite(packet_name, layout, field_sizes):
         lines.append(f"        self.{varname}_ = {struct}(buf[{offset}:{offset + size_bytes}])")
         offset += size_bytes
 
-    # Optional data handler
     if "DataField" in field_entries:
         lines.append("")
         lines.append(f"    def get_data(self):")
         lines.append(f"        return self.get_bytes({offset}, self.get_size() - {offset})\n")
         lines.append(f"    def set_data(self, unsigned char[::1] data):")
         lines.append(f"        self.set_bytes({offset}, data)")
+        lines.append(f"        self._data_length = data.shape[0]")
+        lines.append("")
+        lines.append(f"    cpdef int get_size(self):")
+        lines.append(f"        return self.ACTUAL_SIZE + self._data_length")
+
+    else:
+        lines.append("")
+        lines.append(f"    cpdef int get_size(self):")
+        lines.append(f"        return self.ACTUAL_SIZE")
 
     return "\n".join(lines) + "\n"
 

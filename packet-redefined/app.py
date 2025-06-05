@@ -1,5 +1,6 @@
 import numpy as np
-from packet_structs import CxlIoMemRdPacket, CxlIoMemWrPacket
+from transaction import CxlIoMemRdPacket, CxlIoMemWrPacket
+
 
 
 def handle_rd_packet(pkt):
@@ -33,9 +34,16 @@ def main():
     wr_pkt.mreq_header.req_id = 0x4341
     wr_pkt.mreq_header.tag = 0x78
     wr_pkt.mreq_header.addr_upper = 0xFFFFFFFF12345678
+    print(f"pre: {wr_pkt.get_size()}")
+    data = np.array(list(b"Hello World"), dtype=np.uint8)
+    wr_pkt.set_data(data)
+    print(f"post: {wr_pkt.get_size()}")
+    handle_wr_packet(wr_pkt)
 
-    np.array(list(b"Hello World"), dtype=np.uint8)
-
+    print(f"pre: {wr_pkt.get_size()}")
+    data = np.array(list(b"Hello"), dtype=np.uint8)
+    wr_pkt.set_data(data)
+    print(f"post: {wr_pkt.get_size()}")
     handle_wr_packet(wr_pkt)
 
 
