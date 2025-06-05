@@ -1,6 +1,6 @@
-
 import numpy as np
 from packet_structs import CxlIoMemRdPacket, CxlIoMemWrPacket
+
 
 def handle_rd_packet(pkt):
     print("CxlIoMemRdPacket:")
@@ -9,6 +9,7 @@ def handle_rd_packet(pkt):
     print(f"  addr_upper = {pkt.mreq_header.addr_upper}")
     print()
 
+
 def handle_wr_packet(pkt):
     print("CxlIoMemWrPacket:")
     print(f"  req_id     = {pkt.mreq_header.req_id}")
@@ -16,6 +17,7 @@ def handle_wr_packet(pkt):
     print(f"  addr_upper = {pkt.mreq_header.addr_upper}")
     print(f"  data       = {bytes(pkt.get_data())}")
     print()
+
 
 def main():
     buf_rd = np.zeros(24, dtype=np.uint8)
@@ -32,9 +34,10 @@ def main():
     wr_pkt.mreq_header.tag = 0x78
     wr_pkt.mreq_header.addr_upper = 0xFFFFFFFF12345678
 
-    wr_pkt.set_data(np.frombuffer(b"Hello World", dtype=np.uint8))
+    np.array(list(b"Hello World"), dtype=np.uint8)
 
     handle_wr_packet(wr_pkt)
+
 
 if __name__ == "__main__":
     main()

@@ -2,12 +2,14 @@ from pathlib import Path
 import importlib.util
 import sys
 
+
 def load_module(path, module_name):
     spec = importlib.util.spec_from_file_location(module_name, path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = mod
     spec.loader.exec_module(mod)
     return mod
+
 
 def emit_struct(name, layout):
     field_defs = "".join(
@@ -21,12 +23,13 @@ def emit_struct(name, layout):
     )
     return f"cdef class {name}(PacketBuffer):\n{field_defs}\n"
 
+
 def emit_composite(packet_name, layout, field_sizes):
     lines = [f"cdef class {packet_name}(PacketBuffer):"]
     offset = 0
     field_entries = []
 
-    # Normalize: ensure layout becomes (type, name) or "DataField"
+    # Normalize layout
     for entry in layout:
         if isinstance(entry, tuple):
             field_entries.append(entry)
@@ -34,6 +37,17 @@ def emit_composite(packet_name, layout, field_sizes):
             field_entries.append("DataField")
         else:
             field_entries.append((entry, entry.lower()))
+
+    # Compute ACTUAL_SIZE in bytes
+    total_bits = 0
+    for entry in field_entries:
+        if entry == "DataField":
+            continue
+        struct, _ = entry
+        total_bits += sum(w for _, _, w in field_sizes[struct])
+    total_bytes = (total_bits + 7) // 8
+
+    lines.append(f"    DEF ACTUAL_SIZE = {total_bytes}\n")
 
     # Declare cdef fields
     for entry in field_entries:
@@ -54,20 +68,23 @@ def emit_composite(packet_name, layout, field_sizes):
         lines.append(f"        return self.{varname}_")
         lines.append("")
 
-    # __cinit__ to wire buffers
-    lines.append("    def __cinit__(self, unsigned char[::1] buf):")
+    # __cinit__ with safe bytearray allocation
+    lines.append("    def __cinit__(self, unsigned char[::1] buf = None):")
+    lines.append("        if buf is None:")
+    lines.append("            buf = bytearray(self.ACTUAL_SIZE)")
     lines.append("        self.buf = buf")
+
     offset = 0
     for entry in field_entries:
         if entry == "DataField":
             continue
         struct, varname = entry
-        size_bits = sum(s for _, _, s in field_sizes[struct])
+        size_bits = sum(w for _, _, w in field_sizes[struct])
         size_bytes = (size_bits + 7) // 8
         lines.append(f"        self.{varname}_ = {struct}(buf[{offset}:{offset + size_bytes}])")
         offset += size_bytes
 
-    # Optional data handling
+    # Optional data handler
     if "DataField" in field_entries:
         lines.append("")
         lines.append(f"    def get_data(self):")
@@ -76,6 +93,7 @@ def emit_composite(packet_name, layout, field_sizes):
         lines.append(f"        self.set_bytes({offset}, data)")
 
     return "\n".join(lines) + "\n"
+
 
 def main():
     base = Path(__file__).parent
@@ -87,7 +105,8 @@ def main():
         f.write("from packet_base cimport PacketBuffer\n\n")
 
         field_sizes = {
-            name: value for name, value in vars(fields).items()
+            name: value
+            for name, value in vars(fields).items()
             if not name.startswith("__") and isinstance(value, list)
         }
 
@@ -98,6 +117,7 @@ def main():
         for packet_name, layout in packets.PACKETS.items():
             f.write(emit_composite(packet_name, layout, field_sizes))
             f.write("\n")
+
 
 if __name__ == "__main__":
     main()
