@@ -62,22 +62,22 @@ class AlignedMemoryBackend:
 
 class StructuredMemoryAdapter:
     def __init__(self, backend: AlignedMemoryBackend):
-        self.backend = backend
-        self.ptr = 0
+        self._backend = backend
+        self._ptr = 0
 
     def _allocate(self, size: int) -> int:
         aligned_size = (size + 63) & ~0x3F
-        addr = self.ptr
-        self.ptr += aligned_size
+        addr = self._ptr
+        self._ptr += aligned_size
         return addr
 
     async def store_object(self, obj) -> Tuple[int, int]:
         raw = pickle.dumps(obj)
         raw_len = len(raw)
         addr = self._allocate(raw_len)
-        await self.backend.write_bytes(addr, raw)
+        await self._backend.write_bytes(addr, raw)
         return addr, raw_len
 
     async def load_object(self, addr: int, size: int):
-        raw = await self.backend.read_bytes(addr, size)
+        raw = await self._backend.read_bytes(addr, size)
         return pickle.loads(raw)
