@@ -163,7 +163,7 @@ async def test_pci_device_mmio():
     base_addresss = 0x1000000
 
     async def configure_bar(transport_connection: PciConnection):
-        logger.info("[PyTest] Settting Bar Address")
+        logger.info("[PyTest] Setting BAR Address")
         # NOTE: Test Config Space Type0 Write - BAR WRITE
         packet = CxlIoCfgWrPacket.create(
             create_bdf(0, 0, 0), 0x10, 4, value=base_addresss, is_type0=True

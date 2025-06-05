@@ -25,16 +25,16 @@ def start(port, ig, iw):
     asyncio.run(run_host(port_index=port, irq_port=8500, ig=ig, iw=iw))
 
 
-def start_host_manager():
+async def start_host_manager():
     logger.info("Starting CXL HostManager")
     host_manager = HostManager()
-    asyncio.run(host_manager.run())
-    asyncio.run(host_manager.wait_for_ready())
+    await host_manager.run()
 
 
 async def run_host_group(ports, ig, iw):
     irq_port = 8500
     tasks = []
+    tasks.append(asyncio.create_task(start_host_manager()))
     for idx in ports:
         tasks.append(
             asyncio.create_task(
