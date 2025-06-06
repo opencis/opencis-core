@@ -182,44 +182,45 @@ def main():
     print(f"post: {pkt.get_size()}")
 
     res = instantiate_packets()
-    print(res)
-
     test_packet_reader()
 
 
 class MockStreamReader:
-    def __init__(self, data: bytes):
-        self._buffer = data
-        self._offset = 0
+    def __init__(self, data: bytes = b""):
+        self._buffer = bytearray(data)
+        self._read_event = asyncio.Event()
 
-    async def read(self, size: int) -> bytes:
-        if self._offset >= len(self._buffer):
-            return b""  # Simulate EOF
-        end = min(self._offset + size, len(self._buffer))
-        chunk = self._buffer[self._offset : end]
-        self._offset = end
-        await asyncio.sleep(0)  # simulate async behavior
-        return chunk
+    def feed(self, data: bytes):
+        self._buffer.extend(data)
+        self._read_event.set()
+
+    async def read(self, n=-1):
+        while not self._buffer:
+            self._read_event.clear()
+            await self._read_event.wait()
+
+        if n == -1 or n > len(self._buffer):
+            n = len(self._buffer)
+        data = self._buffer[:n]
+        del self._buffer[:n]
+        return bytes(data)
 
 
 async def simulate_packet_reader(packets):
-    # Concatenate all packets into a single bytes buffer
-    combined = b"".join(bytes(pkt) for pkt in packets)
-
-    # Create mock StreamReader with the combined byte stream
-    reader = MockStreamReader(combined)
+    reader = MockStreamReader()  # assume it's initially empty
     packet_reader = PacketReader(reader, label="TestReader")
 
     results = []
     try:
-        while True:
-            pkt = await packet_reader.get_packet()
-            print(f"[RECEIVED] {pkt.__class__.__name__}")
-            results.append(pkt)
+        for pkt in packets:
+            print(f"{pkt}, {bytes(pkt)}")
+            reader.feed(bytes(pkt))
+            received = await packet_reader.get_packet()
+            print(f"[RECEIVED] {received.__class__.__name__}")
+            results.append(received)
     except Exception as e:
         print(f"[END] PacketReader stopped: {e}")
     return results
-
 
 def test_packet_reader():
     packets = instantiate_packets()
