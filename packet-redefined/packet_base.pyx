@@ -1,7 +1,7 @@
 # packet_base.pyx
 
 cdef class PacketBuffer:
-    def __cinit__(self, unsigned char[::1] input_buf):
+    def __cinit__(self, unsigned char[::1] input_buf = None):
         self.buf = input_buf  # buf is declared in .pxd
 
     cpdef int get_size(self):

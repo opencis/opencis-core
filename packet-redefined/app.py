@@ -66,6 +66,21 @@ def main():
     pkt = CxlIoMemRdPacket.create(0x4000, 0x20)
     print(f"{pkt.is_cxl_io()}, {pkt.is_mmio()}, {pkt.is_cxl_mem()}")
 
+    buf_wr = np.zeros(128, dtype=np.uint8)
+    pkt = CxlIoMemWrPacket.create(0x4000, data[:10])
+    print(f"{pkt.is_cxl_io()}, {pkt.is_mmio()}, {pkt.is_cxl_mem()}")
+
+    print(f"pre: {pkt.get_size()}")
+    data = np.array(list(b"Hello World"), dtype=np.uint8)
+    pkt.set_data(data)
+    print(f"post: {pkt.get_size()}")
+    # handle_wr_packet(pkt)
+
+    print(f"pre: {pkt.get_size()}")
+    data = np.array(list(b"Hel"), dtype=np.uint8)
+    pkt.set_data(data)
+    print(f"post: {pkt.get_size()}")
+
 
 if __name__ == "__main__":
     main()

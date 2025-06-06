@@ -72,7 +72,7 @@ def emit_composite(packet_name, layout, field_sizes):
     # __cinit__ with safe bytearray allocation
     lines.append("    def __cinit__(self, unsigned char[::1] buf = None):")
     lines.append("        if buf is None:")
-    lines.append(f"            raw_buf = bytearray({total_bytes})")
+    lines.append(f"            raw_buf = bytearray(200)")
     lines.append("            buf = raw_buf")
     lines.append(f"        self.ACTUAL_SIZE = {total_bytes}")
     lines.append("        self.buf = buf")

@@ -144,3 +144,10 @@ class CxlIoBasePacketMixin:
 
     def get_transaction_id(self) -> int:
         raise Exception("get_transaction_id must be implemented by a child class")
+
+
+class CXL_IO_CPL_STATUS(IntEnum):
+    SC = 0b000
+    UR = 0b001
+    RRS = 0b010
+    CA = 0b100
