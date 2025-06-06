@@ -1,11 +1,13 @@
 # packet_base.pyx
 
 cdef class PacketBuffer:
-    def __cinit__(self, unsigned char[::1] input_buf = None):
-        self.buf = input_buf  # buf is declared in .pxd
-
-    cpdef int get_size(self):
-        return self.buf.shape[0]
+    def __cinit__(self, input_buf=None):
+        if input_buf is None:
+            input_buf = bytearray(200)
+        try:
+            self.buf = input_buf  # accept writable buffer
+        except BufferError:
+            self.buf = bytearray(input_buf)  # fallback: copy if readonly
 
     cpdef unsigned long long read_bits(self, int start_bit, int width):
         cdef unsigned long long result = 0
@@ -34,3 +36,9 @@ cdef class PacketBuffer:
         cdef int i
         for i in range(data.shape[0]):
             self.buf[offset + i] = data[i]
+
+    cpdef bytes to_bytes(self):
+        return bytes(self.buf)
+
+    def __len__(self):
+        return self.get_size()

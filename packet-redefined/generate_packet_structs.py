@@ -3,6 +3,11 @@ import importlib.util
 import sys
 
 
+from pathlib import Path
+import importlib.util
+import sys
+
+
 def load_module(path, module_name):
     spec = importlib.util.spec_from_file_location(module_name, path)
     mod = importlib.util.module_from_spec(spec)
@@ -21,7 +26,8 @@ def emit_struct(name, layout):
         f"        self.write_bits({s}, {w}, val)\n\n"
         for n, s, w in layout
     )
-    return f"cdef class {name}(PacketBuffer):\n{field_defs}\n"
+    return f"cdef class {name}(PacketBuffer):\n{field_defs}" \
+           "\n    def __bytes__(self):\n        return self.to_bytes()\n"
 
 
 def emit_composite(packet_name, layout, field_sizes):
@@ -45,7 +51,7 @@ def emit_composite(packet_name, layout, field_sizes):
         total_bits += sum(w for _, _, w in field_sizes[struct])
     total_bytes = (total_bits + 7) // 8
 
-    lines.append(f"    cdef readonly int ACTUAL_SIZE")
+    lines.append(f"    ACTUAL_SIZE = {total_bytes}")
     lines.append(f"    cdef int _data_length")
 
     for struct, varname in field_entries:
@@ -94,6 +100,9 @@ def emit_composite(packet_name, layout, field_sizes):
         lines.append(f"    cpdef int get_size(self):")
         lines.append(f"        return self.ACTUAL_SIZE")
 
+    lines.append("")
+    lines.append("    def __bytes__(self):")
+    lines.append("        return self.to_bytes()")
     return "\n".join(lines) + "\n"
 
 

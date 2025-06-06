@@ -184,8 +184,7 @@ def main():
     res = instantiate_packets()
     print(res)
 
-
-
+    test_packet_reader()
 
 
 class MockStreamReader:
