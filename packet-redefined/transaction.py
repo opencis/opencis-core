@@ -132,7 +132,7 @@ class CxlIoMemRdPacket(CxlIoMemReqPacket):
         pkt.fill(addr, length, req_id, tag)
         pkt.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MRD_64B
         pkt.tlp_prefix.ld_id = ld_id
-        pkt.system_header.payload_length = pkt.get_data_size() // 4
+        pkt.system_header.payload_length = pkt.get_size()
         return pkt
 
 
@@ -147,11 +147,13 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         #     tag = cls.get_tag()
         # tag %= 256
         pkt = cls()
+        print(f"BEFORE: {pkt.get_size()}, {len(data)}")
         pkt.set_data(data)
+        print(f"AFTER: {pkt.get_size()}")
         pkt.fill(addr, len(data), req_id, tag)
         pkt.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
         pkt.tlp_prefix.ld_id = ld_id
-        pkt.system_header.payload_length = pkt.get_size() // 4
+        pkt.system_header.payload_length = pkt.get_size()
         return pkt
 
 

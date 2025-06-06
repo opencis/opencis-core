@@ -114,7 +114,6 @@ class PacketReader(LabeledComponent):
         header_load = await self._read_payload(SystemHeader.get_size())
         print(list(header_load))
         base_packet = BasePacket(bytearray(header_load))
-        # base_packet.reset()
         remaining_length = base_packet.system_header.payload_length - len(base_packet)
         if remaining_length < 0:
             raise Exception("remaining length is less than 0")
@@ -129,58 +128,50 @@ class PacketReader(LabeledComponent):
         return payload
 
     def _get_cxl_io_packet(self, payload: bytes) -> CxlIoBasePacket:
-        cxl_io_base_packet = CxlIoBasePacket()
-        header_size = (
-            len(cxl_io_base_packet.tlp_prefix)
-            + len(cxl_io_base_packet.cxl_io_header)
-            + BasePacket.get_size()
-        )
-        cxl_io_base_packet.reset(payload[:header_size])
+        payload = bytearray(payload)
+        cxl_io_base_packet = CxlIoBasePacket(payload)
         if cxl_io_base_packet.is_cfg_read():
-            cxl_io_packet = CxlIoCfgRdPacket()
+            cxl_io_packet = CxlIoCfgRdPacket(payload)
         elif cxl_io_base_packet.is_cfg_write():
-            cxl_io_packet = CxlIoCfgWrPacket()
+            cxl_io_packet = CxlIoCfgWrPacket(payload)
         elif cxl_io_base_packet.is_mem_read():
-            cxl_io_packet = CxlIoMemRdPacket()
+            cxl_io_packet = CxlIoMemRdPacket(payload)
         elif cxl_io_base_packet.is_mem_write():
-            cxl_io_packet = CxlIoMemWrPacket()
+            cxl_io_packet = CxlIoMemWrPacket(payload)
         elif cxl_io_base_packet.is_cpl():
-            cxl_io_packet = CxlIoCompletionPacket()
+            cxl_io_packet = CxlIoCompletionPacket(payload)
         elif cxl_io_base_packet.is_cpld():
-            cxl_io_packet = CxlIoCompletionWithDataPacket()
+            cxl_io_packet = CxlIoCompletionWithDataPacket(payload)
 
         if cxl_io_packet is None:
             protocol = cxl_io_base_packet.cxl_io_header.fmt_type
             raise Exception(f"Unsupported CXL.IO protocol {protocol}")
-        cxl_io_packet.reset(payload)
         return cxl_io_packet
 
     def _get_cxl_mem_packet(self, payload: bytes) -> CxlMemBasePacket:
-        cxl_mem_base_packet = CxlMemBasePacket()
-        header_size = len(cxl_mem_base_packet.cxl_mem_header) + SystemHeader.get_size()
-        cxl_mem_base_packet.reset(payload[:header_size])
+        payload = bytearray(payload)
+        cxl_mem_base_packet = CxlMemBasePacket(payload)
         if cxl_mem_base_packet.is_m2sreq():
-            cxl_mem_packet = CxlMemM2SReqPacket()
+            cxl_mem_packet = CxlMemM2SReqPacket(payload)
         elif cxl_mem_base_packet.is_m2srwd():
-            cxl_mem_packet = CxlMemM2SRwDPacket()
+            cxl_mem_packet = CxlMemM2SRwDPacket(payload)
         elif cxl_mem_base_packet.is_m2sbirsp():
-            cxl_mem_packet = CxlMemM2SBIRspPacket()
+            cxl_mem_packet = CxlMemM2SBIRspPacket(payload)
         elif cxl_mem_base_packet.is_s2mbisnp():
-            cxl_mem_packet = CxlMemS2MBISnpPacket()
+            cxl_mem_packet = CxlMemS2MBISnpPacket(payload)
         elif cxl_mem_base_packet.is_s2mndr():
-            cxl_mem_packet = CxlMemS2MNDRPacket()
+            cxl_mem_packet = CxlMemS2MNDRPacket(payload)
         elif cxl_mem_base_packet.is_s2mdrs():
-            cxl_mem_packet = CxlMemS2MDRSPacket()
+            cxl_mem_packet = CxlMemS2MDRSPacket(payload)
         else:
             msg_class = cxl_mem_base_packet.cxl_mem_header.msg_class
             raise Exception(f"Unsupported CXL.MEM message class: {msg_class}")
 
-        cxl_mem_packet.reset(payload)
         return cxl_mem_packet
 
     def _get_cxl_cache_packet(self, payload: bytes) -> CxlCacheBasePacket:
         cxl_cache_base_packet = CxlCacheBasePacket()
-        header_size = len(cxl_cache_base_packet.cxl_cache_header) + BasePacket.get_size()
+        header_size = len(cxl_cache_base_packet.cxl_cache_header) + SystemHeader.get_size()
         cxl_cache_base_packet.reset(payload[:header_size])
         if cxl_cache_base_packet.is_d2hreq():
             cxl_cache_packet = CxlCacheD2HReqPacket()
@@ -203,7 +194,7 @@ class PacketReader(LabeledComponent):
 
     # def _get_cci_packet(self, payload: bytes) -> CciBasePacket:
     #     cci_base_packet = CciBasePacket()
-    #     header_size = len(cci_base_packet.cci_header) + BasePacket.get_size()
+    #     header_size = len(cci_base_packet.cci_header) + SystemHeader.get_size()
     #     cci_base_packet.reset(payload[:header_size])
 
     #     if cci_base_packet.is_req():
@@ -242,7 +233,7 @@ class PacketReader(LabeledComponent):
 
     # def _get_sideband_packet(self, payload: bytes) -> BaseSidebandPacket:
     #     base_sideband_packet = BaseSidebandPacket()
-    #     header_size = len(base_sideband_packet.sideband_header) + BasePacket.get_size()
+    #     header_size = len(base_sideband_packet.sideband_header) + SystemHeader.get_size()
     #     base_sideband_packet.reset(payload[:header_size])
     #     if base_sideband_packet.is_connection_request():
     #         sideband_packet = SidebandConnectionRequestPacket()

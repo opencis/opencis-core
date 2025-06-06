@@ -54,7 +54,7 @@ def instantiate_packets():
     buf = np.zeros(128, dtype=np.uint8)  # binary buffer for test payloads
 
     # side band packets
-    packets.append(CxlIoMemRdPacket.create(addr=0x1000, length=4, req_id=1, tag=2))
+    # packets.append(CxlIoMemRdPacket.create(addr=0x1000, length=4, req_id=1, tag=2))
 
     # CXL.io memory packets
     packets.append(CxlIoMemRdPacket.create(addr=0x1000, length=4, req_id=1, tag=2))
