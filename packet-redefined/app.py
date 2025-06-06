@@ -5,6 +5,12 @@ from transaction import (
     CxlIoMemWrPacket,
     CxlIoCompletionPacket,
     CxlIoCompletionWithDataPacket,
+    CxlCacheD2HReqPacket,
+    CxlCacheD2HRspPacket,
+    CxlCacheD2HDataPacket,
+    CxlCacheH2DReqPacket,
+    CxlCacheH2DRspPacket,
+    CxlCacheH2DDataPacket,
 )
 
 
@@ -87,6 +93,50 @@ def main():
     print(f"post: {pkt.get_size()}")
 
     packet = CxlIoCompletionPacket.create(req_id=0, tag=1)
+
+
+    # CXL Cache D2H Request
+    d2h_req = CxlCacheD2HReqPacket.create(
+        addr=0x1000,
+        cache_id=1,
+        opcode=5,
+        cqid=5,
+    )
+
+    # CXL Cache D2H Response
+    d2h_rsp = CxlCacheD2HRspPacket.create(
+        uqid=42,
+        opcode=6,
+    )
+
+    # CXL Cache D2H Data
+    d2h_data = CxlCacheD2HDataPacket.create(
+        uqid=42,
+        data=0xDEADBEEFCAFEBABE,
+    )
+
+    # CXL Cache H2D Request
+    h2d_req = CxlCacheH2DReqPacket.create(
+        addr=0x2000,
+        cache_id=2,
+        opcode=7,
+    )
+
+    # CXL Cache H2D Response
+    h2d_rsp = CxlCacheH2DRspPacket.create(
+        cache_id=2,
+        opcode=1,
+        rsp_data=2,
+        cqid=3,
+    )
+
+    # CXL Cache H2D Data
+    h2d_data = CxlCacheH2DDataPacket.create(
+        cache_id=2,
+        data=0xAABBCCDDEEFF0011,
+        cqid=3,
+    )
+
 
 
 if __name__ == "__main__":

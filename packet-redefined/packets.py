@@ -26,4 +26,36 @@ PACKETS = {
         ("CxlIoCompletionHeader", "cpl_header"),
         "DataField",
     ],
+    "CxlCacheD2HReqPacket": [
+        ("SystemHeader", "system_header"),
+        ("CxlCacheHeader", "cxl_cache_header"),
+        ("CxlCacheD2HReqHeader", "d2hreq_header"),
+    ],
+    "CxlCacheD2HRspPacket": [
+        ("SystemHeader", "system_header"),
+        ("CxlCacheHeader", "cxl_cache_header"),
+        ("CxlCacheD2HRspHeader", "d2hrsp_header"),
+    ],
+    "CxlCacheD2HDataPacket": [
+        ("SystemHeader", "system_header"),
+        ("CxlCacheHeader", "cxl_cache_header"),
+        ("CxlCacheD2HDataHeader", "d2hdata_header"),
+        "DataField",
+    ],
+    "CxlCacheH2DReqPacket": [
+        ("SystemHeader", "system_header"),
+        ("CxlCacheHeader", "cxl_cache_header"),
+        ("CxlCacheH2DReqHeader", "h2dreq_header"),
+    ],
+    "CxlCacheH2DRspPacket": [
+        ("SystemHeader", "system_header"),
+        ("CxlCacheHeader", "cxl_cache_header"),
+        ("CxlCacheH2DRspHeader", "h2drsp_header"),
+    ],
+    "CxlCacheH2DDataPacket": [
+        ("SystemHeader", "system_header"),
+        ("CxlCacheHeader", "cxl_cache_header"),
+        ("CxlCacheH2DDataHeader", "h2ddata_header"),
+        "DataField",
+    ],
 }

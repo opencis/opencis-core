@@ -12,6 +12,12 @@ from packet_structs import (
     RawCxlIoCfgReqPacket,
     RawCxlIoCompletionPacket,
     RawCxlIoCompletionWithDataPacket,
+    RawCxlCacheD2HReqPacket,
+    RawCxlCacheD2HRspPacket,
+    RawCxlCacheD2HDataPacket,
+    RawCxlCacheH2DReqPacket,
+    RawCxlCacheH2DRspPacket,
+    RawCxlCacheH2DDataPacket,
 )
 from opencis.util.pci import (
     extract_function_from_bdf,
@@ -27,9 +33,15 @@ from opencis.util.number import (
 from mixin import (
     BasePacketMixin,
     CxlIoBasePacketMixin,
+    PAYLOAD_TYPE,
     CXL_IO_FMT_TYPE,
     CXL_IO_CPL_STATUS,
-    PAYLOAD_TYPE,
+    CXL_CACHE_MSG_CLASS,
+    CXL_CACHE_D2HREQ_OPCODE,
+    CXL_CACHE_D2HRSP_OPCODE,
+    CXL_CACHE_H2DREQ_OPCODE,
+    CXL_CACHE_H2DRSP_OPCODE,
+    CXL_CACHE_H2DRSP_CACHE_STATE,
 )
 
 
@@ -309,3 +321,144 @@ class CxlIoCompletionWithDataPacket(
 
     def get_transaction_id(self) -> int:
         return self.cpl_header.get_transaction_id()
+
+
+########################################
+class CxlCacheD2HReqPacket(BasePacketMixin, RawCxlCacheD2HReqPacket):
+    @classmethod
+    def create(
+        cls,
+        addr: int,
+        cache_id: int,
+        opcode: CXL_CACHE_D2HREQ_OPCODE,
+        cqid: int = 0,
+    ) -> "CxlCacheD2HReqPacket":
+        pkt = cls()
+        pkt.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        pkt.system_header.payload_length = pkt.get_size()
+        pkt.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_REQ
+        pkt.d2hreq_header.valid = 1
+        pkt.d2hreq_header.cache_opcode = opcode
+        pkt.d2hreq_header.cqid = cqid
+        pkt.d2hreq_header.cache_id = cache_id
+        if addr % 0x40:
+            raise Exception("Address must be a multiple of 0x40")
+        pkt.d2hreq_header.addr = addr >> 6
+        return pkt
+
+    def get_address(self) -> int:
+        return self.d2hreq_header.addr << 6
+
+    def set_cache_id(self, cache_id: int):
+        self.d2hreq_header.cache_id = cache_id
+
+
+class CxlCacheD2HRspPacket(BasePacketMixin, RawCxlCacheD2HRspPacket):
+    @classmethod
+    def create(
+        cls,
+        uqid: int,
+        opcode: CXL_CACHE_D2HRSP_OPCODE,
+    ) -> "CxlCacheD2HRspPacket":
+        pkt = cls()
+        pkt.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        pkt.system_header.payload_length = pkt.get_size()
+        pkt.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_RSP
+        pkt.d2hrsp_header.valid = 1
+        pkt.d2hrsp_header.uqid = uqid
+        pkt.d2hrsp_header.cache_opcode = opcode
+        return pkt
+
+
+class CxlCacheD2HDataPacket(BasePacketMixin, RawCxlCacheD2HDataPacket):
+    @classmethod
+    def create(
+        cls,
+        uqid: int,
+        data: int,
+    ) -> "CxlCacheD2HDataPacket":
+        pkt = cls()
+        pkt.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        pkt.system_header.payload_length = pkt.get_size()
+        pkt.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_DATA
+        pkt.d2hdata_header.valid = 1
+        pkt.d2hdata_header.uqid = uqid
+        pkt.d2hdata_header.poison = 0
+        pkt.data = data
+        return pkt
+
+
+class CxlCacheH2DReqPacket(BasePacketMixin, RawCxlCacheH2DReqPacket):
+    @classmethod
+    def create(
+        cls,
+        addr: int,
+        cache_id: int,
+        opcode: CXL_CACHE_H2DREQ_OPCODE,
+    ) -> "CxlCacheH2DReqPacket":
+        pkt = cls()
+        pkt.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        pkt.system_header.payload_length = pkt.get_size()
+        pkt.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_REQ
+        pkt.h2dreq_header.valid = 1
+        pkt.h2dreq_header.cache_opcode = opcode
+        pkt.h2dreq_header.cache_id = cache_id
+        if addr % 0x40:
+            raise Exception("Address must be a multiple of 0x40")
+        pkt.h2dreq_header.addr = addr >> 6
+        return pkt
+
+    def get_address(self) -> int:
+        return self.h2dreq_header.addr << 6
+
+    def get_opcode(self) -> CXL_CACHE_H2DREQ_OPCODE:
+        return self.h2dreq_header.cache_opcode
+
+
+class CxlCacheH2DRspPacket(BasePacketMixin, RawCxlCacheH2DRspPacket):
+    @classmethod
+    def create(
+        cls,
+        cache_id: int,
+        opcode: CXL_CACHE_H2DRSP_OPCODE,
+        rsp_data: CXL_CACHE_H2DRSP_CACHE_STATE,
+        cqid: int = 0,
+    ) -> "CxlCacheH2DRspPacket":
+        pkt = cls()
+        pkt.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        pkt.system_header.payload_length = pkt.get_size()
+        pkt.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_RSP
+        pkt.h2drsp_header.valid = 1
+        pkt.h2drsp_header.cache_opcode = opcode
+        pkt.h2drsp_header.cache_id = cache_id
+        pkt.h2drsp_header.rsp_data = rsp_data
+        pkt.h2drsp_header.cqid = cqid
+        return pkt
+
+    def get_opcode(self) -> CXL_CACHE_H2DRSP_OPCODE:
+        return self.h2drsp_header.cache_opcode
+
+
+class CxlCacheH2DDataPacket(BasePacketMixin, RawCxlCacheH2DDataPacket):
+    @classmethod
+    def create(
+        cls,
+        cache_id: int,
+        data: int,
+        cqid: int = 0,
+    ) -> "CxlCacheH2DDataPacket":
+        pkt = cls()
+        pkt.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        pkt.system_header.payload_length = pkt.get_size()
+        pkt.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_DATA
+        pkt.h2ddata_header.valid = 1
+        pkt.h2ddata_header.cache_id = cache_id
+        pkt.h2ddata_header.cqid = cqid
+        pkt.data = data
+        return pkt
+
+    def get_cqid(self) -> int:
+        return self.h2ddata_header.cqid
+
+    def get_cache_id(self) -> int:
+        return self.h2ddata_header.cache_id
