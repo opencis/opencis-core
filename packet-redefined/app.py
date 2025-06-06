@@ -1,4 +1,3 @@
-
 import asyncio
 
 import numpy as np
@@ -45,6 +44,7 @@ from packet_constants import (
     CXL_MEM_S2MNDR_OPCODE,
 )
 from packet_reader import PacketReader
+
 
 def instantiate_packets():
     CxlMemBISnpPacket.tag = 0  # ensure static tag starts correctly
@@ -194,9 +194,9 @@ class MockStreamReader:
 
     async def read(self, size: int) -> bytes:
         if self._offset >= len(self._buffer):
-            return b''  # Simulate EOF
+            return b""  # Simulate EOF
         end = min(self._offset + size, len(self._buffer))
-        chunk = self._buffer[self._offset:end]
+        chunk = self._buffer[self._offset : end]
         self._offset = end
         await asyncio.sleep(0)  # simulate async behavior
         return chunk
@@ -204,7 +204,7 @@ class MockStreamReader:
 
 async def simulate_packet_reader(packets):
     # Concatenate all packets into a single bytes buffer
-    combined = b''.join(bytes(pkt) for pkt in packets)
+    combined = b"".join(bytes(pkt) for pkt in packets)
 
     # Create mock StreamReader with the combined byte stream
     reader = MockStreamReader(combined)
@@ -224,7 +224,6 @@ async def simulate_packet_reader(packets):
 def test_packet_reader():
     packets = instantiate_packets()
     asyncio.run(simulate_packet_reader(packets))
-
 
 
 if __name__ == "__main__":

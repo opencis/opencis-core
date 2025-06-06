@@ -26,8 +26,21 @@ def emit_struct(name, layout):
         f"        self.write_bits({s}, {w}, val)\n\n"
         for n, s, w in layout
     )
-    return f"cdef class {name}(PacketBuffer):\n{field_defs}" \
-           "\n    def __bytes__(self):\n        return self.to_bytes()\n"
+
+    total_bits = sum(w for _, _, w in layout)
+    total_bytes = (total_bits + 7) // 8
+
+    return (
+        f"cdef class {name}(PacketBuffer):\n"
+        f"{field_defs}"
+        f"    @classmethod\n"
+        f"    def get_size(cls):\n"
+        f"        return {total_bytes}\n\n"
+        f"    def __len__(self):\n"
+        f"        return self.get_size()\n\n"
+        f"    def __bytes__(self):\n"
+        f"        return self.to_bytes()\n"
+    )
 
 
 def emit_composite(packet_name, layout, field_sizes):
