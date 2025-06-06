@@ -6,7 +6,13 @@ See LICENSE for details.
 """
 
 from typing import Optional
-from packet_structs import RawCxlIoMemReqPacket, RawCxlIoCfgReqPacket
+
+from packet_structs import (
+    RawCxlIoMemReqPacket,
+    RawCxlIoCfgReqPacket,
+    RawCxlIoCompletionPacket,
+    RawCxlIoCompletionWithDataPacket,
+)
 from opencis.util.pci import (
     extract_function_from_bdf,
     extract_device_from_bdf,
@@ -22,7 +28,7 @@ from mixin import (
     BasePacketMixin,
     CxlIoBasePacketMixin,
     CXL_IO_FMT_TYPE,
-    CXL_IO_PROTOCOL,
+    CXL_IO_CPL_STATUS,
     PAYLOAD_TYPE,
 )
 
@@ -228,3 +234,78 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
         bit_offset = (offset % 4) * 8
         bit_mask = (1 << size * 8) - 1
         return (self.value >> bit_offset) & bit_mask
+
+
+from mixin import BasePacketMixin, CxlIoBasePacketMixin, CXL_IO_FMT_TYPE, PAYLOAD_TYPE
+
+
+class CxlIoCompletionPacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoCompletionPacket):
+    @classmethod
+    def create(
+        cls,
+        req_id: int,
+        tag: int,
+        cpl_id: int = 0,
+        status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
+        ld_id: int = 0,
+    ) -> "CxlIoCompletionPacket":
+        pkt = cls()
+        pkt.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
+        pkt.system_header.payload_length = pkt.get_size()
+        pkt.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL
+        pkt.cxl_io_header.length_upper = 0
+        pkt.cxl_io_header.length_lower = 0
+        pkt.tlp_prefix.ld_id = ld_id
+
+        pkt.cpl_header.cpl_id = htotlp16(cpl_id)
+        pkt.cpl_header.status = status
+        pkt.cpl_header.byte_count_upper = 0
+        pkt.cpl_header.byte_count_lower = 4
+        pkt.cpl_header.req_id = htotlp16(req_id)
+        pkt.cpl_header.tag = tag
+
+        return pkt
+
+    def get_transaction_id(self) -> int:
+        return self.cpl_header.get_transaction_id()
+
+
+class CxlIoCompletionWithDataPacket(
+    BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoCompletionWithDataPacket
+):
+    @classmethod
+    def create(
+        cls,
+        req_id: int,
+        tag: int,
+        data: int,
+        cpl_id: int = 0,
+        status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
+        pload_len: int = 0x04,
+        ld_id: int = 0,
+    ) -> "CxlIoCompletionWithDataPacket":
+        pkt = cls()
+        pkt.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
+        pkt.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL_D
+
+        pkt.cxl_io_header.length_upper = extract_upper(pload_len // 4, 2, 10)
+        pkt.cxl_io_header.length_lower = extract_lower(pload_len // 4, 8, 10)
+
+        pkt.cpl_header.cpl_id = htotlp16(cpl_id)
+        pkt.cpl_header.status = status
+        pkt.cpl_header.req_id = htotlp16(req_id)
+        pkt.cpl_header.tag = tag
+
+        pkt.cpl_header.byte_count_upper = extract_upper(pload_len, 4, 12)
+        pkt.cpl_header.byte_count_lower = extract_lower(pload_len, 8, 12)
+
+        pkt.set_dynamic_field_length(pload_len)
+        pkt.data = data
+
+        pkt.tlp_prefix.ld_id = ld_id
+        pkt.system_header.payload_length = pkt.get_size()
+
+        return pkt
+
+    def get_transaction_id(self) -> int:
+        return self.cpl_header.get_transaction_id()

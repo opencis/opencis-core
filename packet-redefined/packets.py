@@ -13,4 +13,17 @@ PACKETS = {
         ("CxlIoCfgReqHeader", "cfg_req_header"),
         "DataField",
     ],
+    "CxlIoCompletionPacket": [
+        ("SystemHeader", "system_header"),
+        ("TlpPrefix", "tlp_prefix"),
+        ("CxlIoHeader", "cxl_io_header"),
+        ("CxlIoCompletionHeader", "cpl_header"),
+    ],
+    "CxlIoCompletionWithDataPacket": [
+        ("SystemHeader", "system_header"),
+        ("TlpPrefix", "tlp_prefix"),
+        ("CxlIoHeader", "cxl_io_header"),
+        ("CxlIoCompletionHeader", "cpl_header"),
+        "DataField",
+    ],
 }

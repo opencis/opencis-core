@@ -1,6 +1,11 @@
 import numpy as np
 import time
-from transaction import CxlIoMemRdPacket, CxlIoMemWrPacket
+from transaction import (
+    CxlIoMemRdPacket,
+    CxlIoMemWrPacket,
+    CxlIoCompletionPacket,
+    CxlIoCompletionWithDataPacket,
+)
 
 
 def handle_rd_packet(pkt):
@@ -80,6 +85,8 @@ def main():
     data = np.array(list(b"Hel"), dtype=np.uint8)
     pkt.set_data(data)
     print(f"post: {pkt.get_size()}")
+
+    packet = CxlIoCompletionPacket.create(req_id=0, tag=1)
 
 
 if __name__ == "__main__":
