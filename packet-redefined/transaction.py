@@ -101,6 +101,14 @@ class CxlIoBasePacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoBasePacket)
 
 
 class CxlIoMemReqPacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoMemReqPacket):
+    _tag_counter = 0
+
+    @classmethod
+    def get_tag(cls) -> int:
+        tag = cls._tag_counter
+        cls._tag_counter = (cls._tag_counter + 1) % 256
+        return tag
+
     def fill(self, addr: int, length: int, req_id: int, tag: int):
         address_offset = addr % 4
         length_dword = (address_offset + length + 3) // 4
@@ -136,15 +144,8 @@ class CxlIoMemReqPacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoMemReqPac
 class CxlIoMemRdPacket(CxlIoMemReqPacket):
     @classmethod
     def create(cls, addr: int, length: int, req_id: int = 0, tag: int = 0, ld_id: int = 0):
-        # if req_id is not None:
-        #     req_id = htotlp16(req_id)
-        # else:
-        #     req_id = 0
-        # if tag is None:
-        #     tag = cls.get_tag()
-        # tag %= 256
         pkt = cls()
-        pkt.fill(addr, length, req_id, tag)
+        pkt.fill(addr, length, htotlp16(req_id), cls.get_tag())
         pkt.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MRD_64B
         pkt.tlp_prefix.ld_id = ld_id
         pkt.system_header.payload_length = pkt.get_size()
@@ -154,18 +155,9 @@ class CxlIoMemRdPacket(CxlIoMemReqPacket):
 class CxlIoMemWrPacket(CxlIoMemReqPacket):
     @classmethod
     def create(cls, addr: int, data: bytes, req_id: int = 0, tag: int = 0, ld_id: int = 0):
-        # if req_id is not None:
-        #     req_id = htotlp16(req_id)
-        # else:
-        #     req_id = 0
-        # if tag is None:
-        #     tag = cls.get_tag()
-        # tag %= 256
         pkt = cls()
-        print(f"BEFORE: {pkt.get_size()}, {len(data)}")
         pkt.set_data(data)
-        print(f"AFTER: {pkt.get_size()}")
-        pkt.fill(addr, len(data), req_id, tag)
+        pkt.fill(addr, len(data), htotlp16(req_id), cls.get_tag())
         pkt.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
         pkt.tlp_prefix.ld_id = ld_id
         pkt.system_header.payload_length = pkt.get_size()
