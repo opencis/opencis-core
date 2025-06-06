@@ -9,14 +9,14 @@ PACKETS = {
         ("TlpPrefix", "tlp_prefix"),
         ("CxlIoHeader", "cxl_io_header"),
         ("CxlIoMReqHeader", "mreq_header"),
-        "DataField",
+        ("DataField", "data"),
     ],
     "CxlIoCfgReqPacket": [
         ("SystemHeader", "system_header"),
         ("TlpPrefix", "tlp_prefix"),
         ("CxlIoHeader", "cxl_io_header"),
         ("CxlIoCfgReqHeader", "cfg_req_header"),
-        "DataField",
+        ("DataField", "value"),
     ],
     "CxlIoCompletionPacket": [
         ("SystemHeader", "system_header"),
@@ -29,7 +29,7 @@ PACKETS = {
         ("TlpPrefix", "tlp_prefix"),
         ("CxlIoHeader", "cxl_io_header"),
         ("CxlIoCompletionHeader", "cpl_header"),
-        "DataField",
+        ("DataField", "data"),
     ],
     # CXL.cache
     "CxlCacheD2HReqPacket": [
@@ -46,7 +46,7 @@ PACKETS = {
         ("SystemHeader", "system_header"),
         ("CxlCacheHeader", "cxl_cache_header"),
         ("CxlCacheD2HDataHeader", "d2hdata_header"),
-        "DataField",
+        ("DataField", "data"),
     ],
     "CxlCacheH2DReqPacket": [
         ("SystemHeader", "system_header"),
@@ -62,7 +62,7 @@ PACKETS = {
         ("SystemHeader", "system_header"),
         ("CxlCacheHeader", "cxl_cache_header"),
         ("CxlCacheH2DDataHeader", "h2ddata_header"),
-        "DataField",
+        ("DataField", "data"),
     ],
     # CXL.mem
     "CxlMemM2SReqPacket": [
@@ -74,7 +74,7 @@ PACKETS = {
         ("SystemHeader", "system_header"),
         ("CxlMemHeader", "cxl_mem_header"),
         ("CxlMemM2SRwDHeader", "m2srwd_header"),
-        "DataField",
+        ("DataField", "data"),
     ],
     "CxlMemM2SBIRspPacket": [
         ("SystemHeader", "system_header"),
@@ -95,6 +95,6 @@ PACKETS = {
         ("SystemHeader", "system_header"),
         ("CxlMemHeader", "cxl_mem_header"),
         ("CxlMemS2MDRSHeader", "s2mdrs_header"),
-        "DataField",
+        ("DataField", "data"),
     ],
 }

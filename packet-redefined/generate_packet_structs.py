@@ -29,47 +29,40 @@ def emit_composite(packet_name, layout, field_sizes):
     offset = 0
     field_entries = []
 
-    # Normalize layout
     for entry in layout:
         if isinstance(entry, tuple):
             field_entries.append(entry)
-        elif entry == "DataField":
-            field_entries.append("DataField")
+        elif entry == ("DataField", "data"):
+            field_entries.append(("DataField", "data"))
         else:
             field_entries.append((entry, entry.lower()))
 
-    # Compute ACTUAL_SIZE in bytes
     total_bits = 0
     for entry in field_entries:
-        if entry == "DataField":
-            continue
         struct, _ = entry
+        if struct == "DataField":
+            continue
         total_bits += sum(w for _, _, w in field_sizes[struct])
     total_bytes = (total_bits + 7) // 8
 
     lines.append(f"    cdef readonly int ACTUAL_SIZE")
     lines.append(f"    cdef int _data_length")
 
-    # Declare cdef fields
-    for entry in field_entries:
-        if entry == "DataField":
+    for struct, varname in field_entries:
+        if struct == "DataField":
             continue
-        struct, varname = entry
         lines.append(f"    cdef {struct} {varname}_")
 
     lines.append("")
 
-    # Python properties
-    for entry in field_entries:
-        if entry == "DataField":
+    for struct, varname in field_entries:
+        if struct == "DataField":
             continue
-        _, varname = entry
         lines.append(f"    @property")
         lines.append(f"    def {varname}(self):")
         lines.append(f"        return self.{varname}_")
         lines.append("")
 
-    # __cinit__ with safe bytearray allocation
     lines.append("    def __cinit__(self, unsigned char[::1] buf = None):")
     lines.append("        if buf is None:")
     lines.append(f"            raw_buf = bytearray(200)")
@@ -78,16 +71,15 @@ def emit_composite(packet_name, layout, field_sizes):
     lines.append("        self.buf = buf")
 
     offset = 0
-    for entry in field_entries:
-        if entry == "DataField":
+    for struct, varname in field_entries:
+        if struct == "DataField":
             continue
-        struct, varname = entry
         size_bits = sum(w for _, _, w in field_sizes[struct])
         size_bytes = (size_bits + 7) // 8
         lines.append(f"        self.{varname}_ = {struct}(buf[{offset}:{offset + size_bytes}])")
         offset += size_bytes
 
-    if "DataField" in field_entries:
+    if ("DataField", "data") in field_entries:
         lines.append("")
         lines.append(f"    def get_data(self):")
         lines.append(f"        return self.get_bytes({offset}, self.get_size() - {offset})\n")
@@ -97,7 +89,6 @@ def emit_composite(packet_name, layout, field_sizes):
         lines.append("")
         lines.append(f"    cpdef int get_size(self):")
         lines.append(f"        return self.ACTUAL_SIZE + self._data_length")
-
     else:
         lines.append("")
         lines.append(f"    cpdef int get_size(self):")
