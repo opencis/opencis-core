@@ -1,3 +1,6 @@
+
+import asyncio
+
 import numpy as np
 import time
 from transaction import (
@@ -41,7 +44,7 @@ from packet_constants import (
     CXL_MEM_S2MDRS_OPCODE,
     CXL_MEM_S2MNDR_OPCODE,
 )
-
+from packet_reader import PacketReader
 
 def instantiate_packets():
     CxlMemBISnpPacket.tag = 0  # ensure static tag starts correctly
@@ -180,6 +183,49 @@ def main():
 
     res = instantiate_packets()
     print(res)
+
+
+
+
+
+class MockStreamReader:
+    def __init__(self, data: bytes):
+        self._buffer = data
+        self._offset = 0
+
+    async def read(self, size: int) -> bytes:
+        if self._offset >= len(self._buffer):
+            return b''  # Simulate EOF
+        end = min(self._offset + size, len(self._buffer))
+        chunk = self._buffer[self._offset:end]
+        self._offset = end
+        await asyncio.sleep(0)  # simulate async behavior
+        return chunk
+
+
+async def simulate_packet_reader(packets):
+    # Concatenate all packets into a single bytes buffer
+    combined = b''.join(bytes(pkt) for pkt in packets)
+
+    # Create mock StreamReader with the combined byte stream
+    reader = MockStreamReader(combined)
+    packet_reader = PacketReader(reader, label="TestReader")
+
+    results = []
+    try:
+        while True:
+            pkt = await packet_reader.get_packet()
+            print(f"[RECEIVED] {pkt.__class__.__name__}")
+            results.append(pkt)
+    except Exception as e:
+        print(f"[END] PacketReader stopped: {e}")
+    return results
+
+
+def test_packet_reader():
+    packets = instantiate_packets()
+    asyncio.run(simulate_packet_reader(packets))
+
 
 
 if __name__ == "__main__":
