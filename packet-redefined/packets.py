@@ -1,9 +1,17 @@
 PACKETS = {
-    "CxlIoMemReqPacket": [
+    "BasePacket": [
+        ("SystemHeader", "system_header"),
+    ],
+    "SidebandConnectionRequestPacket": [
         ("SystemHeader", "system_header"),
         ("SidebandHeader", "sideband_header"),
     ],
     # CXL.io
+    "CxlIoBasePacket": [
+        ("SystemHeader", "system_header"),
+        ("TlpPrefix", "tlp_prefix"),
+        ("CxlIoHeader", "cxl_io_header"),
+    ],
     "CxlIoMemReqPacket": [
         ("SystemHeader", "system_header"),
         ("TlpPrefix", "tlp_prefix"),
@@ -32,6 +40,10 @@ PACKETS = {
         ("DataField", "data"),
     ],
     # CXL.cache
+    "CxlCacheBasePacket": [
+        ("SystemHeader", "system_header"),
+        ("CxlCacheHeader", "cxl_cache_header"),
+    ],
     "CxlCacheD2HReqPacket": [
         ("SystemHeader", "system_header"),
         ("CxlCacheHeader", "cxl_cache_header"),
@@ -65,6 +77,10 @@ PACKETS = {
         ("DataField", "data"),
     ],
     # CXL.mem
+    "CxlMemBasePacket": [
+        ("SystemHeader", "system_header"),
+        ("CxlMemHeader", "cxl_mem_header"),
+    ],
     "CxlMemM2SReqPacket": [
         ("SystemHeader", "system_header"),
         ("CxlMemHeader", "cxl_mem_header"),

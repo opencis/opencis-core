@@ -8,6 +8,10 @@ See LICENSE for details.
 from typing import Optional
 
 from packet_structs import (
+    RawBasePacket,
+    RawCxlIoBasePacket,
+    RawCxlCacheBasePacket,
+    RawCxlMemBasePacket,
     RawCxlIoMemReqPacket,
     RawCxlIoCfgReqPacket,
     RawCxlIoCompletionPacket,
@@ -63,6 +67,22 @@ from mixin import (
     CxlCacheBasePacketMixin,
     CxlMemBasePacketMixin,
 )
+
+
+class BasePacket(BasePacketMixin, RawBasePacket):
+    pass
+
+
+class CxlIoBasePacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoBasePacket):
+    pass
+
+
+class CxlCacheBasePacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheBasePacket):
+    pass
+
+
+class CxlMemBasePacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemBasePacket):
+    pass
 
 
 class CxlIoMemReqPacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoMemReqPacket):
@@ -484,6 +504,30 @@ class CxlCacheH2DDataPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCach
 
 
 ########################### CXL.mem
+
+
+class CxlMemM2SReqPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SReqPacket):
+    pass
+
+
+class CxlMemM2SRwDPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SRwDPacket):
+    pass
+
+
+class CxlMemM2SBIRspPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SBIRspPacket):
+    pass
+
+
+class CxlMemS2MBISnpPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MBISnpPacket):
+    pass
+
+
+class CxlMemS2MNDRPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MNDRPacket):
+    pass
+
+
+class CxlMemS2MDRSPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MDRSPacket):
+    pass
 
 
 class CxlMemMemRdPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SReqPacket):
