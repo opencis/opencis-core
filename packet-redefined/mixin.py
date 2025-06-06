@@ -3,6 +3,7 @@ from packet_constants import (
     CXL_IO_FMT_TYPE,
     CXL_MEM_MSG_CLASS,
     CXL_CACHE_MSG_CLASS,
+    SIDEBAND_TYPES,
 )
 
 
@@ -24,6 +25,20 @@ class BasePacketMixin:
 
     def get_type(self) -> str:
         return self.__class__.__name__
+
+
+class SidebandPacketMixin:
+    def get_packet_type(self) -> SIDEBAND_TYPES:
+        return self.sideband_header.type
+
+    def is_connection_request(self) -> bool:
+        return self.get_packet_type() == SIDEBAND_TYPES.CONNECTION_REQUEST
+
+    def is_connection_accept(self) -> bool:
+        return self.get_packet_type() == SIDEBAND_TYPES.CONNECTION_ACCEPT
+
+    def is_connection_reject(self) -> bool:
+        return self.get_packet_type() == SIDEBAND_TYPES.CONNECTION_REJECT
 
 
 class CxlIoBasePacketMixin:

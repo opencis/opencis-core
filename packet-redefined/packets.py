@@ -2,9 +2,15 @@ PACKETS = {
     "BasePacket": [
         ("SystemHeader", "system_header"),
     ],
+    # Sideband
+    "BaseSidebandPacket": [
+        ("SystemHeader", "system_header"),
+        ("SidebandHeader", "sideband_header"),
+    ],
     "SidebandConnectionRequestPacket": [
         ("SystemHeader", "system_header"),
         ("SidebandHeader", "sideband_header"),
+        ("DataField", "port"),
     ],
     # CXL.io
     "CxlIoBasePacket": [

@@ -3,6 +3,7 @@ import asyncio
 import numpy as np
 import time
 from transaction import (
+    SidebandConnectionRequestPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
     CxlIoCfgRdPacket,
@@ -54,7 +55,7 @@ def instantiate_packets():
     buf = np.zeros(128, dtype=np.uint8)  # binary buffer for test payloads
 
     # side band packets
-    # packets.append(CxlIoMemRdPacket.create(addr=0x1000, length=4, req_id=1, tag=2))
+    packets.append(SidebandConnectionRequestPacket.create(port_index=1))
 
     # CXL.io memory packets
     packets.append(CxlIoMemRdPacket.create(addr=0x1000, length=4, req_id=1, tag=2))
@@ -187,11 +188,11 @@ def main():
 
 class MockStreamReader:
     def __init__(self, data: bytes = b""):
-        self._buffer = bytearray(data)
+        self._buffer = None
         self._read_event = asyncio.Event()
 
     def feed(self, data: bytes):
-        self._buffer.extend(data)
+        self._buffer = bytearray(data)
         self._read_event.set()
 
     async def read(self, n=-1):
@@ -207,13 +208,13 @@ class MockStreamReader:
 
 
 async def simulate_packet_reader(packets):
-    reader = MockStreamReader()  # assume it's initially empty
+    reader = MockStreamReader()
     packet_reader = PacketReader(reader, label="TestReader")
 
     results = []
     try:
         for pkt in packets:
-            print(f"{pkt}, {bytes(pkt)}")
+            # print(f"{pkt}, {bytes(pkt)}")
             reader.feed(bytes(pkt))
             received = await packet_reader.get_packet()
             print(f"[RECEIVED] {received.__class__.__name__}")
@@ -221,6 +222,7 @@ async def simulate_packet_reader(packets):
     except Exception as e:
         print(f"[END] PacketReader stopped: {e}")
     return results
+
 
 def test_packet_reader():
     packets = instantiate_packets()

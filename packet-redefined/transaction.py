@@ -9,6 +9,8 @@ from typing import Optional
 
 from packet_structs import (
     RawBasePacket,
+    RawBaseSidebandPacket,
+    RawSidebandConnectionRequestPacket,
     RawCxlIoBasePacket,
     RawCxlCacheBasePacket,
     RawCxlMemBasePacket,
@@ -42,6 +44,7 @@ from opencis.util.number import (
 )
 from packet_constants import (
     SYSTEM_PAYLOAD_TYPE,
+    SIDEBAND_TYPES,
     CXL_IO_FMT_TYPE,
     CXL_IO_CPL_STATUS,
     CXL_CACHE_MSG_CLASS,
@@ -63,6 +66,7 @@ from packet_constants import (
 )
 from mixin import (
     BasePacketMixin,
+    SidebandPacketMixin,
     CxlIoBasePacketMixin,
     CxlCacheBasePacketMixin,
     CxlMemBasePacketMixin,
@@ -73,15 +77,26 @@ class BasePacket(BasePacketMixin, RawBasePacket):
     pass
 
 
+############ SIDEBAND
+class BaseSidebandPacket(BasePacketMixin, SidebandPacketMixin, RawBaseSidebandPacket):
+    pass
+
+
+class SidebandConnectionRequestPacket(
+    BasePacketMixin, SidebandPacketMixin, RawSidebandConnectionRequestPacket
+):
+    @classmethod
+    def create(cls, port_index: int) -> "SidebandConnectionRequestPacket":
+        pkt = cls()
+        pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.SIDEBAND
+        pkt.system_header.payload_length = len(pkt)
+        pkt.sideband_header.type = SIDEBAND_TYPES.CONNECTION_REQUEST
+        pkt.port = port_index
+        return pkt
+
+
+######## IO
 class CxlIoBasePacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoBasePacket):
-    pass
-
-
-class CxlCacheBasePacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheBasePacket):
-    pass
-
-
-class CxlMemBasePacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemBasePacket):
     pass
 
 
@@ -364,7 +379,11 @@ class CxlIoCompletionWithDataPacket(
         return self.cpl_header.get_transaction_id()
 
 
-########################################
+######################################## CACHE
+class CxlCacheBasePacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheBasePacket):
+    pass
+
+
 class CxlCacheD2HReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HReqPacket):
     @classmethod
     def create(
@@ -506,6 +525,8 @@ class CxlCacheH2DDataPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCach
 
 
 ########################### CXL.mem
+class CxlMemBasePacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemBasePacket):
+    pass
 
 
 class CxlMemM2SReqPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SReqPacket):

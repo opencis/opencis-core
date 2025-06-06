@@ -13,7 +13,8 @@ from typing import Optional, Tuple
 from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
 from transaction import (
     BasePacket,
-    # BaseSidebandPacket,
+    BaseSidebandPacket,
+    SidebandConnectionRequestPacket,
     CxlCacheBasePacket,
     CxlCacheD2HDataPacket,
     CxlCacheD2HReqPacket,
@@ -21,7 +22,6 @@ from transaction import (
     CxlCacheH2DDataPacket,
     CxlCacheH2DReqPacket,
     CxlCacheH2DRspPacket,
-    # SidebandConnectionRequestPacket,
     CxlIoBasePacket,
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
@@ -112,7 +112,6 @@ class PacketReader(LabeledComponent):
     async def _get_payload(self) -> Tuple[BasePacket, bytes]:
         logger.debug(self._create_message("Waiting Packet"))
         header_load = await self._read_payload(SystemHeader.get_size())
-        print(list(header_load))
         base_packet = BasePacket(bytearray(header_load))
         remaining_length = base_packet.system_header.payload_length - len(base_packet)
         if remaining_length < 0:
@@ -170,26 +169,24 @@ class PacketReader(LabeledComponent):
         return cxl_mem_packet
 
     def _get_cxl_cache_packet(self, payload: bytes) -> CxlCacheBasePacket:
-        cxl_cache_base_packet = CxlCacheBasePacket()
-        header_size = len(cxl_cache_base_packet.cxl_cache_header) + SystemHeader.get_size()
-        cxl_cache_base_packet.reset(payload[:header_size])
+        payload = bytearray(payload)
+        cxl_cache_base_packet = CxlCacheBasePacket(payload)
         if cxl_cache_base_packet.is_d2hreq():
-            cxl_cache_packet = CxlCacheD2HReqPacket()
+            cxl_cache_packet = CxlCacheD2HReqPacket(payload)
         elif cxl_cache_base_packet.is_d2hrsp():
-            cxl_cache_packet = CxlCacheD2HRspPacket()
+            cxl_cache_packet = CxlCacheD2HRspPacket(payload)
         elif cxl_cache_base_packet.is_d2hdata():
-            cxl_cache_packet = CxlCacheD2HDataPacket()
+            cxl_cache_packet = CxlCacheD2HDataPacket(payload)
         elif cxl_cache_base_packet.is_h2dreq():
-            cxl_cache_packet = CxlCacheH2DReqPacket()
+            cxl_cache_packet = CxlCacheH2DReqPacket(payload)
         elif cxl_cache_base_packet.is_h2drsp():
-            cxl_cache_packet = CxlCacheH2DRspPacket()
+            cxl_cache_packet = CxlCacheH2DRspPacket(payload)
         elif cxl_cache_base_packet.is_h2ddata():
-            cxl_cache_packet = CxlCacheH2DDataPacket()
+            cxl_cache_packet = CxlCacheH2DDataPacket(payload)
         else:
             msg_class = cxl_cache_base_packet.cxl_cache_header.msg_class
             raise Exception(f"Unsupported CXL.CACHE message class: {msg_class}")
 
-        cxl_cache_packet.reset(payload)
         return cxl_cache_packet
 
     # def _get_cci_packet(self, payload: bytes) -> CciBasePacket:
@@ -231,28 +228,26 @@ class PacketReader(LabeledComponent):
 
     #     return cci_packet
 
-    # def _get_sideband_packet(self, payload: bytes) -> BaseSidebandPacket:
-    #     base_sideband_packet = BaseSidebandPacket()
-    #     header_size = len(base_sideband_packet.sideband_header) + SystemHeader.get_size()
-    #     base_sideband_packet.reset(payload[:header_size])
-    #     if base_sideband_packet.is_connection_request():
-    #         sideband_packet = SidebandConnectionRequestPacket()
-    #         sideband_packet.reset(payload)
-    #     elif (
-    #         base_sideband_packet.is_connection_accept()
-    #         or base_sideband_packet.is_connection_reject()
-    #     ):
-    #         sideband_packet = base_sideband_packet
-    #     return sideband_packet
+    def _get_sideband_packet(self, payload: bytes) -> BaseSidebandPacket:
+        payload = bytearray(payload)
+        base_sideband_packet = BaseSidebandPacket(payload)
+        if base_sideband_packet.is_connection_request():
+            sideband_packet = SidebandConnectionRequestPacket(payload)
+        elif (
+            base_sideband_packet.is_connection_accept()
+            or base_sideband_packet.is_connection_reject()
+        ):
+            sideband_packet = base_sideband_packet
+        return sideband_packet
 
-    # async def _get_sideband_connection_request_packet(self, packets: bytes):
-    #     remaining_packets_size = SidebandConnectionRequestPacket.get_size() - len(packets)
-    #     remaining_packets = await self._reader.read(remaining_packets_size)
-    #     if not remaining_packets:
-    #         raise Exception("Connection disconnected")
+    async def _get_sideband_connection_request_packet(self, packets: bytes):
+        remaining_packets_size = SidebandConnectionRequestPacket.get_size() - len(packets)
+        remaining_packets = await self._reader.read(remaining_packets_size)
+        if not remaining_packets:
+            raise Exception("Connection disconnected")
 
-    #     packets = packets + remaining_packets
-    #     sideband = SidebandConnectionRequestPacket()
-    #     sideband.reset(packets)
+        packets = packets + remaining_packets
+        sideband = SidebandConnectionRequestPacket()
+        sideband.reset(packets)
 
-    #     return sideband
+        return sideband
