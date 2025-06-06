@@ -63,6 +63,9 @@ def main():
     wr_pkt.set_data(data[:10])
     handle_wr_packet(wr_pkt)
 
+    pkt = CxlIoMemRdPacket.create(0x4000, 0x20)
+    print(f"{pkt.is_cxl_io()}, {pkt.is_mmio()}, {pkt.is_cxl_mem()}")
+
 
 if __name__ == "__main__":
     main()

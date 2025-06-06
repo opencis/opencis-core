@@ -1,14 +1,21 @@
 from packet_structs import RawCxlIoMemReqPacket
+from mixin import (
+    BasePacketMixin,
+    CxlIoBasePacketMixin,
+    CXL_IO_FMT_TYPE,
+    CXL_IO_PROTOCOL,
+    PAYLOAD_TYPE,
+)
 
 
-class CxlIoMemReqPacket(RawCxlIoMemReqPacket):
+class CxlIoMemReqPacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoMemReqPacket):
     def fill(self, addr: int, length: int, req_id: int, tag: int):
         address_offset = addr % 4
         length_dword = (address_offset + length + 3) // 4
 
-        self.system_header.payload_type = 0x42  # example
-        self.io_header.length_upper = length_dword & 0x300
-        self.io_header.length_lower = length_dword & 0xFF
+        self.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
+        self.cxl_io_header.length_upper = length_dword & 0x300
+        self.cxl_io_header.length_lower = length_dword & 0xFF
         self.mreq_header.req_id = req_id
         self.mreq_header.tag = tag
 
@@ -34,15 +41,15 @@ class CxlIoMemReqPacket(RawCxlIoMemReqPacket):
         return addr
 
     def get_data_size(self) -> int:
-        return ((self.io_header.length_upper << 8) | self.io_header.length_lower) * 4
+        return ((self.cxl_io_header.length_upper << 8) | self.cxl_io_header.length_lower) * 4
 
 
 class CxlIoMemRdPacket(CxlIoMemReqPacket):
     @classmethod
     def create(cls, addr: int, length: int, req_id: int = 0, tag: int = 0, ld_id: int = 0):
-        pkt = cls()
+        pkt = cls(None)
         pkt.fill(addr, length, req_id, tag)
-        pkt.io_header.fmt_type = 0x0  # CXL_IO_FMT_TYPE.MRD_64B
+        pkt.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MRD_64B
         pkt.tlp_prefix.ld_id = ld_id
         pkt.system_header.payload_length = pkt.get_data_size() // 4
         return pkt
@@ -54,7 +61,7 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         pkt = cls()
         pkt.set_data(data)
         pkt.fill(addr, len(data), req_id, tag)
-        pkt.io_header.fmt_type = 0x1  # CXL_IO_FMT_TYPE.MWR_64B
+        pkt.cxl_io_header.fmt_type = 0x1  # CXL_IO_FMT_TYPE.MWR_64B
         pkt.tlp_prefix.ld_id = ld_id
         pkt.system_header.payload_length = pkt.get_size() // 4
         return pkt
