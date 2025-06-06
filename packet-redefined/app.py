@@ -42,6 +42,7 @@ from packet_constants import (
     CXL_MEM_S2MNDR_OPCODE,
 )
 
+
 def instantiate_packets():
     CxlMemBISnpPacket.tag = 0  # ensure static tag starts correctly
 
@@ -55,34 +56,34 @@ def instantiate_packets():
 
     # CXL.io config packets
     packets.append(CxlIoCfgRdPacket.create(id=0x10, cfg_addr=0x04, size=1, req_id=1, tag=1))
-    packets.append(CxlIoCfgWrPacket.create(id=0x10, cfg_addr=0x04, size=1, value=0xDE, req_id=1, tag=1))
+    packets.append(
+        CxlIoCfgWrPacket.create(id=0x10, cfg_addr=0x04, size=1, value=0xDE, req_id=1, tag=1)
+    )
 
     # CXL.io completion packets
     packets.append(CxlIoCompletionPacket.create(req_id=0x10, tag=0x1A))
     packets.append(CxlIoCompletionWithDataPacket.create(req_id=0x10, tag=0x1A, data=buf))
 
     # CXL.cache packets
-    packets.append(CxlCacheD2HReqPacket.create(
-        addr=0x1000,
-        cache_id=1,
-        opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_CURR,
-        cqid=0
-    ))
-    packets.append(CxlCacheD2HRspPacket.create(
-        uqid=1,
-        opcode=CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_I
-    ))
+    packets.append(
+        CxlCacheD2HReqPacket.create(
+            addr=0x1000, cache_id=1, opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_CURR, cqid=0
+        )
+    )
+    packets.append(CxlCacheD2HRspPacket.create(uqid=1, opcode=CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_I))
     packets.append(CxlCacheD2HDataPacket.create(uqid=1, data=0xDEADBEEF))
-    packets.append(CxlCacheH2DReqPacket.create(
-        addr=0x1000,
-        cache_id=1,
-        opcode=CXL_CACHE_H2DREQ_OPCODE.SNP_DATA
-    ))
-    packets.append(CxlCacheH2DRspPacket.create(
-        cache_id=1,
-        opcode=CXL_CACHE_H2DRSP_OPCODE.WRITE_PULL,
-        rsp_data=CXL_CACHE_H2DRSP_CACHE_STATE.EXCLUSIVE
-    ))
+    packets.append(
+        CxlCacheH2DReqPacket.create(
+            addr=0x1000, cache_id=1, opcode=CXL_CACHE_H2DREQ_OPCODE.SNP_DATA
+        )
+    )
+    packets.append(
+        CxlCacheH2DRspPacket.create(
+            cache_id=1,
+            opcode=CXL_CACHE_H2DRSP_OPCODE.WRITE_PULL,
+            rsp_data=CXL_CACHE_H2DRSP_CACHE_STATE.EXCLUSIVE,
+        )
+    )
     packets.append(CxlCacheH2DDataPacket.create(cache_id=1, data=0xBEEF))
 
     # CXL.mem packets
@@ -94,6 +95,7 @@ def instantiate_packets():
     packets.append(CxlMemCmpPacket.create())
 
     return packets
+
 
 def handle_rd_packet(pkt):
     print("CxlIoMemRdPacket:")
@@ -175,6 +177,7 @@ def main():
 
     res = instantiate_packets()
     print(res)
+
 
 if __name__ == "__main__":
     main()

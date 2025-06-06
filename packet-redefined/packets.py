@@ -1,4 +1,8 @@
 PACKETS = {
+    "CxlIoMemReqPacket": [
+        ("SystemHeader", "system_header"),
+        ("SidebandHeader", "sideband_header"),
+    ],
     # CXL.io
     "CxlIoMemReqPacket": [
         ("SystemHeader", "system_header"),

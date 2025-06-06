@@ -3,6 +3,10 @@ SystemHeader = [
     ("payload_length", 4, 12),
 ]
 
+SidebandHeader = [
+    ("type", 0, 8),
+]
+
 TlpPrefix = [
     ("pcie_base_spec_defined", 0, 8),
     ("ld_id", 8, 16),
