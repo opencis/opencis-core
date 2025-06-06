@@ -45,20 +45,20 @@ def emit_struct(name, layout):
 
 def emit_composite(packet_name, layout, field_sizes):
     lines = [f"cdef class Raw{packet_name}(PacketBuffer):"]
-    offset = 0
     field_entries = []
+    has_data_field = False
 
     for entry in layout:
-        if isinstance(entry, tuple):
-            field_entries.append(entry)
-        elif entry == ("DataField", "data"):
+        if entry == ("DataField", "data"):
+            has_data_field = True
             field_entries.append(("DataField", "data"))
+        elif isinstance(entry, tuple):
+            field_entries.append(entry)
         else:
             field_entries.append((entry, entry.lower()))
 
     total_bits = 0
-    for entry in field_entries:
-        struct, _ = entry
+    for struct, _ in field_entries:
         if struct == "DataField":
             continue
         total_bits += sum(w for _, _, w in field_sizes[struct])
@@ -68,26 +68,25 @@ def emit_composite(packet_name, layout, field_sizes):
     lines.append(f"    cdef int _data_length")
 
     for struct, varname in field_entries:
-        if struct == "DataField":
-            continue
-        lines.append(f"    cdef {struct} {varname}_")
+        if struct != "DataField":
+            lines.append(f"    cdef {struct} {varname}_")
 
     lines.append("")
 
     for struct, varname in field_entries:
-        if struct == "DataField":
-            continue
-        lines.append(f"    @property")
-        lines.append(f"    def {varname}(self):")
-        lines.append(f"        return self.{varname}_")
-        lines.append("")
+        if struct != "DataField":
+            lines.append(f"    @property")
+            lines.append(f"    def {varname}(self):")
+            lines.append(f"        return self.{varname}_")
+            lines.append("")
 
     lines.append("    def __cinit__(self, unsigned char[::1] buf = None):")
     lines.append("        if buf is None:")
-    lines.append(f"            raw_buf = bytearray(200)")
+    lines.append("            raw_buf = bytearray(200)")
     lines.append("            buf = raw_buf")
     lines.append(f"        self.ACTUAL_SIZE = {total_bytes}")
-    lines.append("        self.buf = buf")
+    lines.append("        self.buf = buf")  
+    lines.append("        self._data_length = len(buf) - self.ACTUAL_SIZE")
 
     offset = 0
     for struct, varname in field_entries:
@@ -98,10 +97,10 @@ def emit_composite(packet_name, layout, field_sizes):
         lines.append(f"        self.{varname}_ = {struct}(buf[{offset}:{offset + size_bytes}])")
         offset += size_bytes
 
-    if ("DataField", "data") in field_entries:
+    if has_data_field:
         lines.append("")
         lines.append(f"    def get_data(self):")
-        lines.append(f"        return self.get_bytes({offset}, self.get_size() - {offset})\n")
+        lines.append(f"        return self.get_bytes({offset}, self.get_size() - {offset})")
         lines.append(f"    def set_data(self, unsigned char[::1] data):")
         lines.append(f"        self.set_bytes({offset}, data)")
         lines.append(f"        self._data_length = data.shape[0]")
@@ -110,13 +109,19 @@ def emit_composite(packet_name, layout, field_sizes):
         lines.append(f"        return self.ACTUAL_SIZE + self._data_length")
     else:
         lines.append("")
-        lines.append(f"    cpdef int get_size(self):")
-        lines.append(f"        return self.ACTUAL_SIZE")
+        lines.append(f"    @classmethod")
+        lines.append(f"    def get_size(cls):")
+        lines.append(f"        return cls.ACTUAL_SIZE")
+
+    lines.append("")
+    lines.append("    def __len__(self):")
+    lines.append("        return self.get_size()")
 
     lines.append("")
     lines.append("    def __bytes__(self):")
     lines.append("        return self.to_bytes()")
-    return "\n".join(lines) + "\n"
+
+    return "\n".join(lines)
 
 
 def main():

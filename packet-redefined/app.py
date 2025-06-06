@@ -52,7 +52,7 @@ def instantiate_packets():
 
     packets = []
 
-    buf = np.zeros(128, dtype=np.uint8)  # binary buffer for test payloads
+    buf = np.ones(128, dtype=np.uint8)  # binary buffer for test payloads
 
     # side band packets
     packets.append(SidebandConnectionRequestPacket.create(port_index=1))
@@ -219,6 +219,8 @@ async def simulate_packet_reader(packets):
             received = await packet_reader.get_packet()
             print(f"[RECEIVED] {received.__class__.__name__}")
             results.append(received)
+            if received.__class__.__name__ == "CxlIoMemWrPacket":
+                print(f"{bytes(received.get_data())}, {bytes(received)}")
     except Exception as e:
         print(f"[END] PacketReader stopped: {e}")
     return results

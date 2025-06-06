@@ -2,6 +2,7 @@
 
 cdef class PacketBuffer:
     cdef unsigned char[::1] buf
+    cdef int _data_length
     cpdef unsigned long long read_bits(self, int start_bit, int width)
     cpdef void write_bits(self, int start_bit, int width, unsigned long long value)
     cpdef unsigned char[::1] get_bytes(self, int offset, int length)

@@ -99,9 +99,14 @@ class SidebandConnectionRequestPacket(
 class CxlIoBasePacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoBasePacket):
     pass
 
-
 class CxlIoMemReqPacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoMemReqPacket):
     _tag_counter = 0
+
+    def get_data(self) -> bytes:
+        return bytes(super().get_data())
+
+    def set_data(self, data: bytes):
+        super().set_data(memoryview(data))
 
     @classmethod
     def get_tag(cls) -> int:
