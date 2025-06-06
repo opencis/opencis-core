@@ -1,74 +1,29 @@
-from enum import IntEnum
-
-
-class PAYLOAD_TYPE(IntEnum):
-    CXL = 0  # packet based on CPI
-    CXL_IO = 1  # Custom packet for CXL.io
-    CXL_MEM = 2  # Custom packet for CXL.mem
-    CXL_CACHE = 3  # Custom packet for CXL.cache
-    CCI_MCTP = 4  # Custom packet for CCI MCTP
-    SIDEBAND = 15
+from packet_constants import (
+    SYSTEM_PAYLOAD_TYPE,
+    CXL_IO_FMT_TYPE,
+    CXL_MEM_MSG_CLASS,
+    CXL_CACHE_MSG_CLASS,
+)
 
 
 class BasePacketMixin:
     def is_cxl_io(self) -> bool:
-        return self.system_header.payload_type == PAYLOAD_TYPE.CXL_IO
+        return self.system_header.payload_type == SYSTEM_PAYLOAD_TYPE.CXL_IO
 
     def is_cxl_mem(self) -> bool:
-        return self.system_header.payload_type == PAYLOAD_TYPE.CXL_MEM
+        return self.system_header.payload_type == SYSTEM_PAYLOAD_TYPE.CXL_MEM
 
     def is_cxl_cache(self) -> bool:
-        return self.system_header.payload_type == PAYLOAD_TYPE.CXL_CACHE
+        return self.system_header.payload_type == SYSTEM_PAYLOAD_TYPE.CXL_CACHE
 
     def is_cci(self) -> bool:
-        return self.system_header.payload_type == PAYLOAD_TYPE.CCI_MCTP
+        return self.system_header.payload_type == SYSTEM_PAYLOAD_TYPE.CCI_MCTP
 
     def is_sideband(self) -> bool:
-        return self.system_header.payload_type == PAYLOAD_TYPE.SIDEBAND
+        return self.system_header.payload_type == SYSTEM_PAYLOAD_TYPE.SIDEBAND
 
     def get_type(self) -> str:
         return self.__class__.__name__
-
-
-class CXL_IO_PROTOCOL(IntEnum):
-    MEM_RD = 0
-    MEM_WR = 1
-    CFG_RD = 2  # NOTE: Assume CFG_RD is CFG_RD0
-    CFG_WR = 3  # NOTE: Assume CFG_WR is CFG_WR0
-    CPL = 4
-    CPLD = 5
-    CFG_RD1 = 6
-    CFG_WR1 = 7
-    CPL_MEM = 8
-    CPLD_MEM = 9
-
-
-class CXL_IO_FMT_TYPE(IntEnum):
-    MRD_32B = 0b00000000
-    MRD_64B = 0b00100000
-    MRD_LK_32B = 0b00000001
-    MRD_LK_64B = 0b00100001
-    MWR_32B = 0b01000000
-    MWR_64B = 0b01100000
-    IO_RD = 0b00000010
-    IO_WR = 0b01000010
-    CFG_RD0 = 0b00000100
-    CFG_WR0 = 0b01000100
-    CFG_RD1 = 0b00000101
-    CFG_WR1 = 0b01000101
-    TCFG_RD = 0b00011011
-    D_MRW_32B = 0b01011011
-    D_MRW_64B = 0b01111011
-    CPL = 0b00001010
-    CPL_D = 0b01001010
-    CPL_LK = 0b00001011
-    CPL_D_LK = 0b01001011
-    FETCH_ADD_32B = 0b01001100
-    FETCH_ADD_64B = 0b01101100
-    SWAP_32B = 0b01001101
-    SWAP_64B = 0b01101101
-    CAS_32B = 0b01001110
-    CAS_64B = 0b011011
 
 
 class CxlIoBasePacketMixin:
@@ -146,90 +101,41 @@ class CxlIoBasePacketMixin:
         raise Exception("get_transaction_id must be implemented by a child class")
 
 
-class CXL_IO_CPL_STATUS(IntEnum):
-    SC = 0b000
-    UR = 0b001
-    RRS = 0b010
-    CA = 0b100
+class CxlCacheBasePacketMixin:
+    def is_d2hreq(self) -> bool:
+        return self.cxl_cache_header.msg_class == CXL_CACHE_MSG_CLASS.D2H_REQ
+
+    def is_d2hrsp(self) -> bool:
+        return self.cxl_cache_header.msg_class == CXL_CACHE_MSG_CLASS.D2H_RSP
+
+    def is_d2hdata(self) -> bool:
+        return self.cxl_cache_header.msg_class == CXL_CACHE_MSG_CLASS.D2H_DATA
+
+    def is_h2dreq(self) -> bool:
+        return self.cxl_cache_header.msg_class == CXL_CACHE_MSG_CLASS.H2D_REQ
+
+    def is_h2drsp(self) -> bool:
+        return self.cxl_cache_header.msg_class == CXL_CACHE_MSG_CLASS.H2D_RSP
+
+    def is_h2ddata(self) -> bool:
+        return self.cxl_cache_header.msg_class == CXL_CACHE_MSG_CLASS.H2D_DATA
 
 
-######### CACHE
-class CXL_CACHE_MSG_CLASS(IntEnum):
-    D2H_REQ = 1
-    D2H_RSP = 2
-    D2H_DATA = 3
-    H2D_REQ = 4
-    H2D_RSP = 5
-    H2D_DATA = 6
+class CxlMemBasePacketMixin:
+    def is_m2sreq(self) -> bool:
+        return self.cxl_mem_header.msg_class == CXL_MEM_MSG_CLASS.M2S_REQ
 
+    def is_m2srwd(self) -> bool:
+        return self.cxl_mem_header.msg_class == CXL_MEM_MSG_CLASS.M2S_RWD
 
-# Table 3-22
-class CXL_CACHE_D2HREQ_OPCODE(IntEnum):
-    CACHE_RD_CURR = 0b00001
-    CACHE_RD_OWN = 0b00010
-    CACHE_RD_SHARED = 0b00011
-    CACHE_RD_ANY = 0b00100
-    CACHE_RD_OWN_NO_DATA = 0b00101
-    CACHE_I_TO_M_WR = 0b00110
-    CACHE_WR_CUR = 0b00111
-    CACHE_CL_FLUSH = 0b01000
-    CACHE_CLEAN_EVICT = 0b01001
-    CACHE_DIRTY_EVICT = 0b01010
-    CACHE_CLEAN_EVICT_NO_DATA = 0b01011
-    CACHE_WEAKLY_ORDERED_WR_INV = 0b01100
-    CACHE_WEAKLY_ORDERED_WR_INV_F = 0b01101
-    CACHE_WR_INV = 0b01110
-    CACHE_CACHE_FLUSHED = 0b10000
+    def is_m2sbirsp(self) -> bool:
+        return self.cxl_mem_header.msg_class == CXL_MEM_MSG_CLASS.M2S_BIRSP
 
+    def is_s2mbisnp(self) -> bool:
+        return self.cxl_mem_header.msg_class == CXL_MEM_MSG_CLASS.S2M_BISNP
 
-# Table 3-14
-class CXL_CACHE_NON_TEMPORAL_ENCODINGS(IntEnum):
-    DEFAULT = 0
-    LRU = 1
+    def is_s2mndr(self) -> bool:
+        return self.cxl_mem_header.msg_class == CXL_MEM_MSG_CLASS.S2M_NDR
 
-
-# Table 3-25
-class CXL_CACHE_D2HRSP_OPCODE(IntEnum):
-    RSP_I_HIT_I = 0b00100
-    RSP_V_HIT_V = 0b00110
-    RSP_I_HIT_SE = 0b00101
-    RSP_S_HIT_SE = 0b00001
-    RSP_S_FWD_M = 0b00111
-    RSP_I_FWD_M = 0b01111
-    RSP_V_FWD_V = 0b10110
-
-
-# Table 3-26
-class CXL_CACHE_H2DREQ_OPCODE(IntEnum):
-    SNP_DATA = 0b001
-    SNP_INV = 0b010
-    SNP_CUR = 0b011
-
-
-# Table 3-27
-class CXL_CACHE_H2DRSP_OPCODE(IntEnum):
-    WRITE_PULL = 0b0001
-    GO = 0b0100
-    GO_WRITE_PULL = 0b0101
-    EXT_CMP = 0b0110
-    GO_WRITE_PULL_DROP = 0b1000
-    RSVD = 0b1100
-    FAST_GO_WRITE_PULL = 0b1101
-    GO_ERR_WRITE_PUL = 0b1111
-
-
-# Table 3-19
-class CXL_CACHE_H2DRSP_PRE(IntEnum):
-    HOST_CACHE_MISS_LOCAL_CPU_SOCKET = 0b00
-    HOST_CACHE_HIT = 0b01
-    HOST_CACHE_MISS_REMOTE_CPU_SOCKET = 0b10
-    RSVD = 0b11
-
-
-# Table 3-20
-class CXL_CACHE_H2DRSP_CACHE_STATE(IntEnum):
-    INVALID = 0b0011
-    SHARED = 0b0001
-    EXCLUSIVE = 0b0010
-    MODIFIED = 0b0110
-    ERROR = 0b0100
+    def is_s2mdrs(self) -> bool:
+        return self.cxl_mem_header.msg_class == CXL_MEM_MSG_CLASS.S2M_DRS

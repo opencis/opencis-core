@@ -1,4 +1,5 @@
 PACKETS = {
+    # CXL.io
     "CxlIoMemReqPacket": [
         ("SystemHeader", "system_header"),
         ("TlpPrefix", "tlp_prefix"),
@@ -26,6 +27,7 @@ PACKETS = {
         ("CxlIoCompletionHeader", "cpl_header"),
         "DataField",
     ],
+    # CXL.cache
     "CxlCacheD2HReqPacket": [
         ("SystemHeader", "system_header"),
         ("CxlCacheHeader", "cxl_cache_header"),
@@ -56,6 +58,39 @@ PACKETS = {
         ("SystemHeader", "system_header"),
         ("CxlCacheHeader", "cxl_cache_header"),
         ("CxlCacheH2DDataHeader", "h2ddata_header"),
+        "DataField",
+    ],
+    # CXL.mem
+    "CxlMemM2SReqPacket": [
+        ("SystemHeader", "system_header"),
+        ("CxlMemHeader", "cxl_mem_header"),
+        ("CxlMemM2SReqHeader", "m2sreq_header"),
+    ],
+    "CxlMemM2SRwDPacket": [
+        ("SystemHeader", "system_header"),
+        ("CxlMemHeader", "cxl_mem_header"),
+        ("CxlMemM2SRwDHeader", "m2srwd_header"),
+        "DataField",
+    ],
+    "CxlMemM2SBIRspPacket": [
+        ("SystemHeader", "system_header"),
+        ("CxlMemHeader", "cxl_mem_header"),
+        ("CxlMemM2SBIRspHeader", "m2sbirsp_header"),
+    ],
+    "CxlMemS2MBISnpPacket": [
+        ("SystemHeader", "system_header"),
+        ("CxlMemHeader", "cxl_mem_header"),
+        ("CxlMemS2MBISnpHeader", "s2mbisnp_header"),
+    ],
+    "CxlMemS2MNDRPacket": [
+        ("SystemHeader", "system_header"),
+        ("CxlMemHeader", "cxl_mem_header"),
+        ("CxlMemS2MNDRHeader", "s2mndr_header"),
+    ],
+    "CxlMemS2MDRSPacket": [
+        ("SystemHeader", "system_header"),
+        ("CxlMemHeader", "cxl_mem_header"),
+        ("CxlMemS2MDRSHeader", "s2mdrs_header"),
         "DataField",
     ],
 }

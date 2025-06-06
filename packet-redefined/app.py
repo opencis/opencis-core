@@ -3,6 +3,8 @@ import time
 from transaction import (
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
+    CxlIoCfgRdPacket,
+    CxlIoCfgWrPacket,
     CxlIoCompletionPacket,
     CxlIoCompletionWithDataPacket,
     CxlCacheD2HReqPacket,
@@ -11,8 +13,87 @@ from transaction import (
     CxlCacheH2DReqPacket,
     CxlCacheH2DRspPacket,
     CxlCacheH2DDataPacket,
+    CxlMemMemRdPacket,
+    CxlMemMemWrPacket,
+    CxlMemBIRspPacket,
+    CxlMemBISnpPacket,
+    CxlMemMemDataPacket,
+    CxlMemCmpPacket,
+)
+from packet_constants import (
+    SYSTEM_PAYLOAD_TYPE,
+    CXL_IO_FMT_TYPE,
+    CXL_IO_CPL_STATUS,
+    CXL_CACHE_MSG_CLASS,
+    CXL_CACHE_D2HREQ_OPCODE,
+    CXL_CACHE_D2HRSP_OPCODE,
+    CXL_CACHE_H2DREQ_OPCODE,
+    CXL_CACHE_H2DRSP_OPCODE,
+    CXL_CACHE_H2DRSP_CACHE_STATE,
+    CXL_MEM_MSG_CLASS,
+    CXL_MEM_M2SREQ_OPCODE,
+    CXL_MEM_M2SRWD_OPCODE,
+    CXL_MEM_META_FIELD,
+    CXL_MEM_META_VALUE,
+    CXL_MEM_M2S_SNP_TYPE,
+    CXL_MEM_M2SBIRSP_OPCODE,
+    CXL_MEM_S2MBISNP_OPCODE,
+    CXL_MEM_S2MDRS_OPCODE,
+    CXL_MEM_S2MNDR_OPCODE,
 )
 
+def instantiate_packets():
+    CxlMemBISnpPacket.tag = 0  # ensure static tag starts correctly
+
+    packets = []
+
+    buf = np.zeros(128, dtype=np.uint8)  # binary buffer for test payloads
+
+    # CXL.io memory packets
+    packets.append(CxlIoMemRdPacket.create(addr=0x1000, length=4, req_id=1, tag=2))
+    packets.append(CxlIoMemWrPacket.create(addr=0x1000, data=buf[:4], req_id=1, tag=2))
+
+    # CXL.io config packets
+    packets.append(CxlIoCfgRdPacket.create(id=0x10, cfg_addr=0x04, size=1, req_id=1, tag=1))
+    packets.append(CxlIoCfgWrPacket.create(id=0x10, cfg_addr=0x04, size=1, value=0xDE, req_id=1, tag=1))
+
+    # CXL.io completion packets
+    packets.append(CxlIoCompletionPacket.create(req_id=0x10, tag=0x1A))
+    packets.append(CxlIoCompletionWithDataPacket.create(req_id=0x10, tag=0x1A, data=buf))
+
+    # CXL.cache packets
+    packets.append(CxlCacheD2HReqPacket.create(
+        addr=0x1000,
+        cache_id=1,
+        opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_CURR,
+        cqid=0
+    ))
+    packets.append(CxlCacheD2HRspPacket.create(
+        uqid=1,
+        opcode=CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_I
+    ))
+    packets.append(CxlCacheD2HDataPacket.create(uqid=1, data=0xDEADBEEF))
+    packets.append(CxlCacheH2DReqPacket.create(
+        addr=0x1000,
+        cache_id=1,
+        opcode=CXL_CACHE_H2DREQ_OPCODE.SNP_DATA
+    ))
+    packets.append(CxlCacheH2DRspPacket.create(
+        cache_id=1,
+        opcode=CXL_CACHE_H2DRSP_OPCODE.WRITE_PULL,
+        rsp_data=CXL_CACHE_H2DRSP_CACHE_STATE.EXCLUSIVE
+    ))
+    packets.append(CxlCacheH2DDataPacket.create(cache_id=1, data=0xBEEF))
+
+    # CXL.mem packets
+    packets.append(CxlMemMemRdPacket.create(addr=0x1000))
+    packets.append(CxlMemMemWrPacket.create(addr=0x1000, data=0x12345678))
+    packets.append(CxlMemBIRspPacket.create(opcode=CXL_MEM_M2SBIRSP_OPCODE.BIRSP_I))
+    packets.append(CxlMemBISnpPacket.create(addr=0x1000, opcode=CXL_MEM_S2MBISNP_OPCODE.BISNP_DATA))
+    packets.append(CxlMemMemDataPacket.create(data=buf))  # buffer passed directly
+    packets.append(CxlMemCmpPacket.create())
+
+    return packets
 
 def handle_rd_packet(pkt):
     print("CxlIoMemRdPacket:")
@@ -85,59 +166,15 @@ def main():
     data = np.array(list(b"Hello World"), dtype=np.uint8)
     pkt.set_data(data)
     print(f"post: {pkt.get_size()}")
-    # handle_wr_packet(pkt)
+    handle_wr_packet(pkt)
 
     print(f"pre: {pkt.get_size()}")
     data = np.array(list(b"Hel"), dtype=np.uint8)
     pkt.set_data(data)
     print(f"post: {pkt.get_size()}")
 
-    packet = CxlIoCompletionPacket.create(req_id=0, tag=1)
-
-
-    # CXL Cache D2H Request
-    d2h_req = CxlCacheD2HReqPacket.create(
-        addr=0x1000,
-        cache_id=1,
-        opcode=5,
-        cqid=5,
-    )
-
-    # CXL Cache D2H Response
-    d2h_rsp = CxlCacheD2HRspPacket.create(
-        uqid=42,
-        opcode=6,
-    )
-
-    # CXL Cache D2H Data
-    d2h_data = CxlCacheD2HDataPacket.create(
-        uqid=42,
-        data=0xDEADBEEFCAFEBABE,
-    )
-
-    # CXL Cache H2D Request
-    h2d_req = CxlCacheH2DReqPacket.create(
-        addr=0x2000,
-        cache_id=2,
-        opcode=7,
-    )
-
-    # CXL Cache H2D Response
-    h2d_rsp = CxlCacheH2DRspPacket.create(
-        cache_id=2,
-        opcode=1,
-        rsp_data=2,
-        cqid=3,
-    )
-
-    # CXL Cache H2D Data
-    h2d_data = CxlCacheH2DDataPacket.create(
-        cache_id=2,
-        data=0xAABBCCDDEEFF0011,
-        cqid=3,
-    )
-
-
+    res = instantiate_packets()
+    print(res)
 
 if __name__ == "__main__":
     main()

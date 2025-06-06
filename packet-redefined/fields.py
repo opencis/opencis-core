@@ -118,7 +118,7 @@ CxlCacheH2DDataHeader = [
     ("rsvd", 19, 5),
 ]
 
-CxlMemHeaderPacket = [
+CxlMemHeader = [
     ("port_index", 0, 8),
     ("msg_class", 8, 8),
 ]
