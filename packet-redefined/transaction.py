@@ -282,7 +282,10 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
     ) -> "CxlIoCfgWrPacket":
         offset = cfg_addr % 4
         pkt = cls(None)
-        pkt.set_data(bytes(value << (8 * offset)))
+
+        value = value << (8 * offset)
+        num_bytes = (value.bit_length() + 7) // 8 or 1
+        pkt.set_data(value.to_bytes(num_bytes, byteorder="little"))
         pkt.fill(id, cfg_addr, size, htotlp16(req_id), cls.get_tag())
         pkt.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_WR0 if is_type0 else CXL_IO_FMT_TYPE.CFG_WR1
@@ -330,7 +333,7 @@ class CxlIoCompletionPacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoCompl
         return pkt
 
     def get_transaction_id(self) -> int:
-        return self.build_transaction_id(self.cpl_header.req_id, pkt.cpl_header.tag)
+        return self.build_transaction_id(self.cpl_header.req_id, self.cpl_header.tag)
 
 
 class CxlIoCompletionWithDataPacket(
@@ -370,7 +373,7 @@ class CxlIoCompletionWithDataPacket(
         return pkt
 
     def get_transaction_id(self) -> int:
-        return self.build_transaction_id(self.cpl_header.req_id, pkt.cpl_header.tag)
+        return self.build_transaction_id(self.cpl_header.req_id, self.cpl_header.tag)
 
 
 ######### IO helper ##################
@@ -460,7 +463,8 @@ class CxlCacheCacheD2HDataPacket(
         pkt.d2hdata_header.valid = 1
         pkt.d2hdata_header.uqid = uqid
         pkt.d2hdata_header.poison = 0
-        pkt.set_data(bytes(data))
+        num_bytes = (data.bit_length() + 7) // 8 or 1
+        pkt.set_data(data.to_bytes(num_bytes, byteorder="little"))
         pkt.system_header.payload_length = pkt.get_size()
         return pkt
 
@@ -532,7 +536,8 @@ class CxlCacheCacheH2DDataPacket(
         pkt.h2ddata_header.valid = 1
         pkt.h2ddata_header.cache_id = cache_id
         pkt.h2ddata_header.cqid = cqid
-        pkt.set_data(data)
+        num_bytes = (data.bit_length() + 7) // 8 or 1
+        pkt.set_data(data.to_bytes(num_bytes, byteorder="little"))
         pkt.system_header.payload_length = pkt.get_size()
         return pkt
 
@@ -647,7 +652,8 @@ class CxlMemMemWrPacket(
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")
         pkt.m2srwd_header.addr = addr >> 6
-        pkt.set_data(data)
+        num_bytes = (data.bit_length() + 7) // 8 or 1
+        pkt.set_data(data.to_bytes(num_bytes, byteorder="little"))
         pkt.system_header.payload_length = pkt.get_size()
         return pkt
 

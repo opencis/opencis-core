@@ -1,7 +1,11 @@
 import asyncio
-
-import numpy as np
 import time
+import io
+import platform
+import os
+import cProfile
+import pstats
+
 from transaction import (
     SidebandConnectionRequestPacket,
     CxlIoMemRdPacket,
@@ -100,7 +104,7 @@ def instantiate_packets():
     packets.append(CxlMemMemWrPacket.create(addr=0x1000, data=0x12345678))
     packets.append(CxlMemBIRspPacket.create(opcode=CXL_MEM_M2SBIRSP_OPCODE.BIRSP_I))
     packets.append(CxlMemBISnpPacket.create(addr=0x1000, opcode=CXL_MEM_S2MBISNP_OPCODE.BISNP_DATA))
-    packets.append(CxlMemMemDataPacket.create(data=buf))  # buffer passed directly
+    packets.append(CxlMemMemDataPacket.create(data=buf))
     packets.append(CxlMemCmpPacket.create())
 
     return packets
@@ -121,15 +125,6 @@ def handle_wr_packet(pkt):
     print(f"  addr_upper = {pkt.mreq_header.addr_upper}")
     print(f"  data       = {bytes(pkt.get_data())}")
     print()
-
-
-import cProfile
-import pstats
-import io
-
-import cProfile
-import pstats
-import io
 
 
 def benchmark_packet_io_profiled(packet, data, iterations=10000):
@@ -192,47 +187,55 @@ def benchmark_packet_io(packet, data, iterations=10000):
     print()
 
 
+def run_benchmarks_on_data_packets(packets, data, iterations=10000):
+    print("=" * 80)
+    print("Running benchmarks on packets supporting get_data()/set_data()")
+    print("=" * 80)
+    for pkt in packets:
+        pkt_type = pkt.__class__.__name__
+        if not all(hasattr(pkt, attr) for attr in ("get_data", "set_data")):
+            continue
+        print(f"\n--- [Packet Type: {pkt_type}] ---\n")
+        try:
+            print("[NON-PROFILED]")
+            benchmark_packet_io(pkt, data, iterations)
+
+            print("[PROFILED]")
+            benchmark_packet_io_profiled(pkt, data, iterations // 10)
+        except Exception as e:
+            print(f"[ERROR] Benchmark failed for {pkt_type}: {e}")
+
+    print("Benchmark done. Proceeding to reader test...", flush=True)
+
+
 def main():
     data = bytes([1] * 128)
     buf_wr = bytearray(bytes([1] * 128))
     buf_rd = bytearray(bytes([1] * 128))
 
-    print("Benchmarking data I/O...")
+    print(f"Python: {platform.python_version()}, PID: {os.getpid()}")
+    print("Initial sanity benchmark with CxlIoMemWrPacket:")
     wr_pkt = CxlIoMemWrPacket(buf_wr)
     wr_pkt.mreq_header.req_id = 0x4341
     wr_pkt.mreq_header.tag = 0x78
     wr_pkt.mreq_header.addr_upper = 0xFFFFFFFF12345678
     benchmark_packet_io(wr_pkt, data, iterations=100000)
 
+    print("Sanity check: CxlIoMemRdPacket:")
     rd_pkt = CxlIoMemRdPacket(buf_rd)
     rd_pkt.mreq_header.req_id = 0x1234
     rd_pkt.mreq_header.tag = 0x56
     rd_pkt.mreq_header.addr_upper = 0xFFFFFFFFABCDEFBA
     handle_rd_packet(rd_pkt)
 
-    # Demonstrate functionality
+    print("Write Packet Data:")
     wr_pkt.set_data(data[:10])
     handle_wr_packet(wr_pkt)
 
-    # pkt = CxlIoMemRdPacket.create(0x4000, 0x20)
-    # print(f"{pkt.is_cxl_io()}, {pkt.is_mmio()}, {pkt.is_cxl_mem()}")
-
-    # buf_wr = np.zeros(128, dtype=np.uint8)
-    # pkt = CxlIoMemWrPacket.create(0x4000, data[:10])
-    # print(f"{pkt.is_cxl_io()}, {pkt.is_mmio()}, {pkt.is_cxl_mem()}")
-
-    # print(f"pre: {pkt.get_size()}")
-    # data = np.array(list(b"Hello World"), dtype=np.uint8)
-    # pkt.set_data(data)
-    # print(f"post: {pkt.get_size()}")
-    # handle_wr_packet(pkt)
-
-    # print(f"pre: {pkt.get_size()}")
-    # data = np.array(list(b"Hel"), dtype=np.uint8)
-    # pkt.set_data(data)
-    # print(f"post: {pkt.get_size()}")
-
-    res = instantiate_packets()
+    packets = instantiate_packets()
+    print("About?")
+    run_benchmarks_on_data_packets(packets, data, iterations=10000)
+    print("HERE?")
     test_packet_reader()
 
 
@@ -264,7 +267,6 @@ async def simulate_packet_reader(packets):
     results = []
     try:
         for pkt in packets:
-            # print(f"{pkt}, {bytes(pkt)}")
             reader.feed(bytes(pkt))
             received = await packet_reader.get_packet()
             print(f"[RECEIVED] {received.__class__.__name__}")
