@@ -44,7 +44,13 @@ def emit_struct(name, layout):
 
 
 def emit_composite(packet_name, layout, field_sizes):
-    lines = [f"cdef class Raw{packet_name}(PacketBuffer):"]
+    lines = [
+        "# Generated file\n",
+        "from packet_base cimport PacketBuffer\n",
+        "from libc.string cimport memcpy\n",
+        "",
+        f"cdef class Raw{packet_name}(PacketBuffer):",
+    ]
     field_entries = []
     has_data_field = False
 
@@ -85,7 +91,7 @@ def emit_composite(packet_name, layout, field_sizes):
     lines.append("            raw_buf = bytearray(200)")
     lines.append("            buf = raw_buf")
     lines.append(f"        self.ACTUAL_SIZE = {total_bytes}")
-    lines.append("        self.buf = buf")  
+    lines.append("        self.buf = buf")
     lines.append("        self._data_length = len(buf) - self.ACTUAL_SIZE")
 
     offset = 0
@@ -99,16 +105,19 @@ def emit_composite(packet_name, layout, field_sizes):
 
     if has_data_field:
         lines.append("")
-        lines.append(f"    def get_data(self):")
-        lines.append(f"        return self.buf[{offset}:{offset} + self._data_length]")
+        lines.append(f"    cpdef bytes get_data(self):")
+        lines.append(
+            f"        return (<const unsigned char*> &self.buf[{offset}])[:self._data_length]"
+        )
+        lines.append("")
         lines.append("    def set_data(self, data):")
-        lines.append("        cdef unsigned char[::1] mv")
-        lines.append("        if isinstance(data, bytes):")
-        lines.append(f"            mv = data")
-        lines.append("        else:")
-        lines.append(f"            mv = data")
-        lines.append(f"        self.buf[{offset}:{offset} + mv.shape[0]] = mv")
-        lines.append(f"        self._data_length = mv.shape[0]")
+        lines.append("        cdef const unsigned char* ptr = data")
+        lines.append("        cdef Py_ssize_t n = len(data)")
+        lines.append("        self.set_data_raw(ptr, n)")
+        lines.append("")
+        lines.append("    cpdef void set_data_raw(self, const unsigned char* data, Py_ssize_t n):")
+        lines.append(f"        memcpy(&self.buf[{offset}], data, n)")
+        lines.append("        self._data_length = n")
         lines.append("")
         lines.append(f"    cpdef int get_size(self):")
         lines.append(f"        return self.ACTUAL_SIZE + self._data_length")

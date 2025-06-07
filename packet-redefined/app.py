@@ -52,7 +52,7 @@ def instantiate_packets():
 
     packets = []
 
-    buf = np.ones(128, dtype=np.uint8)  # binary buffer for test payloads
+    buf = bytes([1] * 128)
 
     # side band packets
     packets.append(SidebandConnectionRequestPacket.create(port_index=1))
@@ -121,8 +121,56 @@ def handle_wr_packet(pkt):
     print()
 
 
+import cProfile
+import pstats
+import io
+
+import cProfile
+import pstats
+import io
+
+
+def benchmark_packet_io_profiled(packet, data, iterations=10000):
+    """Benchmark write + read data for a given packet with profiling."""
+    pr_write = cProfile.Profile()
+    pr_write.enable()
+    start = time.time()
+    for _ in range(iterations):
+        packet.set_data(data)
+    write_time = time.time() - start
+    pr_write.disable()
+
+    pr_read = cProfile.Profile()
+    pr_read.enable()
+    start = time.time()
+    for _ in range(iterations):
+        _ = bytes(packet.get_data())
+    read_time = time.time() - start
+    pr_read.disable()
+
+    total_bytes = len(data) * iterations
+    write_MBps = total_bytes / (1024 * 1024) / write_time
+    read_MBps = total_bytes / (1024 * 1024) / read_time
+
+    print(f"[WRITE] {total_bytes} bytes in {write_time:.3f}s → {write_MBps:.2f} MB/s")
+    print(f"[READ]  {total_bytes} bytes in {read_time:.3f}s → {read_MBps:.2f} MB/s")
+    print()
+
+    print("[WRITE PROFILE]")
+    s = io.StringIO()
+    ps = pstats.Stats(pr_write, stream=s).sort_stats("cumulative")
+    ps.print_stats()
+    print(s.getvalue())
+
+    print("[READ PROFILE]")
+    s = io.StringIO()
+    ps = pstats.Stats(pr_read, stream=s).sort_stats("cumulative")
+    ps.print_stats()
+    print(s.getvalue())
+
+
 def benchmark_packet_io(packet, data, iterations=10000):
-    """Benchmark write + read data for a given packet."""
+    """Benchmark write + read data for a given packet without profiling."""
     start = time.time()
     for _ in range(iterations):
         packet.set_data(data)
@@ -143,44 +191,44 @@ def benchmark_packet_io(packet, data, iterations=10000):
 
 
 def main():
-    buf_rd = np.zeros(24, dtype=np.uint8)
+    data = bytes([1] * 128)
+    buf_wr = bytearray(bytes([1] * 128))
+    buf_rd = bytearray(bytes([1] * 128))
+
+    print("Benchmarking data I/O...")
+    wr_pkt = CxlIoMemWrPacket(buf_wr)
+    wr_pkt.mreq_header.req_id = 0x4341
+    wr_pkt.mreq_header.tag = 0x78
+    wr_pkt.mreq_header.addr_upper = 0xFFFFFFFF12345678
+    benchmark_packet_io(wr_pkt, data, iterations=100000)
+
     rd_pkt = CxlIoMemRdPacket(buf_rd)
     rd_pkt.mreq_header.req_id = 0x1234
     rd_pkt.mreq_header.tag = 0x56
     rd_pkt.mreq_header.addr_upper = 0xFFFFFFFFABCDEFBA
     handle_rd_packet(rd_pkt)
 
-    buf_wr = np.zeros(128, dtype=np.uint8)
-    wr_pkt = CxlIoMemWrPacket(buf_wr)
-    wr_pkt.mreq_header.req_id = 0x4341
-    wr_pkt.mreq_header.tag = 0x78
-    wr_pkt.mreq_header.addr_upper = 0xFFFFFFFF12345678
-
-    data = np.random.randint(0, 256, size=64, dtype=np.uint8)
-    print("Benchmarking data I/O...")
-    benchmark_packet_io(wr_pkt, data, iterations=100000)
-
     # Demonstrate functionality
     wr_pkt.set_data(data[:10])
     handle_wr_packet(wr_pkt)
 
-    pkt = CxlIoMemRdPacket.create(0x4000, 0x20)
-    print(f"{pkt.is_cxl_io()}, {pkt.is_mmio()}, {pkt.is_cxl_mem()}")
+    # pkt = CxlIoMemRdPacket.create(0x4000, 0x20)
+    # print(f"{pkt.is_cxl_io()}, {pkt.is_mmio()}, {pkt.is_cxl_mem()}")
 
-    buf_wr = np.zeros(128, dtype=np.uint8)
-    pkt = CxlIoMemWrPacket.create(0x4000, data[:10])
-    print(f"{pkt.is_cxl_io()}, {pkt.is_mmio()}, {pkt.is_cxl_mem()}")
+    # buf_wr = np.zeros(128, dtype=np.uint8)
+    # pkt = CxlIoMemWrPacket.create(0x4000, data[:10])
+    # print(f"{pkt.is_cxl_io()}, {pkt.is_mmio()}, {pkt.is_cxl_mem()}")
 
-    print(f"pre: {pkt.get_size()}")
-    data = np.array(list(b"Hello World"), dtype=np.uint8)
-    pkt.set_data(data)
-    print(f"post: {pkt.get_size()}")
-    handle_wr_packet(pkt)
+    # print(f"pre: {pkt.get_size()}")
+    # data = np.array(list(b"Hello World"), dtype=np.uint8)
+    # pkt.set_data(data)
+    # print(f"post: {pkt.get_size()}")
+    # handle_wr_packet(pkt)
 
-    print(f"pre: {pkt.get_size()}")
-    data = np.array(list(b"Hel"), dtype=np.uint8)
-    pkt.set_data(data)
-    print(f"post: {pkt.get_size()}")
+    # print(f"pre: {pkt.get_size()}")
+    # data = np.array(list(b"Hel"), dtype=np.uint8)
+    # pkt.set_data(data)
+    # print(f"post: {pkt.get_size()}")
 
     res = instantiate_packets()
     test_packet_reader()

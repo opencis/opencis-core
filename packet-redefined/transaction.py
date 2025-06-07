@@ -70,6 +70,7 @@ from mixin import (
     CxlIoBasePacketMixin,
     CxlCacheBasePacketMixin,
     CxlMemBasePacketMixin,
+    PacketDataMixin,
 )
 
 
@@ -99,14 +100,11 @@ class SidebandConnectionRequestPacket(
 class CxlIoBasePacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoBasePacket):
     pass
 
-class CxlIoMemReqPacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoMemReqPacket):
+
+class CxlIoMemReqPacket(
+    BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoMemReqPacket, PacketDataMixin
+):
     _tag_counter = 0
-
-    def get_data(self) -> bytes:
-        return bytes(super().get_data())
-
-    def set_data(self, data: bytes):
-        super().set_data(memoryview(data))
 
     @classmethod
     def get_tag(cls) -> int:
@@ -169,7 +167,9 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         return pkt
 
 
-class CxlIoCfgReqPacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoCfgReqPacket):
+class CxlIoCfgReqPacket(
+    BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoCfgReqPacket, PacketDataMixin
+):
     def fill(self, id: int, cfg_addr: int, size: int, req_id: int, tag: int) -> "CxlIoCfgReqPacket":
         self.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_IO
 
@@ -337,7 +337,7 @@ class CxlIoCompletionPacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoCompl
 
 
 class CxlIoCompletionWithDataPacket(
-    BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoCompletionWithDataPacket
+    BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoCompletionWithDataPacket, PacketDataMixin
 ):
     @classmethod
     def create(
@@ -427,7 +427,9 @@ class CxlCacheD2HRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCache
         return pkt
 
 
-class CxlCacheD2HDataPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HDataPacket):
+class CxlCacheD2HDataPacket(
+    BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HDataPacket, PacketDataMixin
+):
     @classmethod
     def create(
         cls,
@@ -496,7 +498,9 @@ class CxlCacheH2DRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCache
         return self.h2drsp_header.cache_opcode
 
 
-class CxlCacheH2DDataPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DDataPacket):
+class CxlCacheH2DDataPacket(
+    BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DDataPacket, PacketDataMixin
+):
     @classmethod
     def create(
         cls,
@@ -577,7 +581,9 @@ class CxlMemMemRdPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SReqP
         return pkt
 
 
-class CxlMemMemWrPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SRwDPacket):
+class CxlMemMemWrPacket(
+    BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SRwDPacket, PacketDataMixin
+):
     @classmethod
     def create(
         cls,
@@ -656,7 +662,9 @@ class CxlMemBISnpPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MBISn
         return pkt
 
 
-class CxlMemMemDataPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MDRSPacket):
+class CxlMemMemDataPacket(
+    BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MDRSPacket, PacketDataMixin
+):
     @classmethod
     def create(
         cls,

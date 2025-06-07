@@ -7,6 +7,14 @@ from packet_constants import (
 )
 
 
+class PacketDataMixin:
+    def get_data(self) -> bytes:
+        return bytes(super().get_data())
+
+    def set_data(self, data: bytes):
+        super().set_data(data)
+
+
 class BasePacketMixin:
     def is_cxl_io(self) -> bool:
         return self.system_header.payload_type == SYSTEM_PAYLOAD_TYPE.CXL_IO
