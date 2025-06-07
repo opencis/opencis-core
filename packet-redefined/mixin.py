@@ -108,20 +108,10 @@ class CxlIoBasePacketMixin:
             CXL_IO_FMT_TYPE.MWR_64B,
         )
 
-    # @staticmethod
-    # def get_tag() -> int:
-    #     old_tag = CxlIoBasePacket.tag
-    #     CxlIoBasePacket.tag += 1
-    #     CxlIoBasePacket.tag %= 256
-    #     return old_tag
-
     @staticmethod
     def build_transaction_id(req_id: int, tag: int) -> int:
         tid = (req_id << 8) | tag
         return tid
-
-    def get_transaction_id(self) -> int:
-        raise Exception("get_transaction_id must be implemented by a child class")
 
 
 class CxlCacheBasePacketMixin:

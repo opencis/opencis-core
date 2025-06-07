@@ -104,7 +104,7 @@ class CxlIoBasePacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoBasePacket)
 class CxlIoMemReqPacket(
     BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoMemReqPacket, PacketDataMixin
 ):
-    _tag_counter = 0
+    _tag_counter: int = 0
 
     @classmethod
     def get_tag(cls) -> int:
@@ -142,6 +142,9 @@ class CxlIoMemReqPacket(
 
     def get_data_size(self) -> int:
         return ((self.cxl_io_header.length_upper << 8) | self.cxl_io_header.length_lower) * 4
+
+    def get_transaction_id(self) -> int:
+        return self.build_transaction_id(self.mreq_header.req_id, self.mreq_header.tag)
 
 
 class CxlIoMemRdPacket(CxlIoMemReqPacket):
@@ -231,7 +234,7 @@ class CxlIoCfgReqPacket(
         return extract_function_from_bdf(dest_id)
 
     def get_transaction_id(self) -> int:
-        return self.cfg_req_header.get_transaction_id()
+        return self.build_transaction_id(self.cfg_req_header.req_id, self.cfg_req_header.tag)
 
 
 class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
@@ -246,15 +249,8 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
         tag: Optional[int] = None,
         ld_id: int = 0,
     ) -> "CxlIoCfgRdPacket":
-        # if req_id is not None:
-        #     req_id = htotlp16(req_id)
-        # else:
-        #     req_id = 0
-        # if tag is None:
-        #     tag = cls.get_tag()
-        # tag %= 256
         pkt = cls(None)
-        pkt.fill(id, cfg_addr, size, req_id, tag)
+        pkt.fill(id, cfg_addr, size, htotlp16(req_id), cls.get_tag())
         pkt.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_RD0 if is_type0 else CXL_IO_FMT_TYPE.CFG_RD1
         )
@@ -276,21 +272,14 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
         tag: Optional[int] = None,
         ld_id: int = 0,
     ) -> "CxlIoCfgWrPacket":
-        # if req_id is not None:
-        #     req_id = htotlp16(req_id)
-        # else:
-        #     req_id = 0
-        # if tag is None:
-        #     tag = cls.get_tag()
-        # tag %= 256
         offset = cfg_addr % 4
         pkt = cls(None)
-        pkt.fill(id, cfg_addr, size, req_id, tag)
+        pkt.set_data(value << (8 * offset))
+        pkt.fill(id, cfg_addr, size, htotlp16(req_id), cls.get_tag())
         pkt.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_WR0 if is_type0 else CXL_IO_FMT_TYPE.CFG_WR1
         )
         pkt.tlp_prefix.ld_id = ld_id
-        pkt.value = value << (8 * offset)
         pkt.system_header.payload_length = pkt.get_size()
         return pkt
 
@@ -333,7 +322,7 @@ class CxlIoCompletionPacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoCompl
         return pkt
 
     def get_transaction_id(self) -> int:
-        return self.cpl_header.get_transaction_id()
+        return self.build_transaction_id(self.cpl_header.req_id, pkt.cpl_header.tag)
 
 
 class CxlIoCompletionWithDataPacket(
@@ -373,7 +362,28 @@ class CxlIoCompletionWithDataPacket(
         return pkt
 
     def get_transaction_id(self) -> int:
-        return self.cpl_header.get_transaction_id()
+        return self.build_transaction_id(self.cpl_header.req_id, pkt.cpl_header.tag)
+
+
+######### IO helper ##################
+
+
+def is_cxl_io_completion_status_sc(packet) -> bool:
+    if not packet.is_cxl_io():
+        return False
+    if packet.is_cpld():
+        return True
+    if not packet.is_cpl():
+        return False
+    return packet.cpl_header.status == CXL_IO_CPL_STATUS.SC
+
+
+def is_cxl_io_completion_status_ur(packet) -> bool:
+    if not packet.is_cxl_io():
+        return False
+    if not packet.is_cpl():
+        return False
+    return packet.cpl_header.status == CXL_IO_CPL_STATUS.UR
 
 
 ######################################## CACHE
@@ -381,7 +391,7 @@ class CxlCacheBasePacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheBa
     pass
 
 
-class CxlCacheD2HReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HReqPacket):
+class CxlCacheCacheD2HReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HReqPacket):
     @classmethod
     def create(
         cls,
@@ -389,7 +399,7 @@ class CxlCacheD2HReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCache
         cache_id: int,
         opcode: CXL_CACHE_D2HREQ_OPCODE,
         cqid: int = 0,
-    ) -> "CxlCacheD2HReqPacket":
+    ) -> "CxlCacheCacheD2HReqPacket":
         pkt = cls()
         pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
         pkt.system_header.payload_length = pkt.get_size()
@@ -410,13 +420,13 @@ class CxlCacheD2HReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCache
         self.d2hreq_header.cache_id = cache_id
 
 
-class CxlCacheD2HRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HRspPacket):
+class CxlCacheCacheD2HRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HRspPacket):
     @classmethod
     def create(
         cls,
         uqid: int,
         opcode: CXL_CACHE_D2HRSP_OPCODE,
-    ) -> "CxlCacheD2HRspPacket":
+    ) -> "CxlCacheCacheD2HRspPacket":
         pkt = cls()
         pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
         pkt.system_header.payload_length = pkt.get_size()
@@ -427,7 +437,7 @@ class CxlCacheD2HRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCache
         return pkt
 
 
-class CxlCacheD2HDataPacket(
+class CxlCacheCacheD2HDataPacket(
     BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HDataPacket, PacketDataMixin
 ):
     @classmethod
@@ -435,29 +445,28 @@ class CxlCacheD2HDataPacket(
         cls,
         uqid: int,
         data: int,
-    ) -> "CxlCacheD2HDataPacket":
+    ) -> "CxlCacheCacheD2HDataPacket":
         pkt = cls()
         pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
-        pkt.system_header.payload_length = pkt.get_size()
         pkt.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_DATA
         pkt.d2hdata_header.valid = 1
         pkt.d2hdata_header.uqid = uqid
         pkt.d2hdata_header.poison = 0
-        pkt.data = data
+        pkt.set_data(data)
+        pkt.system_header.payload_length = pkt.get_size()
         return pkt
 
 
-class CxlCacheH2DReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DReqPacket):
+class CxlCacheCacheH2DReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DReqPacket):
     @classmethod
     def create(
         cls,
         addr: int,
         cache_id: int,
         opcode: CXL_CACHE_H2DREQ_OPCODE,
-    ) -> "CxlCacheH2DReqPacket":
+    ) -> "CxlCacheCacheH2DReqPacket":
         pkt = cls()
         pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
-        pkt.system_header.payload_length = pkt.get_size()
         pkt.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_REQ
         pkt.h2dreq_header.valid = 1
         pkt.h2dreq_header.cache_opcode = opcode
@@ -465,6 +474,7 @@ class CxlCacheH2DReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCache
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")
         pkt.h2dreq_header.addr = addr >> 6
+        pkt.system_header.payload_length = pkt.get_size()
         return pkt
 
     def get_address(self) -> int:
@@ -474,7 +484,7 @@ class CxlCacheH2DReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCache
         return self.h2dreq_header.cache_opcode
 
 
-class CxlCacheH2DRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DRspPacket):
+class CxlCacheCacheH2DRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DRspPacket):
     @classmethod
     def create(
         cls,
@@ -482,7 +492,7 @@ class CxlCacheH2DRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCache
         opcode: CXL_CACHE_H2DRSP_OPCODE,
         rsp_data: CXL_CACHE_H2DRSP_CACHE_STATE,
         cqid: int = 0,
-    ) -> "CxlCacheH2DRspPacket":
+    ) -> "CxlCacheCacheH2DRspPacket":
         pkt = cls()
         pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
         pkt.system_header.payload_length = pkt.get_size()
@@ -498,7 +508,7 @@ class CxlCacheH2DRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCache
         return self.h2drsp_header.cache_opcode
 
 
-class CxlCacheH2DDataPacket(
+class CxlCacheCacheH2DDataPacket(
     BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DDataPacket, PacketDataMixin
 ):
     @classmethod
@@ -507,15 +517,15 @@ class CxlCacheH2DDataPacket(
         cache_id: int,
         data: int,
         cqid: int = 0,
-    ) -> "CxlCacheH2DDataPacket":
+    ) -> "CxlCacheCacheH2DDataPacket":
         pkt = cls()
         pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
-        pkt.system_header.payload_length = pkt.get_size()
         pkt.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_DATA
         pkt.h2ddata_header.valid = 1
         pkt.h2ddata_header.cache_id = cache_id
         pkt.h2ddata_header.cqid = cqid
-        pkt.data = data
+        pkt.set_data(data)
+        pkt.system_header.payload_length = pkt.get_size()
         return pkt
 
     def get_cqid(self) -> int:
@@ -523,6 +533,19 @@ class CxlCacheH2DDataPacket(
 
     def get_cache_id(self) -> int:
         return self.h2ddata_header.cache_id
+
+
+######### CACHE helper ##################
+def is_cxl_cache_h2d_data(packet) -> bool:
+    if not packet.is_cxl_cache():
+        return False
+    return packet.is_h2ddata() and packet.h2ddata_header.valid == 1
+
+
+def is_cxl_cache_d2h_data(packet: BasePacket) -> bool:
+    if not packet.is_cxl_cache():
+        return False
+    return packet.is_d2hdata() and packet.d2hdata_header.valid == 1
 
 
 ########################### CXL.mem
@@ -580,6 +603,15 @@ class CxlMemMemRdPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SReqP
         pkt.m2sreq_header.addr = addr >> 6
         return pkt
 
+    def is_mem_rd(self) -> bool:
+        return self.m2sreq_header.mem_opcode == CXL_MEM_M2SREQ_OPCODE.MEM_RD
+
+    def is_mem_inv(self) -> bool:
+        return self.m2sreq_header.mem_opcode == CXL_MEM_M2SREQ_OPCODE.MEM_INV
+
+    def get_address(self) -> int:
+        return self.m2sreq_header.addr << 6
+
 
 class CxlMemMemWrPacket(
     BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SRwDPacket, PacketDataMixin
@@ -597,7 +629,6 @@ class CxlMemMemWrPacket(
     ) -> "CxlMemMemWrPacket":
         pkt = cls()
         pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
-        pkt.system_header.payload_length = pkt.get_size()
         pkt.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_RWD
         pkt.m2srwd_header.valid = 1
         pkt.m2srwd_header.mem_opcode = opcode
@@ -608,8 +639,15 @@ class CxlMemMemWrPacket(
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")
         pkt.m2srwd_header.addr = addr >> 6
-        pkt.data = data
+        pkt.set_data(data)
+        pkt.system_header.payload_length = pkt.get_size()
         return pkt
+
+    def is_mem_wr(self) -> bool:
+        return self.m2srwd_header.mem_opcode == CXL_MEM_M2SRWD_OPCODE.MEM_WR
+
+    def get_address(self) -> int:
+        return self.m2srwd_header.addr << 6
 
 
 class CxlMemBIRspPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SBIRspPacket):
@@ -633,12 +671,13 @@ class CxlMemBIRspPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SBIRs
 
 
 class CxlMemBISnpPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MBISnpPacket):
-    @staticmethod
-    def get_tag():
-        old_tag = CxlMemBISnpPacket.tag
-        CxlMemBISnpPacket.tag += 1
-        CxlMemBISnpPacket.tag %= 4096
-        return old_tag
+    _tag_counter: int = 0
+
+    @classmethod
+    def get_tag(cls) -> int:
+        tag = cls._tag_counter
+        cls._tag_counter = (cls._tag_counter + 1) % 4096
+        return tag
 
     @classmethod
     def create(
@@ -676,14 +715,14 @@ class CxlMemMemDataPacket(
     ) -> "CxlMemMemDataPacket":
         pkt = cls()
         pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
-        pkt.system_header.payload_length = pkt.get_size()
         pkt.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_DRS
         pkt.s2mdrs_header.valid = 1
         pkt.s2mdrs_header.opcode = opcode
         pkt.s2mdrs_header.meta_field = meta_field
         pkt.s2mdrs_header.meta_value = meta_value
         pkt.s2mdrs_header.ld_id = ld_id
-        pkt.data = data
+        pkt.set_data(bytes(data))
+        pkt.system_header.payload_length = pkt.get_size()
         return pkt
 
 
@@ -708,6 +747,7 @@ class CxlMemCmpPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MNDRPac
         return pkt
 
 
+######### MEM helper ##################
 def is_cxl_mem_data(packet) -> bool:
     return (
         packet.is_cxl_mem()
