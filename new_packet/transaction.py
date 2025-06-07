@@ -413,6 +413,8 @@ def is_cxl_io_completion_status_ur(packet) -> bool:
 class CxlCacheBasePacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheBasePacket):
     pass
 
+class CxlCacheD2HReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HReqPacket):
+    pass
 
 class CxlCacheCacheD2HReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HReqPacket):
     @classmethod
@@ -484,6 +486,8 @@ class CxlCacheCacheD2HDataPacket(
         pkt.system_header.payload_length = pkt.get_size()
         return pkt
 
+class CxlCacheH2DReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DReqPacket):
+    pass
 
 class CxlCacheCacheH2DReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DReqPacket):
     @classmethod
@@ -511,6 +515,8 @@ class CxlCacheCacheH2DReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxl
     def get_opcode(self) -> CXL_CACHE_H2DREQ_OPCODE:
         return self.h2dreq_header.cache_opcode
 
+class CxlCacheH2DRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DRspPacket):
+    pass
 
 class CxlCacheCacheH2DRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DRspPacket):
     @classmethod
@@ -535,7 +541,10 @@ class CxlCacheCacheH2DRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxl
     def get_opcode(self) -> CXL_CACHE_H2DRSP_OPCODE:
         return self.h2drsp_header.cache_opcode
 
-
+class CxlCacheH2DDataPacket(
+    BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DDataPacket, PacketDataMixin
+):
+    pass
 class CxlCacheCacheH2DDataPacket(
     BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DDataPacket, PacketDataMixin
 ):
