@@ -6,6 +6,8 @@ import os
 import cProfile
 import pstats
 
+from opencis.util.logger import logger
+from packet_structs import RawCxlIoMemReqPacket 
 from transaction import (
     SidebandConnectionRequestPacket,
     CxlIoMemRdPacket,
@@ -321,7 +323,70 @@ def test_set_and_get_data_with_varied_lengths():
     print("@@@ test_set_and_get_data_with_varied_lengths passed.")
 
 
+def test_packet_address_roundtrip():
+    addr = 0x01000000
+    data = 0xDEADBEEF
+
+    # Create packet using your API
+    pkt = CxlIoMemWrPacket.create(addr, data=data)
+
+    # Extract fields
+    addr_upper = pkt.mreq_header.addr_upper
+    addr_lower = pkt.mreq_header.addr_lower
+    logger.info(f"addr: 0x{addr:x}")
+    logger.info(f"addr_upper: 0x{addr_upper:x}")
+    logger.info(f"addr_lower: 0x{addr_lower:x}")
+
+    # Decode address back from packet
+    addr_upper_bytes = addr_upper.to_bytes(7, 'little')
+    decoded_addr = int.from_bytes(addr_upper_bytes, 'big') << 8
+    decoded_addr |= addr_lower << 2
+    logger.info(f"decoded_addr: 0x{decoded_addr:x}")
+
+    # Check
+    if decoded_addr != addr:
+        logger.error("❌ Address mismatch!")
+    else:
+        logger.info("✅ Address round-trip succeeded")
+
+def test_addr_upper_field_encoding():
+    print("=" * 60)
+    print("🔬 Testing addr_upper encoding/decoding")
+
+    for byte_len in range(1, 8):  # Test 1 to 7 bytes
+        # Build address with only lower `byte_len` bytes filled
+        data_bytes = bytes(range(1, byte_len + 1))  # e.g., b'\x01\x02'...
+        addr = int.from_bytes(data_bytes, 'big')
+        addr <<= 8  # Pad for addr_upper (56 bits), lower 8 bits handled separately
+
+        print("=" * 60)
+        print(f"Test {byte_len} bytes")
+        print(f"Original addr                : 0x{addr:x}")
+
+        # Break address into upper/lower parts
+        addr_upper_bytes = (addr >> 8).to_bytes(7, 'big')
+        print(f"addr_upper_bytes (BE)        : {addr_upper_bytes.hex()}")
+
+        pkt = CxlIoMemWrPacket.create(addr, data=0xdeadbeef)
+
+        # Get internal integer used
+        written = int.from_bytes(addr_upper_bytes, 'big')
+        print(f"Written addr_upper (int)     : 0x{written:x}")
+        print(f"Stored mreq_header.addr_upper: 0x{pkt.mreq_header.addr_upper:x}")
+
+        # Reconstruct address
+        recon_bytes = pkt.mreq_header.addr_upper.to_bytes(7, 'big')
+        recon_addr = int.from_bytes(recon_bytes, 'big') << 8
+        recon_addr |= pkt.mreq_header.addr_lower << 2
+        print(f"Reconstructed addr           : 0x{recon_addr:x}")
+
+        if recon_addr != addr:
+            print("❌ FAIL")
+        else:
+            print("✅ PASS")
+
 if __name__ == "__main__":
-    main()
+    # main()
+    test_addr_upper_field_encoding()
     test_set_and_get_data_as_int()
     test_set_and_get_data_with_varied_lengths()

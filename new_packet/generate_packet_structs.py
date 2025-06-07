@@ -17,17 +17,18 @@ def load_module(path, module_name):
 
 
 def emit_struct(name, layout):
-    field_defs = "".join(
-        f"    @property\n"
-        f"    def {n}(self):\n"
-        f"        return self.read_bits({s}, {w})\n\n"
-        f"    @{n}.setter\n"
-        f"    def {n}(self, val):\n"
-        f"        self.write_bits({s}, {w}, val)\n\n"
-        for n, s, w in layout
-    )
+    field_defs = ""
+    for n, s, w in layout:
+        field_defs += (
+            f"    @property\n"
+            f"    def {n}(self):\n"
+            f"        return self.read_bits({s}, {w})\n\n"
+            f"    @{n}.setter\n"
+            f"    def {n}(self, val):\n"
+            f"        self.write_bits({s}, {w}, val & ((1 << {w}) - 1))\n\n"
+        )
 
-    total_bits = sum(w for _, _, w in layout)
+    total_bits = max(s + w for _, s, w in layout)
     total_bytes = (total_bits + 7) // 8
 
     return (
@@ -41,7 +42,6 @@ def emit_struct(name, layout):
         f"    def __bytes__(self):\n"
         f"        return self.to_bytes()\n"
     )
-
 
 def emit_composite(packet_name, layout, field_sizes):
     lines = [
@@ -70,7 +70,7 @@ def emit_composite(packet_name, layout, field_sizes):
         total_bits += sum(w for _, _, w in field_sizes[struct])
     total_bytes = (total_bits + 7) // 8
 
-    lines.append(f"    ACTUAL_SIZE = {total_bytes}")
+    lines.append(f"    cdef readonly int ACTUAL_SIZE")
     lines.append(f"    cdef int _data_length")
 
     for struct, varname in field_entries:
@@ -90,9 +90,8 @@ def emit_composite(packet_name, layout, field_sizes):
     lines.append("        if buf is None:")
     lines.append("            raw_buf = bytearray(200)")
     lines.append("            buf = raw_buf")
-    lines.append(f"        self.ACTUAL_SIZE = {total_bytes}")
     lines.append("        self.buf = buf")
-    lines.append("        self._data_length = len(buf) - self.ACTUAL_SIZE")
+    lines.append(f"        self.ACTUAL_SIZE = {total_bytes}")
 
     offset = 0
     for struct, varname in field_entries:
@@ -102,6 +101,11 @@ def emit_composite(packet_name, layout, field_sizes):
         size_bytes = (size_bits + 7) // 8
         lines.append(f"        self.{varname}_ = {struct}(buf[{offset}:{offset + size_bytes}])")
         offset += size_bytes
+
+    if has_data_field:
+        lines.append("        self._data_length = len(buf) - self.ACTUAL_SIZE")
+    else:
+        lines.append("        self._data_length = 0")
 
     if has_data_field:
         lines.append("")
@@ -118,14 +122,20 @@ def emit_composite(packet_name, layout, field_sizes):
         lines.append("    cpdef void set_data_raw(self, const unsigned char* data, Py_ssize_t n):")
         lines.append(f"        memcpy(&self.buf[{offset}], data, n)")
         lines.append("        self._data_length = n")
-        lines.append("")
-        lines.append(f"    cpdef int get_size(self):")
-        lines.append(f"        return self.ACTUAL_SIZE + self._data_length")
     else:
         lines.append("")
-        lines.append(f"    @classmethod")
-        lines.append(f"    def get_size(cls):")
-        lines.append(f"        return cls.ACTUAL_SIZE")
+        lines.append("    cpdef bytes get_data(self):")
+        lines.append("        return b\"\"")
+        lines.append("")
+        lines.append("    def set_data(self, data):")
+        lines.append("        pass")
+        lines.append("")
+        lines.append("    cpdef void set_data_raw(self, const unsigned char* data, Py_ssize_t n):")
+        lines.append("        pass")
+
+    lines.append("")
+    lines.append(f"    cpdef int get_size(self):")
+    lines.append(f"        return self.ACTUAL_SIZE + self._data_length")
 
     lines.append("")
     lines.append("    def __len__(self):")

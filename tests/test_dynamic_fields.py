@@ -101,5 +101,5 @@ def test_unpleasant_dbf_failure():
 def test_io_mem_wr():
     addr = 0x0
     data = 0xDEADBEEF
-    packet = CxlIoMemWrPacket.create(addr, 4, data=data)
-    assert packet.data == data
+    packet = CxlIoMemWrPacket.create(addr, data)
+    assert packet.get_data_as_int() == data

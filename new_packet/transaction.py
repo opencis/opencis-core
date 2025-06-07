@@ -110,7 +110,6 @@ class SidebandConnectionRequestPacket(
 class CxlIoBasePacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoBasePacket):
     pass
 
-
 class CxlIoMemReqPacket(
     BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoMemReqPacket, PacketDataMixin
 ):
@@ -140,15 +139,56 @@ class CxlIoMemReqPacket(
             (bytes_enabled_with_offset >> ((length_dword - 1) * 4)) & 0xF if length_dword > 1 else 0
         )
 
-        addr_upper_bytes = (addr >> 8).to_bytes(7, byteorder="big")
-        self.mreq_header.addr_upper = int.from_bytes(addr_upper_bytes, byteorder="little")
+        # YOU THINK, Correctly set addr_upper and addr_lower
+        logger.info("=" * 60)
+        logger.info(f"FILL PHASE")
+        logger.info(f"Original addr: 0x{addr:x}")
+        
+        addr_upper_bytes = (addr >> 8).to_bytes(7, 'big')
+        logger.info(f"addr_upper_bytes (BE): {addr_upper_bytes.hex()}")
+        
+        val = int.from_bytes(addr_upper_bytes, 'little')
+        logger.info(f"Converted int (LE interpretation): 0x{val:x}")
+        
+        self.mreq_header.addr_upper = val
+        logger.info(f"Stored mreq_header.addr_upper: 0x{self.mreq_header.addr_upper:x}")
+        
         self.mreq_header.addr_lower = (addr & 0xFF) >> 2
+        logger.info(f"Stored mreq_header.addr_lower: 0x{self.mreq_header.addr_lower:x}")
+        logger.info("=" * 60)
+        #### YOU THINK, 
+
+        # DEBUG
+        start_bit = 32  # Confirm based on CxlIoMReqHeader bit layout
+        bit_width = 56
+        byte_start = start_bit // 8
+        byte_end = (start_bit + bit_width + 7) // 8
+        raw_bytes = bytes(self.mreq_header.buf[byte_start:byte_end])
+        logger.info(f"[DEBUG] Raw buffer after write ({byte_start}:{byte_end}): {raw_bytes.hex()}")
+        # DEBUG
+
+        # logger.info(f"addr: 0x{addr:x}")
+        # logger.info(f"self.mreq_header.addr_upper: {self.mreq_header.addr_upper:x}")
+        # logger.info(f"self.mreq_header.addr_lower: {self.mreq_header.addr_lower:x}")
 
     def get_address(self) -> int:
-        addr = 0
-        addr_upper_bytes = self.mreq_header.addr_upper.to_bytes(7, byteorder="little")
-        addr |= int.from_bytes(addr_upper_bytes, byteorder="big") << 8
-        addr |= self.mreq_header.addr_lower << 2
+        logger.info("=" * 60)
+        logger.info(f"GET PHASE")
+        val = self.mreq_header.addr_upper
+        logger.info(f"Read mreq_header.addr_upper: 0x{val:x}")
+        
+        addr_upper_bytes = val.to_bytes(7, 'little')
+        logger.info(f"addr_upper_bytes (LE): {addr_upper_bytes.hex()}")
+        
+        addr = int.from_bytes(addr_upper_bytes, 'big') << 8
+        logger.info(f"Shifted addr_upper (<< 8): 0x{addr:x}")
+        
+        addr_lower = self.mreq_header.addr_lower << 2
+        logger.info(f"addr_lower component: 0x{addr_lower:x}")
+        
+        addr |= addr_lower
+        logger.info(f"Reconstructed addr: 0x{addr:x}")
+        logger.info("=" * 60)
         return addr
 
     def get_data_size(self) -> int:
@@ -295,7 +335,7 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
         size: int,
         value: int,
         is_type0: bool = True,
-        req_id: Optional[int] = None,
+        req_id: Optional[int] = 0,
         tag: Optional[int] = None,
         ld_id: int = 0,
     ) -> "CxlIoCfgWrPacket":
@@ -317,7 +357,7 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
         offset = cfg_addr % 4
         bit_offset = (offset % 4) * 8
         bit_mask = (1 << size * 8) - 1
-        return (self.value >> bit_offset) & bit_mask
+        return (self.get_data_as_int() >> bit_offset) & bit_mask
 
 
 from mixin import BasePacketMixin, CxlIoBasePacketMixin, CXL_IO_FMT_TYPE, SYSTEM_PAYLOAD_TYPE
@@ -422,8 +462,10 @@ def is_cxl_io_completion_status_ur(packet) -> bool:
 class CxlCacheBasePacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheBasePacket):
     pass
 
+
 class CxlCacheD2HReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HReqPacket):
     pass
+
 
 class CxlCacheCacheD2HReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HReqPacket):
     @classmethod
@@ -453,8 +495,10 @@ class CxlCacheCacheD2HReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxl
     def set_cache_id(self, cache_id: int):
         self.d2hreq_header.cache_id = cache_id
 
+
 class CxlCacheD2HRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HRspPacket):
     pass
+
 
 class CxlCacheCacheD2HRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HRspPacket):
     @classmethod
@@ -472,10 +516,12 @@ class CxlCacheCacheD2HRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxl
         pkt.d2hrsp_header.cache_opcode = opcode
         return pkt
 
+
 class CxlCacheD2HDataPacket(
     BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HDataPacket, PacketDataMixin
 ):
     pass
+
 
 class CxlCacheCacheD2HDataPacket(
     BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HDataPacket, PacketDataMixin
@@ -501,8 +547,10 @@ class CxlCacheCacheD2HDataPacket(
         pkt.system_header.payload_length = pkt.get_size()
         return pkt
 
+
 class CxlCacheH2DReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DReqPacket):
     pass
+
 
 class CxlCacheCacheH2DReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DReqPacket):
     @classmethod
@@ -530,8 +578,10 @@ class CxlCacheCacheH2DReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxl
     def get_opcode(self) -> CXL_CACHE_H2DREQ_OPCODE:
         return self.h2dreq_header.cache_opcode
 
+
 class CxlCacheH2DRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DRspPacket):
     pass
+
 
 class CxlCacheCacheH2DRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DRspPacket):
     @classmethod
@@ -556,10 +606,13 @@ class CxlCacheCacheH2DRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxl
     def get_opcode(self) -> CXL_CACHE_H2DRSP_OPCODE:
         return self.h2drsp_header.cache_opcode
 
+
 class CxlCacheH2DDataPacket(
     BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DDataPacket, PacketDataMixin
 ):
     pass
+
+
 class CxlCacheCacheH2DDataPacket(
     BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DDataPacket, PacketDataMixin
 ):
@@ -840,41 +893,54 @@ def is_cxl_mem_birsp(packet) -> bool:
 
 ############## CCI
 
+
 class CciBasePacket(BasePacketMixin, CciBasePacketMixin, RawCciBasePacket):
     pass
+
 
 class CciPayloadPacket:
     pass
 
+
 class CciRequestPacket:
     pass
+
 
 class CciResponsePacket:
     pass
 
+
 class CciMessageHeaderPacket:
     pass
+
 
 class CciMessagePacket:
     pass
 
+
 class CciHeaderPacket:
     pass
+
 
 class GetLdInfoResponsePacket:
     pass
 
+
 class GetLdAllocationsResponsePacket:
     pass
+
 
 class SetLdAllocationsResponsePacket:
     pass
 
+
 class GetLdInfoRequestPacket:
     pass
 
+
 class GetLdAllocationsRequestPacket:
     pass
+
 
 class SetLdAllocationsRequestPacket:
     pass

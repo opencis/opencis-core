@@ -37,7 +37,6 @@ from new_packet.transaction import (
     CxlMemS2MNDRPacket,
     CxlMemS2MDRSPacket,
     CciBasePacket,
-
 )
 from opencis.util.logger import logger
 from opencis.util.component import LabeledComponent
@@ -45,6 +44,7 @@ from opencis.util.component import LabeledComponent
 from new_packet.packet_structs import (
     SystemHeader,
 )
+
 
 class PACKET_READ_STATUS(Enum):
     OK = auto()
