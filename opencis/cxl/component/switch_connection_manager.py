@@ -141,9 +141,7 @@ class SwitchConnectionManager(RunnableComponent):
             raise Exception(message)
 
         connection_request = packet
-        # logger.info(f"???????????????????/{dir(packet)}")
         port_index = connection_request.get_data_as_int()
-        logger.info(f"???????????????????/{port_index}")
 
         # TODO: CE-32, ensure incoming device is connected to a correct port.
         logger.debug(

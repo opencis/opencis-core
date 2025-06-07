@@ -111,7 +111,7 @@ class CxlSwitch(RunnableComponent):
             allocated_ld,
         )
 
-        self._start_mctp = start_mctp
+        self._start_mctp = False
         if self._start_mctp:
             self._mctp_connection_client = MctpConnectionClient(
                 switch_config.mctp_host, switch_config.mctp_port
