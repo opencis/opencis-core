@@ -250,3 +250,9 @@ class CXL_MEM_S2MNDR_OPCODE(IntEnum):
 class CXL_MEM_S2MDRS_OPCODE(IntEnum):
     MEM_DATA = 0b000
     MEM_DATA_NXM = 0b001
+
+
+
+class CCI_MSG_CLASS(IntEnum):
+    REQ = 1
+    RSP = 2

@@ -27,7 +27,7 @@ from opencis.cxl.component.virtual_switch_manager import (
 )
 from opencis.util.memory import get_memory_bin_name
 from opencis.util.unaligned_bit_structure import UnalignedBitStructure
-from opencis.cxl.transport.transaction import (
+from new_packet.transaction import (
     CXL_MEM_M2SBIRSP_OPCODE,
     BasePacket,
     CxlIoBasePacket,

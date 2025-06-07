@@ -18,7 +18,7 @@ from opencis.cxl.component.cxl_connection import FifoPair
 from opencis.cxl.component.virtual_switch.routing_table import RoutingTable
 from opencis.cxl.component.virtual_switch.port_binder import PortBinder, BindSlot
 from opencis.cxl.component.virtual_switch.upstream_vppb import UpstreamVppb
-from opencis.cxl.transport.transaction import (
+from new_packet.transaction import (
     BasePacket,
     CxlCacheD2HReqPacket,
     CxlCacheH2DDataPacket,

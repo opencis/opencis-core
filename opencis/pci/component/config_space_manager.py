@@ -12,7 +12,7 @@ from opencis.pci.component.fifo_pair import FifoPair
 from opencis.pci.config_space.pci import REG_ADDR
 from opencis.util.unaligned_bit_structure import BitMaskedBitStructure
 from opencis.util.number import tlptoh16
-from opencis.cxl.transport.transaction import (
+from new_packet.transaction import (
     CxlIoBasePacket,
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,

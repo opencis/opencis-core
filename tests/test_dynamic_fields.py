@@ -13,7 +13,7 @@ from opencis.util.unaligned_bit_structure import (
     DynamicByteField,
 )
 
-from opencis.cxl.transport.transaction import (
+from new_packet.transaction import (
     CxlIoMemWrPacket,
 )
 

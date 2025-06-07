@@ -30,6 +30,7 @@ from new_packet.packet_structs import (
     RawCxlMemS2MBISnpPacket,
     RawCxlMemS2MDRSPacket,
     RawCxlMemS2MNDRPacket,
+    RawCciBasePacket,
 )
 from opencis.util.pci import (
     extract_function_from_bdf,
@@ -63,6 +64,7 @@ from packet_constants import (
     CXL_MEM_S2MBISNP_OPCODE,
     CXL_MEM_S2MDRS_OPCODE,
     CXL_MEM_S2MNDR_OPCODE,
+    CCI_MSG_CLASS,
 )
 from mixin import (
     BasePacketMixin,
@@ -70,6 +72,7 @@ from mixin import (
     CxlIoBasePacketMixin,
     CxlCacheBasePacketMixin,
     CxlMemBasePacketMixin,
+    CciBasePacketMixin,
     PacketDataMixin,
 )
 
@@ -818,3 +821,13 @@ def is_cxl_mem_completion(packet) -> bool:
 
 def is_cxl_mem_birsp(packet) -> bool:
     return packet.is_cxl_mem() and packet.is_m2sbirsp()
+
+
+############## CCI
+
+class CciBasePacket(BasePacketMixin, CciBasePacketMixin, RawCciBasePacket):
+    pass
+
+
+class CxlMemM2SReqPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SReqPacket):
+    pass

@@ -10,7 +10,7 @@ from typing import cast, Tuple, Optional
 from enum import Enum, auto
 
 from opencis.util.logger import logger
-from opencis.cxl.transport.transaction import (
+from new_packet.transaction import (
     SIDEBAND_TYPES,
     SidebandConnectionRequestPacket,
     BaseSidebandPacket,

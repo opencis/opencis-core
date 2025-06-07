@@ -22,7 +22,7 @@ from opencis.cxl.component.cxl_component import (
     PORT_TYPE,
     PortConfig,
 )
-from opencis.cxl.transport.transaction import (
+from new_packet.transaction import (
     CciMessagePacket,
     CciMessageHeaderPacket,
     CCI_MCTP_MESSAGE_CATEGORY,

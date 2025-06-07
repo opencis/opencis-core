@@ -26,7 +26,7 @@ from opencis.cxl.transport.cache_fifo import (
     CacheResponse,
     CACHE_RESPONSE_STATUS,
 )
-from opencis.cxl.transport.transaction import (
+from new_packet.transaction import (
     BasePacket,
     CxlCacheBasePacket,
     CxlCacheD2HReqPacket,

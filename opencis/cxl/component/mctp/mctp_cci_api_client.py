@@ -9,7 +9,7 @@ from asyncio import Condition
 from typing import cast, Any, Tuple, Optional, Callable, Dict, Coroutine
 
 from opencis.cxl.component.mctp.mctp_connection import MctpConnection
-from opencis.cxl.transport.transaction import (
+from new_packet.transaction import (
     CciMessagePacket,
     CciMessageHeaderPacket,
     CCI_MCTP_MESSAGE_CATEGORY,

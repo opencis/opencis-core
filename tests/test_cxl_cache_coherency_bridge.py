@@ -8,7 +8,7 @@ See LICENSE for details.
 import asyncio
 import pytest
 
-from opencis.cxl.transport.transaction import (
+from new_packet.transaction import (
     CxlCacheCacheH2DDataPacket,
     CxlCacheCacheD2HDataPacket,
     CxlCacheCacheD2HReqPacket,

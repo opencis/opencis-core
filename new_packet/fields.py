@@ -196,3 +196,8 @@ CxlMemS2MDRSHeader = [
     ("dev_load", 29, 2),
     ("rsvd", 31, 9),
 ]
+
+CciHeader = [
+    ("port_index", 0, 8),
+    ("msg_class", 8, 8),
+]

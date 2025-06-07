@@ -119,4 +119,9 @@ PACKETS = {
         ("CxlMemS2MDRSHeader", "s2mdrs_header"),
         ("DataField", "data"),
     ],
+    # CCI
+    "CciBasePacket": [
+        ("SystemHeader", "system_header"),
+        ("CciHeader", "cci_header"),
+    ],
 }

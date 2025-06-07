@@ -4,6 +4,7 @@ from packet_constants import (
     CXL_MEM_MSG_CLASS,
     CXL_CACHE_MSG_CLASS,
     SIDEBAND_TYPES,
+    CCI_MSG_CLASS,
 )
 
 
@@ -160,3 +161,21 @@ class CxlMemBasePacketMixin:
 
     def is_s2mdrs(self) -> bool:
         return self.cxl_mem_header.msg_class == CXL_MEM_MSG_CLASS.S2M_DRS
+
+
+class CciBasePacketMixin:
+    def is_req(self) -> bool:
+        return self.cci_header.msg_class == CCI_MSG_CLASS.REQ
+
+    def is_rsp(self) -> bool:
+        return self.cci_header.msg_class == CCI_MSG_CLASS.RSP
+
+    # def get_payload_size(self) -> int:
+    #     return self.system_header.payload_length - CCI_FIELD_START
+
+    def update_len(self, cci_msg_length: int):
+        self.set_dynamic_field_length(cci_msg_length)
+        self.system_header.payload_length = len(self)
+
+    def get_total_size(self) -> int:
+        return self.system_header.payload_length

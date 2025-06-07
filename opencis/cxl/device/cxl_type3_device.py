@@ -16,7 +16,7 @@ from opencis.cxl.config_space.dvsec.cxl_devices import (
     DvsecCxlCapabilityOptions,
 )
 from opencis.cxl.config_space.serial_number.common import DeviceSNCapabilityOptions
-from opencis.cxl.transport.transaction import (
+from new_packet.transaction import (
     CXL_MEM_S2MBISNP_OPCODE,
     CxlMemBISnpPacket,
 )

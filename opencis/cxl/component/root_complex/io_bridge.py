@@ -17,7 +17,7 @@ from opencis.util.pci import (
     extract_device_from_bdf,
     bdf_to_string,
 )
-from opencis.cxl.transport.transaction import (
+from new_packet.transaction import (
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
     CxlIoCompletionPacket,

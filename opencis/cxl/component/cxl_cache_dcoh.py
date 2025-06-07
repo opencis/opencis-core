@@ -25,7 +25,7 @@ from asyncio import (
 from opencis.util.bound_event import BoundEvent
 from opencis.util.logger import logger
 from opencis.pci.component.fifo_pair import FifoPair
-from opencis.cxl.transport.transaction import (
+from new_packet.transaction import (
     BasePacket,
     CxlCacheBasePacket,
     CxlCacheH2DReqPacket,

@@ -15,7 +15,7 @@ from opencis.util.number import round_up_to_power_of_2, tlptoh16
 from opencis.pci.component.fifo_pair import FifoPair
 from opencis.pci.component.packet_processor import PacketProcessor
 
-from opencis.cxl.transport.transaction import (
+from new_packet.transaction import (
     BasePacket,
     CxlIoBasePacket,
     CxlIoMemWrPacket,
