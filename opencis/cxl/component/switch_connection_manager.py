@@ -20,7 +20,7 @@ from new_packet.transaction import (
     SidebandConnectionRequestPacket,
 )
 from new_packet.packet_constants import (
-    PAYLOAD_TYPE,
+    SYSTEM_PAYLOAD_TYPE,
     SIDEBAND_TYPES,
 )
 
@@ -127,7 +127,7 @@ class SwitchConnectionManager(RunnableComponent):
         packet_reader = PacketReader(reader, "SwitchConnectionManager")
         packet = await packet_reader.get_packet()
         logger.debug(self._create_message("Received a packet"))
-        if packet.system_header.payload_type != PAYLOAD_TYPE.SIDEBAND:
+        if packet.system_header.payload_type != SYSTEM_PAYLOAD_TYPE.SIDEBAND:
             message = "Handshake Error"
             logger.debug(self._create_message(message))
             logger.debug(self._create_message(packet.get_pretty_string()))

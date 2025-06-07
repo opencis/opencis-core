@@ -11,7 +11,7 @@ class SYSTEM_PAYLOAD_TYPE(IntEnum):
 
 
 # TODO: DELETE ME later
-class PAYLOAD_TYPE(IntEnum):
+class SYSTEM_PAYLOAD_TYPE(IntEnum):
     CXL = 0  # packet based on CPI
     CXL_IO = 1  # Custom packet for CXL.io
     CXL_MEM = 2  # Custom packet for CXL.mem
@@ -256,3 +256,8 @@ class CXL_MEM_S2MDRS_OPCODE(IntEnum):
 class CCI_MSG_CLASS(IntEnum):
     REQ = 1
     RSP = 2
+
+
+class CCI_MCTP_MESSAGE_CATEGORY(IntEnum):
+    REQUEST = 0
+    RESPONSE = 1

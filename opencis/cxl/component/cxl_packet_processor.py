@@ -29,7 +29,7 @@ from new_packet.transaction import (
     CxlMemBasePacket,
     CxlCacheBasePacket,
     SIDEBAND_TYPES,
-    PAYLOAD_TYPE,
+    SYSTEM_PAYLOAD_TYPE,
     CXL_IO_FMT_TYPE,
     CciRequestPacket,
     CciResponsePacket,
@@ -176,7 +176,7 @@ class CxlPacketProcessor(RunnableComponent):
     @staticmethod
     def _is_disconnection_notification(packet) -> bool:
         base_packet = cast(BasePacket, packet)
-        if base_packet.system_header.payload_type != PAYLOAD_TYPE.SIDEBAND:
+        if base_packet.system_header.payload_type != SYSTEM_PAYLOAD_TYPE.SIDEBAND:
             return False
         sideband = cast(BaseSidebandPacket, packet)
         return sideband.sideband_header.type == SIDEBAND_TYPES.CONNECTION_DISCONNECTED

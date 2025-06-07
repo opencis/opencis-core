@@ -447,6 +447,8 @@ class CxlCacheCacheD2HReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxl
     def set_cache_id(self, cache_id: int):
         self.d2hreq_header.cache_id = cache_id
 
+class CxlCacheD2HRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HRspPacket):
+    pass
 
 class CxlCacheCacheD2HRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HRspPacket):
     @classmethod
@@ -464,6 +466,10 @@ class CxlCacheCacheD2HRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxl
         pkt.d2hrsp_header.cache_opcode = opcode
         return pkt
 
+class CxlCacheD2HDataPacket(
+    BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HDataPacket, PacketDataMixin
+):
+    pass
 
 class CxlCacheCacheD2HDataPacket(
     BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheD2HDataPacket, PacketDataMixin
@@ -828,6 +834,38 @@ def is_cxl_mem_birsp(packet) -> bool:
 class CciBasePacket(BasePacketMixin, CciBasePacketMixin, RawCciBasePacket):
     pass
 
+class CciPayloadPacket:
+    pass
 
-class CxlMemM2SReqPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SReqPacket):
+class CciRequestPacket:
+    pass
+
+class CciResponsePacket:
+    pass
+
+class CciMessageHeaderPacket:
+    pass
+
+class CciMessagePacket:
+    pass
+
+class CciHeaderPacket:
+    pass
+
+class GetLdInfoResponsePacket:
+    pass
+
+class GetLdAllocationsResponsePacket:
+    pass
+
+class SetLdAllocationsResponsePacket:
+    pass
+
+class GetLdInfoRequestPacket:
+    pass
+
+class GetLdAllocationsRequestPacket:
+    pass
+
+class SetLdAllocationsRequestPacket:
     pass

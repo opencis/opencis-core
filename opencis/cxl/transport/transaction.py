@@ -30,12 +30,12 @@ from opencis.util.number import (
 from opencis.cxl.transport.common import (
     BasePacket,
     SYSTEM_HEADER_END,
-    PAYLOAD_TYPE,
+    SYSTEM_PAYLOAD_TYPE,
 )
 
 
 #
-# Packet Definitions for PAYLOAD_TYPE.SIDEBAND
+# Packet Definitions for SYSTEM_PAYLOAD_TYPE.SIDEBAND
 #
 class SIDEBAND_TYPES(IntEnum):
     CONNECTION_REQUEST = 0
@@ -68,7 +68,7 @@ class BaseSidebandPacket(BasePacket):
     @staticmethod
     def create(type: SIDEBAND_TYPES) -> "BaseSidebandPacket":
         packet = BaseSidebandPacket()
-        packet.system_header.payload_type = PAYLOAD_TYPE.SIDEBAND
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.SIDEBAND
         packet.system_header.payload_length = len(packet)
         packet.sideband_header.type = type
         return packet
@@ -103,7 +103,7 @@ class SidebandConnectionRequestPacket(BasePacket):
     @staticmethod
     def create(port_index: int) -> "SidebandConnectionRequestPacket":
         packet = SidebandConnectionRequestPacket()
-        packet.system_header.payload_type = PAYLOAD_TYPE.SIDEBAND
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.SIDEBAND
         packet.system_header.payload_length = len(packet)
         packet.sideband_header.type = SIDEBAND_TYPES.CONNECTION_REQUEST
         packet.port = port_index
@@ -111,7 +111,7 @@ class SidebandConnectionRequestPacket(BasePacket):
 
 
 #
-# Packet Definitions for PAYLOAD_TYPE.CXL_IO
+# Packet Definitions for SYSTEM_PAYLOAD_TYPE.CXL_IO
 #
 class CXL_IO_PROTOCOL(IntEnum):
     MEM_RD = 0
@@ -337,7 +337,7 @@ class CxlIoMemReqPacket(CxlIoBasePacket):
         # `length` field from the TLP header is measured in DWORDs.
         length_dword = (address_offset + length + 3) // 4
 
-        self.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
+        self.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_IO
         self.cxl_io_header.length_upper = length_dword & 0x300
         self.cxl_io_header.length_lower = length_dword & 0xFF
         self.mreq_header.req_id = req_id
@@ -475,7 +475,7 @@ class CxlIoCfgReqPacket(CxlIoBasePacket):
     ]
 
     def fill(self, id: int, cfg_addr: int, size: int, req_id: int, tag: int) -> "CxlIoCfgReqPacket":
-        self.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
+        self.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_IO
 
         self.cxl_io_header.tc = 0b000
         self.cxl_io_header.attr = 0b00
@@ -674,7 +674,7 @@ class CxlIoCompletionPacket(CxlIoBasePacket):
         ld_id: int = 0,
     ) -> "CxlIoCompletionPacket":
         packet = CxlIoCompletionPacket()
-        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_IO
         packet.system_header.payload_length = len(packet)
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL
         packet.cxl_io_header.length_upper = 0b000
@@ -722,7 +722,7 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
         # for config reads, always 1 DWORD (4 bytes)
 
         packet = CxlIoCompletionWithDataPacket()
-        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_IO
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_IO
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL_D
 
         # convert to DWORDs
@@ -773,7 +773,7 @@ def is_cxl_io_completion_status_ur(packet: BasePacket) -> bool:
 
 
 #
-# Packet Definitions for PAYLOAD_TYPE.CXL_CACHE
+# Packet Definitions for SYSTEM_PAYLOAD_TYPE.CXL_CACHE
 #
 
 
@@ -1145,7 +1145,7 @@ class CxlCacheCacheD2HReqPacket(CxlCacheD2HReqPacket):
         cqid: int = 0,
     ) -> "CxlCacheCacheD2HReqPacket":
         packet = CxlCacheCacheD2HReqPacket()
-        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
         packet.system_header.payload_length = len(packet)
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_REQ
         packet.d2hreq_header.valid = 0b1
@@ -1163,7 +1163,7 @@ class CxlCacheCacheD2HRspPacket(CxlCacheD2HRspPacket):
     # read length is assumed to be 64 for now
     def create(uqid: int, opcode: CXL_CACHE_D2HRSP_OPCODE) -> "CxlCacheCacheD2HRspPacket":
         packet = CxlCacheCacheD2HRspPacket()
-        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
         packet.system_header.payload_length = len(packet)
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_RSP
         packet.d2hrsp_header.valid = 0b1
@@ -1176,7 +1176,7 @@ class CxlCacheCacheD2HDataPacket(CxlCacheD2HDataPacket):
     @staticmethod
     def create(uqid: int, data: int) -> "CxlCacheCacheD2HDataPacket":
         packet = CxlCacheCacheD2HDataPacket()
-        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
         packet.system_header.payload_length = len(packet)
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_DATA
         packet.d2hdata_header.valid = 0b1
@@ -1193,7 +1193,7 @@ class CxlCacheCacheH2DReqPacket(CxlCacheH2DReqPacket):
         addr: int, cache_id: int, opcode: CXL_CACHE_H2DREQ_OPCODE
     ) -> "CxlCacheCacheH2DReqPacket":
         packet = CxlCacheCacheH2DReqPacket()
-        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
         packet.system_header.payload_length = len(packet)
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_REQ
         packet.h2dreq_header.valid = 0b1
@@ -1215,7 +1215,7 @@ class CxlCacheCacheH2DRspPacket(CxlCacheH2DRspPacket):
         cqid: int = 0,
     ) -> "CxlCacheCacheH2DRspPacket":
         packet = CxlCacheCacheH2DRspPacket()
-        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
         packet.system_header.payload_length = len(packet)
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_RSP
         packet.h2drsp_header.valid = 0b1
@@ -1230,7 +1230,7 @@ class CxlCacheCacheH2DDataPacket(CxlCacheH2DDataPacket):
     @staticmethod
     def create(cache_id: int, data: int, cqid: int = 0) -> "CxlCacheCacheH2DDataPacket":
         packet = CxlCacheCacheH2DDataPacket()
-        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
         packet.system_header.payload_length = len(packet)
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_DATA
         packet.h2ddata_header.valid = 0b1
@@ -1255,7 +1255,7 @@ def is_cxl_cache_d2h_data(packet: BasePacket) -> bool:
 
 
 #
-# Packet Definitions for PAYLOAD_TYPE.CXL_MEM
+# Packet Definitions for SYSTEM_PAYLOAD_TYPE.CXL_MEM
 #
 
 # TODO: Support tag
@@ -1664,7 +1664,7 @@ class CxlMemMemRdPacket(CxlMemM2SReqPacket):
         ld_id: int = 0,
     ) -> "CxlMemMemRdPacket":
         packet = CxlMemMemRdPacket()
-        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
         packet.system_header.payload_length = len(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_REQ
         packet.m2sreq_header.valid = 0b1
@@ -1691,7 +1691,7 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
         ld_id: int = 0,
     ) -> "CxlMemMemWrPacket":
         packet = CxlMemMemWrPacket()
-        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
         packet.system_header.payload_length = len(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_RWD
         packet.m2srwd_header.valid = 0b1
@@ -1713,7 +1713,7 @@ class CxlMemBIRspPacket(CxlMemM2SBIRspPacket):
         opcode: CXL_MEM_M2SBIRSP_OPCODE, bi_id: int = 0, bi_tag: int = 0
     ) -> "CxlMemBIRspPacket":
         packet = CxlMemBIRspPacket()
-        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
         packet.system_header.payload_length = len(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_BIRSP
         packet.m2sbirsp_header.valid = 0b1
@@ -1739,7 +1739,7 @@ class CxlMemBISnpPacket(CxlMemS2MBISnpPacket):
         addr: int, opcode: CXL_MEM_S2MBISNP_OPCODE, bi_id: int = 0, bi_tag: int = 0
     ) -> "CxlMemBISnpPacket":
         packet = CxlMemBISnpPacket()
-        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
         packet.system_header.payload_length = len(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_BISNP
         packet.s2mbisnp_header.valid = 0b1
@@ -1763,7 +1763,7 @@ class CxlMemMemDataPacket(CxlMemS2MDRSPacket):
         ld_id: int = 0,
     ) -> "CxlMemMemDataPacket":
         packet = CxlMemMemDataPacket()
-        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
         packet.system_header.payload_length = len(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_DRS
         packet.s2mdrs_header.opcode = drs_opcode
@@ -1783,7 +1783,7 @@ class CxlMemCmpPacket(CxlMemS2MNDRPacket):
         ld_id: int = 0,
     ) -> "CxlMemCmpPacket":
         packet = CxlMemCmpPacket()
-        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
         packet.system_header.payload_length = len(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_NDR
         packet.s2mndr_header.valid = 0b1
@@ -2005,7 +2005,7 @@ class CciPayloadPacket(CciPayloadBasePacket):
         packet = CciPayloadPacket()
         packet.set_dynamic_field_length(length)
         packet.cci_header.port_index = index
-        packet.system_header.payload_type = PAYLOAD_TYPE.CCI_MCTP
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
         packet.system_header.payload_length = len(packet)
 
         if isinstance(data, CciMessagePacket):
@@ -2053,7 +2053,7 @@ class GetLdInfoRequestPacket(CciRequestPacket):
     def create() -> "GetLdInfoRequestPacket":
         packet = GetLdInfoRequestPacket()
         packet.cci_header.msg_class = CCI_MSG_CLASS.REQ
-        packet.system_header.payload_type = PAYLOAD_TYPE.CCI_MCTP
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
         packet.system_header.payload_length = len(packet)
 
         packet.header_data.message_category = 0
@@ -2071,7 +2071,7 @@ class GetLdInfoRequestPacket(CciRequestPacket):
     def create_from_ccimessage(ccimessage: CciMessagePacket) -> "GetLdInfoRequestPacket":
         packet = GetLdInfoRequestPacket()
         packet.cci_header.msg_class = CCI_MSG_CLASS.REQ
-        packet.system_header.payload_type = PAYLOAD_TYPE.CCI_MCTP
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
         packet.system_header.payload_length = len(packet)
 
         packet.header_data.message_category = ccimessage.header.message_category
@@ -2133,7 +2133,7 @@ class GetLdAllocationsRequestPacket(GetLdAllocationsRequestBasePacket):
     def create(start_ld_id: int, ld_allocation_list_limit: int) -> "GetLdAllocationsRequestPacket":
         packet = GetLdAllocationsRequestPacket()
         packet.cci_header.msg_class = CCI_MSG_CLASS.REQ
-        packet.system_header.payload_type = PAYLOAD_TYPE.CCI_MCTP
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
         packet.system_header.payload_length = len(packet)
 
         packet.header_data.message_category = 0
@@ -2154,7 +2154,7 @@ class GetLdAllocationsRequestPacket(GetLdAllocationsRequestBasePacket):
     def create_from_ccimessage(ccimessage: CciMessagePacket) -> "GetLdAllocationsRequestPacket":
         packet = GetLdAllocationsRequestPacket()
         packet.cci_header.msg_class = CCI_MSG_CLASS.REQ
-        packet.system_header.payload_type = PAYLOAD_TYPE.CCI_MCTP
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
         packet.system_header.payload_length = len(packet)
 
         packet.header_data.message_category = ccimessage.header.message_category
@@ -2233,7 +2233,7 @@ class SetLdAllocationsRequestPacket(SetLdAllocationsRequestBasePacket):
     def create_from_ccimessage(ccimessage: CciMessagePacket) -> "SetLdAllocationsRequestPacket":
         packet = SetLdAllocationsRequestPacket()
         packet.cci_header.msg_class = CCI_MSG_CLASS.REQ
-        packet.system_header.payload_type = PAYLOAD_TYPE.CCI_MCTP
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
         packet.system_header.payload_length = len(packet)
 
         packet.header_data.message_category = ccimessage.header.message_category
@@ -2275,7 +2275,7 @@ class SetLdAllocationsRequestPacket(SetLdAllocationsRequestBasePacket):
         packet = SetLdAllocationsRequestPacket()
 
         packet.cci_header.msg_class = CCI_MSG_CLASS.REQ
-        packet.system_header.payload_type = PAYLOAD_TYPE.CCI_MCTP
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
 
         packet.header_data.message_category = 0
         packet.header_data.message_tag = 0
@@ -2409,7 +2409,7 @@ class GetLdInfoResponsePacket(GetLdInfoResponseBasePacket):
     def create(memory_size: int, ld_count: int, message_tag: int) -> "GetLdInfoResponsePacket":
         packet = GetLdInfoResponsePacket()
         packet.cci_header.msg_class = CCI_MSG_CLASS.RSP
-        packet.system_header.payload_type = PAYLOAD_TYPE.CCI_MCTP
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
         packet.system_header.payload_length = len(packet)
 
         packet.header_data.message_category = 1
@@ -2541,7 +2541,7 @@ class GetLdAllocationsResponsePacket(GetLdAllocationsResponseBasePacket):
     ) -> "GetLdAllocationsResponsePacket":
         packet = GetLdAllocationsResponsePacket()
         packet.cci_header.msg_class = CCI_MSG_CLASS.RSP
-        packet.system_header.payload_type = PAYLOAD_TYPE.CCI_MCTP
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
 
         packet.header_data.message_category = 1
         packet.header_data.message_tag = message_tag
@@ -2653,7 +2653,7 @@ class SetLdAllocationsResponsePacket(SetLdAllocationsResponseBasePacket):
     ) -> "SetLdAllocationsResponsePacket":
         packet = SetLdAllocationsResponsePacket()
         packet.cci_header.msg_class = CCI_MSG_CLASS.RSP
-        packet.system_header.payload_type = PAYLOAD_TYPE.CCI_MCTP
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
 
         packet.header_data.message_category = 1
         packet.header_data.message_tag = message_tag

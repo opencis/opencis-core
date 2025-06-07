@@ -16,9 +16,9 @@ from opencis.util.unaligned_bit_structure import (
 
 
 #
-# Packet Definitions for PAYLOAD_TYPE.CXL
+# Packet Definitions for SYSTEM_PAYLOAD_TYPE.CXL
 #
-class PAYLOAD_TYPE(IntEnum):
+class SYSTEM_PAYLOAD_TYPE(IntEnum):
     CXL = 0  # packet based on CPI
     CXL_IO = 1  # Custom packet for CXL.io
     CXL_MEM = 2  # Custom packet for CXL.mem
@@ -28,7 +28,7 @@ class PAYLOAD_TYPE(IntEnum):
 
 
 class SystemHeaderPacket(UnalignedBitStructure):
-    payload_type: PAYLOAD_TYPE
+    payload_type: SYSTEM_PAYLOAD_TYPE
     payload_length: int
     _fields = [
         # Bit offset [00:03]
@@ -54,26 +54,26 @@ class BasePacket(UnalignedBitStructure):
     ]
 
     def is_cxl_io(self) -> bool:
-        return self.system_header.payload_type == PAYLOAD_TYPE.CXL_IO
+        return self.system_header.payload_type == SYSTEM_PAYLOAD_TYPE.CXL_IO
 
     def is_cxl_mem(self) -> bool:
-        return self.system_header.payload_type == PAYLOAD_TYPE.CXL_MEM
+        return self.system_header.payload_type == SYSTEM_PAYLOAD_TYPE.CXL_MEM
 
     def is_cxl_cache(self) -> bool:
-        return self.system_header.payload_type == PAYLOAD_TYPE.CXL_CACHE
+        return self.system_header.payload_type == SYSTEM_PAYLOAD_TYPE.CXL_CACHE
 
     def is_cci(self) -> bool:
-        return self.system_header.payload_type == PAYLOAD_TYPE.CCI_MCTP
+        return self.system_header.payload_type == SYSTEM_PAYLOAD_TYPE.CCI_MCTP
 
     def is_sideband(self) -> bool:
-        return self.system_header.payload_type == PAYLOAD_TYPE.SIDEBAND
+        return self.system_header.payload_type == SYSTEM_PAYLOAD_TYPE.SIDEBAND
 
     def get_type(self) -> str:
         return self.__class__.__name__
 
 
 #
-# Packet Definitions for PAYLOAD_TYPE.CXL (SPI Packet)
+# Packet Definitions for SYSTEM_PAYLOAD_TYPE.CXL (SPI Packet)
 #
 class CPI_TRANSACTION_TYPE(IntEnum):
     SINGLE_TRANSACTION = 0
