@@ -11,8 +11,16 @@ class PacketDataMixin:
     def get_data(self) -> bytes:
         return bytes(super().get_data())
 
+    def get_data_as_int(self) -> int:
+        return int.from_bytes(self.get_data(), "little")
+
     def set_data(self, data: bytes):
         super().set_data(data)
+
+    def set_data_as_int(self, data: int):
+        length = (data.bit_length() + 7) // 8 or 1
+        data = data.to_bytes(length, byteorder="little")
+        self.set_data(data)
 
 
 class BasePacketMixin:

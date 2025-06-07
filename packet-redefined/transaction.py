@@ -160,10 +160,15 @@ class CxlIoMemRdPacket(CxlIoMemReqPacket):
 
 class CxlIoMemWrPacket(CxlIoMemReqPacket):
     @classmethod
-    def create(cls, addr: int, data: bytes, req_id: int = 0, tag: int = 0, ld_id: int = 0):
+    def create(cls, addr: int, data: bytes | int, req_id: int = 0, tag: int = 0, ld_id: int = 0):
         pkt = cls()
-        pkt.set_data(data)
-        pkt.fill(addr, len(data), htotlp16(req_id), cls.get_tag())
+        if isinstance(data, int):
+            pkt.set_data_as_int(data)
+            length = (data.bit_length() + 7) // 8 or 1
+        else:
+            pkt.set_data(data)
+            length = len(data)
+        pkt.fill(addr, length, htotlp16(req_id), cls.get_tag())
         pkt.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
         pkt.tlp_prefix.ld_id = ld_id
         pkt.system_header.payload_length = pkt.get_size()
@@ -282,10 +287,8 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
     ) -> "CxlIoCfgWrPacket":
         offset = cfg_addr % 4
         pkt = cls(None)
-
         value = value << (8 * offset)
-        num_bytes = (value.bit_length() + 7) // 8 or 1
-        pkt.set_data(value.to_bytes(num_bytes, byteorder="little"))
+        pkt.set_data_as_int(value)
         pkt.fill(id, cfg_addr, size, htotlp16(req_id), cls.get_tag())
         pkt.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_WR0 if is_type0 else CXL_IO_FMT_TYPE.CFG_WR1
@@ -365,7 +368,10 @@ class CxlIoCompletionWithDataPacket(
         pkt.cpl_header.byte_count_upper = extract_upper(pload_len, 4, 12)
         pkt.cpl_header.byte_count_lower = extract_lower(pload_len, 8, 12)
 
-        pkt.set_data(data)
+        if isinstance(data, int):
+            pkt.set_data_as_int(data)
+        else:
+            pkt.set_data(data)
 
         pkt.tlp_prefix.ld_id = ld_id
         pkt.system_header.payload_length = pkt.get_size()
@@ -463,8 +469,12 @@ class CxlCacheCacheD2HDataPacket(
         pkt.d2hdata_header.valid = 1
         pkt.d2hdata_header.uqid = uqid
         pkt.d2hdata_header.poison = 0
-        num_bytes = (data.bit_length() + 7) // 8 or 1
-        pkt.set_data(data.to_bytes(num_bytes, byteorder="little"))
+
+        if isinstance(data, int):
+            pkt.set_data_as_int(data)
+        else:
+            pkt.set_data(data)
+
         pkt.system_header.payload_length = pkt.get_size()
         return pkt
 
@@ -536,8 +546,12 @@ class CxlCacheCacheH2DDataPacket(
         pkt.h2ddata_header.valid = 1
         pkt.h2ddata_header.cache_id = cache_id
         pkt.h2ddata_header.cqid = cqid
-        num_bytes = (data.bit_length() + 7) // 8 or 1
-        pkt.set_data(data.to_bytes(num_bytes, byteorder="little"))
+
+        if isinstance(data, int):
+            pkt.set_data_as_int(data)
+        else:
+            pkt.set_data(data)
+
         pkt.system_header.payload_length = pkt.get_size()
         return pkt
 
@@ -652,8 +666,12 @@ class CxlMemMemWrPacket(
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")
         pkt.m2srwd_header.addr = addr >> 6
-        num_bytes = (data.bit_length() + 7) // 8 or 1
-        pkt.set_data(data.to_bytes(num_bytes, byteorder="little"))
+
+        if isinstance(data, int):
+            pkt.set_data_as_int(data)
+        else:
+            pkt.set_data(data)
+
         pkt.system_header.payload_length = pkt.get_size()
         return pkt
 
@@ -735,7 +753,12 @@ class CxlMemMemDataPacket(
         pkt.s2mdrs_header.meta_field = meta_field
         pkt.s2mdrs_header.meta_value = meta_value
         pkt.s2mdrs_header.ld_id = ld_id
-        pkt.set_data(bytes(data))
+
+        if isinstance(data, int):
+            pkt.set_data_as_int(data)
+        else:
+            pkt.set_data(data)
+
         pkt.system_header.payload_length = pkt.get_size()
         return pkt
 

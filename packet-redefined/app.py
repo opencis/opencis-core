@@ -63,7 +63,7 @@ def instantiate_packets():
 
     # CXL.io memory packets
     packets.append(CxlIoMemRdPacket.create(addr=0x1000, length=4, req_id=1, tag=2))
-    packets.append(CxlIoMemWrPacket.create(addr=0x1000, data=buf[:4], req_id=1, tag=2))
+    packets.append(CxlIoMemWrPacket.create(addr=0x1000, data=0xDEADBEEF, req_id=1, tag=2))
 
     # CXL.io config packets
     packets.append(CxlIoCfgRdPacket.create(id=0x10, cfg_addr=0x04, size=1, req_id=1, tag=1))
@@ -283,5 +283,45 @@ def test_packet_reader():
     asyncio.run(simulate_packet_reader(packets))
 
 
+from transaction import CxlIoMemWrPacket
+
+
+def test_set_and_get_data_as_int():
+    pkt = CxlIoMemWrPacket()
+
+    # Test with a simple int
+    original_int = 0xDEADBEEF
+    pkt.set_data_as_int(original_int)
+
+    retrieved_bytes = pkt.get_data()
+    retrieved_int = pkt.get_data_as_int()
+
+    assert isinstance(retrieved_bytes, bytes), "get_data() should return bytes"
+    assert retrieved_bytes == original_int.to_bytes(4, "little"), "Byte content mismatch"
+    assert retrieved_int == original_int, "Integer value mismatch"
+
+    print("@@@ test_set_and_get_data_as_int passed.")
+
+
+def test_set_and_get_data_with_varied_lengths():
+    test_values = [
+        0x01,  # 1 byte
+        0x1234,  # 2 bytes
+        0xDEADBEEF,  # 4 bytes
+        0x0123456789ABCDEF,  # 8 bytes
+        0,  # special case
+    ]
+
+    for val in test_values:
+        pkt = CxlIoMemWrPacket()
+        pkt.set_data_as_int(val)
+        result = pkt.get_data_as_int()
+        assert result == val, f"Mismatch: {hex(result)} != {hex(val)}"
+
+    print("@@@ test_set_and_get_data_with_varied_lengths passed.")
+
+
 if __name__ == "__main__":
     main()
+    test_set_and_get_data_as_int()
+    test_set_and_get_data_with_varied_lengths()
