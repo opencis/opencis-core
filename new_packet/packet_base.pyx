@@ -38,7 +38,7 @@ cdef class PacketBuffer:
             self.buf[offset + i] = data[i]
 
     cpdef bytes to_bytes(self):
-        return bytes(self.buf)
+        return bytes(self.buf[:self.get_size()])
 
     def __len__(self):
         return self.get_size()

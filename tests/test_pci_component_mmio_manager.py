@@ -74,7 +74,7 @@ async def test_mmio_manager_write():
 
     bar_entry.base_address = 0
     bar_entry.register = MagicMock()
-    packet = CxlIoMemWrPacket.create(addr=0, length=4, data=0xF)
+    packet = CxlIoMemWrPacket.create(addr=0, data=0xF)
     await upstream_fifo.host_to_target.put(packet)
     await mmio_manager._process_host_to_target(run_once=True)
     assert upstream_fifo.host_to_target.qsize() == 0

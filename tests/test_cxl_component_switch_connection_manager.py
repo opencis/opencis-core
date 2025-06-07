@@ -522,7 +522,7 @@ async def test_switch_connection_manager_handle_mmio_completion():
 
         req_id = 0x10
         tag = 0x1
-        req1 = CxlIoMemWrPacket.create(0x10, 4, 0xDEADBEEF, req_id=req_id, tag=tag)
+        req1 = CxlIoMemWrPacket.create(0x10, 0xDEADBEEF, req_id=req_id, tag=tag)
         await client_connection.mmio_fifo.host_to_target.put(req1)
 
         cpl_id = 0x20

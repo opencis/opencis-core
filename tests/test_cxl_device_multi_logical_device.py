@@ -14,7 +14,7 @@ import pytest
 from opencis.apps.multi_logical_device import MultiLogicalDevice
 from opencis.cxl.component.common import CXL_COMPONENT_TYPE
 from opencis.cxl.component.cxl_packet_processor import CxlPacketProcessor
-from opencis.cxl.component.packet_reader import PacketReader
+from new_packet.packet_reader import PacketReader
 from opencis.cxl.component.cxl_connection import CxlConnection
 from opencis.pci.component.pci import EEUM_VID, SW_MLD_DID
 from opencis.util.number_const import MB
@@ -128,7 +128,7 @@ async def test_multi_logical_device_ld_id():
         assert packet.tlp_prefix.ld_id == target_ld_id
         assert is_cxl_io_completion_status_sc(packet)
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
-        assert cpld_packet.data == (EEUM_VID | (SW_MLD_DID << 16))
+        assert cpld_packet.get_data_as_int() == (EEUM_VID | (SW_MLD_DID << 16))
 
         # NOTE: Test Config Space Type0 Write - BAR WRITE
         logger.info("[PyTest] Testing Config Space Type0 Write (BAR)")
@@ -152,7 +152,7 @@ async def test_multi_logical_device_ld_id():
         assert packet.tlp_prefix.ld_id == target_ld_id
         assert is_cxl_io_completion_status_sc(packet)
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
-        size = 0xFFFFFFFF - cpld_packet.data + 1
+        size = 0xFFFFFFFF - cpld_packet.get_data_as_int() + 1
         assert size == bar_size
 
         # NOTE: Test Config Space Type1 Read - VID/DID: Expect UR
@@ -216,11 +216,11 @@ async def test_multi_logical_device_ld_id():
             dpa_skip_low = dpa_skip & 0xFFFFFFFF
             dpa_skip_high = (dpa_skip >> 32) & 0xFFFFFFFF
 
-            packet = CxlIoMemWrPacket.create(dpa_skip_low_offset, 4, dpa_skip_low, ld_id=ld_id)
+            packet = CxlIoMemWrPacket.create(dpa_skip_low_offset, dpa_skip_low, ld_id=ld_id)
             writer.write(bytes(packet))
             await writer.drain()
 
-            packet = CxlIoMemWrPacket.create(dpa_skip_high_offset, 4, dpa_skip_high, ld_id=ld_id)
+            packet = CxlIoMemWrPacket.create(dpa_skip_high_offset, dpa_skip_high, ld_id=ld_id)
             writer.write(bytes(packet))
             await writer.drain()
 
@@ -242,31 +242,31 @@ async def test_multi_logical_device_ld_id():
             )
 
             packet = CxlIoMemWrPacket.create(
-                decoder_base_low_offset, 4, decoder_base_low, ld_id=ld_id
+                decoder_base_low_offset, decoder_base_low, ld_id=ld_id
             )
             writer.write(bytes(packet))
             await writer.drain()
 
             packet = CxlIoMemWrPacket.create(
-                decoder_base_high_offset, 4, decoder_base_high, ld_id=ld_id
+                decoder_base_high_offset, decoder_base_high, ld_id=ld_id
             )
             writer.write(bytes(packet))
             await writer.drain()
 
             packet = CxlIoMemWrPacket.create(
-                decoder_size_low_offset, 4, decoder_size_low, ld_id=ld_id
+                decoder_size_low_offset, decoder_size_low, ld_id=ld_id
             )
             writer.write(bytes(packet))
             await writer.drain()
 
             packet = CxlIoMemWrPacket.create(
-                decoder_size_high_offset, 4, decoder_size_high, ld_id=ld_id
+                decoder_size_high_offset, decoder_size_high, ld_id=ld_id
             )
             writer.write(bytes(packet))
             await writer.drain()
 
             packet = CxlIoMemWrPacket.create(
-                decoder_control_register_offset, 4, decoder_control, ld_id=ld_id
+                decoder_control_register_offset, decoder_control, ld_id=ld_id
             )
             writer.write(bytes(packet))
             await writer.drain()
@@ -285,12 +285,12 @@ async def test_multi_logical_device_ld_id():
 
         # NOTE: Write 0xDEADBEEF
         data = 0xDEADBEEF
-        packet = CxlIoMemWrPacket.create(memory_base_address, 4, data=data, ld_id=target_ld_id)
+        packet = CxlIoMemWrPacket.create(memory_base_address, data=data, ld_id=target_ld_id)
         packet_writer.write(bytes(packet))
         await packet_writer.drain()
 
         # NOTE: Confirm 0xDEADBEEF is written
-        packet = CxlIoMemRdPacket.create(memory_base_address, 4, ld_id=target_ld_id)
+        packet = CxlIoMemRdPacket.create(memory_base_address, ld_id=target_ld_id)
         packet_writer.write(bytes(packet))
         await packet_writer.drain()
         packet = await packet_reader.get_packet()
@@ -298,17 +298,17 @@ async def test_multi_logical_device_ld_id():
         assert packet.tlp_prefix.ld_id == target_ld_id
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
         logger.info(f"[PyTest] Received CXL.io packet: {cpld_packet}")
-        assert cpld_packet.data == data
+        assert cpld_packet.get_data_as_int() == data
 
         # NOTE: Write OOB (Upper Boundary), Expect No Error
         packet = CxlIoMemWrPacket.create(
-            memory_base_address + bar_size, 4, data=data, ld_id=target_ld_id
+            memory_base_address + bar_size, data=data, ld_id=target_ld_id
         )
         packet_writer.write(bytes(packet))
         await packet_writer.drain()
 
         # NOTE: Write OOB (Lower Boundary), Expect No Error
-        packet = CxlIoMemWrPacket.create(memory_base_address - 4, 4, data=data, ld_id=target_ld_id)
+        packet = CxlIoMemWrPacket.create(memory_base_address - 4, data=data, ld_id=target_ld_id)
         packet_writer.write(bytes(packet))
         await packet_writer.drain()
 
@@ -320,7 +320,7 @@ async def test_multi_logical_device_ld_id():
         assert is_cxl_io_completion_status_sc(packet)
         assert packet.tlp_prefix.ld_id == target_ld_id
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
-        assert cpld_packet.data == 0
+        assert cpld_packet.get_data_as_int() == 0
 
         # NOTE: Read OOB (Lower Boundary), Expect 0
         packet = CxlIoMemRdPacket.create(memory_base_address - 4, 4, ld_id=target_ld_id)
@@ -330,7 +330,7 @@ async def test_multi_logical_device_ld_id():
         assert is_cxl_io_completion_status_sc(packet)
         assert packet.tlp_prefix.ld_id == target_ld_id
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
-        assert cpld_packet.data == 0
+        assert cpld_packet.get_data_as_int() == 0
 
     async def send_packets(
         target_ld_id: int, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -356,8 +356,8 @@ async def test_multi_logical_device_ld_id():
         packet = await packet_reader.get_packet()
         assert packet.s2mdrs_header.ld_id == target_ld_id
         mem_packet = cast(CxlMemMemRdPacket, packet)
-        logger.info(f"[PyTest] Received CXL.mem packet: {hex(mem_packet.data)}")
-        assert mem_packet.data == target_data
+        logger.info(f"[PyTest] Received CXL.mem packet: {hex(mem_packet.get_data_as_int())}")
+        assert mem_packet.get_data_as_int() == target_data
 
         # Check MLD bin file
         logger.info("[PyTest] Checking MLD bin file")
