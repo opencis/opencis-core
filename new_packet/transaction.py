@@ -7,7 +7,7 @@ See LICENSE for details.
 
 from typing import Optional
 
-from packet_structs import (
+from new_packet.packet_structs import (
     RawBasePacket,
     RawBaseSidebandPacket,
     RawSidebandConnectionRequestPacket,
@@ -80,19 +80,25 @@ class BasePacket(BasePacketMixin, RawBasePacket):
 
 ############ SIDEBAND
 class BaseSidebandPacket(BasePacketMixin, SidebandPacketMixin, RawBaseSidebandPacket):
-    pass
+    @classmethod
+    def create(cls, type: SIDEBAND_TYPES) -> "BaseSidebandPacket":
+        packet = BaseSidebandPacket()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.SIDEBAND
+        packet.sideband_header.type = type
+        packet.system_header.payload_length = len(packet)
+        return packet
 
 
 class SidebandConnectionRequestPacket(
-    BasePacketMixin, SidebandPacketMixin, RawSidebandConnectionRequestPacket
+    BasePacketMixin, SidebandPacketMixin, RawSidebandConnectionRequestPacket, PacketDataMixin
 ):
     @classmethod
     def create(cls, port_index: int) -> "SidebandConnectionRequestPacket":
         pkt = cls()
         pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.SIDEBAND
-        pkt.system_header.payload_length = len(pkt)
         pkt.sideband_header.type = SIDEBAND_TYPES.CONNECTION_REQUEST
-        pkt.port = port_index
+        pkt.set_data_as_int(port_index)
+        pkt.system_header.payload_length = len(pkt)
         return pkt
 
 

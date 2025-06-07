@@ -11,17 +11,17 @@ import traceback
 from typing import Optional, Tuple
 
 from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
-from opencis.cxl.transport.transaction import (
+from new_packet.transaction import (
     BasePacket,
     BaseSidebandPacket,
-    CxlCacheBasePacket,
-    CxlCacheD2HDataPacket,
-    CxlCacheD2HReqPacket,
-    CxlCacheD2HRspPacket,
-    CxlCacheH2DDataPacket,
-    CxlCacheH2DReqPacket,
-    CxlCacheH2DRspPacket,
     SidebandConnectionRequestPacket,
+    CxlCacheBasePacket,
+    CxlCacheCacheD2HDataPacket,
+    CxlCacheCacheD2HReqPacket,
+    CxlCacheCacheD2HRspPacket,
+    CxlCacheCacheH2DDataPacket,
+    CxlCacheCacheH2DReqPacket,
+    CxlCacheCacheH2DRspPacket,
     CxlIoBasePacket,
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
@@ -36,18 +36,13 @@ from opencis.cxl.transport.transaction import (
     CxlMemS2MBISnpPacket,
     CxlMemS2MNDRPacket,
     CxlMemS2MDRSPacket,
-    CciBasePacket,
-    CciRequestPacket,
-    CciResponsePacket,
-    GetLdInfoRequestPacket,
-    GetLdInfoResponsePacket,
-    GetLdAllocationsRequestPacket,
-    GetLdAllocationsResponsePacket,
-    SetLdAllocationsRequestPacket,
-    SetLdAllocationsResponsePacket,
 )
 from opencis.util.logger import logger
 from opencis.util.component import LabeledComponent
+
+from new_packet.packet_structs import (
+    SystemHeader,
+)
 
 
 class PACKET_READ_STATUS(Enum):
@@ -117,9 +112,8 @@ class PacketReader(LabeledComponent):
 
     async def _get_payload(self) -> Tuple[BasePacket, bytes]:
         logger.debug(self._create_message("Waiting Packet"))
-        header_load = await self._read_payload(BasePacket.get_size())
-        base_packet = BasePacket()
-        base_packet.reset(header_load)
+        header_load = await self._read_payload(SystemHeader.get_size())
+        base_packet = BasePacket(bytearray(header_load))
         remaining_length = base_packet.system_header.payload_length - len(base_packet)
         if remaining_length < 0:
             raise Exception("remaining length is less than 0")
@@ -134,124 +128,112 @@ class PacketReader(LabeledComponent):
         return payload
 
     def _get_cxl_io_packet(self, payload: bytes) -> CxlIoBasePacket:
-        cxl_io_base_packet = CxlIoBasePacket()
-        header_size = (
-            len(cxl_io_base_packet.tlp_prefix)
-            + len(cxl_io_base_packet.cxl_io_header)
-            + BasePacket.get_size()
-        )
-        cxl_io_base_packet.reset(payload[:header_size])
+        payload = bytearray(payload)
+        cxl_io_base_packet = CxlIoBasePacket(payload)
         if cxl_io_base_packet.is_cfg_read():
-            cxl_io_packet = CxlIoCfgRdPacket()
+            cxl_io_packet = CxlIoCfgRdPacket(payload)
         elif cxl_io_base_packet.is_cfg_write():
-            cxl_io_packet = CxlIoCfgWrPacket()
+            cxl_io_packet = CxlIoCfgWrPacket(payload)
         elif cxl_io_base_packet.is_mem_read():
-            cxl_io_packet = CxlIoMemRdPacket()
+            cxl_io_packet = CxlIoMemRdPacket(payload)
         elif cxl_io_base_packet.is_mem_write():
-            cxl_io_packet = CxlIoMemWrPacket()
+            cxl_io_packet = CxlIoMemWrPacket(payload)
         elif cxl_io_base_packet.is_cpl():
-            cxl_io_packet = CxlIoCompletionPacket()
+            cxl_io_packet = CxlIoCompletionPacket(payload)
         elif cxl_io_base_packet.is_cpld():
-            cxl_io_packet = CxlIoCompletionWithDataPacket()
+            cxl_io_packet = CxlIoCompletionWithDataPacket(payload)
 
         if cxl_io_packet is None:
             protocol = cxl_io_base_packet.cxl_io_header.fmt_type
             raise Exception(f"Unsupported CXL.IO protocol {protocol}")
-        cxl_io_packet.reset(payload)
         return cxl_io_packet
 
     def _get_cxl_mem_packet(self, payload: bytes) -> CxlMemBasePacket:
-        cxl_mem_base_packet = CxlMemBasePacket()
-        header_size = len(cxl_mem_base_packet.cxl_mem_header) + BasePacket.get_size()
-        cxl_mem_base_packet.reset(payload[:header_size])
+        payload = bytearray(payload)
+        cxl_mem_base_packet = CxlMemBasePacket(payload)
         if cxl_mem_base_packet.is_m2sreq():
-            cxl_mem_packet = CxlMemM2SReqPacket()
+            cxl_mem_packet = CxlMemM2SReqPacket(payload)
         elif cxl_mem_base_packet.is_m2srwd():
-            cxl_mem_packet = CxlMemM2SRwDPacket()
+            cxl_mem_packet = CxlMemM2SRwDPacket(payload)
         elif cxl_mem_base_packet.is_m2sbirsp():
-            cxl_mem_packet = CxlMemM2SBIRspPacket()
+            cxl_mem_packet = CxlMemM2SBIRspPacket(payload)
         elif cxl_mem_base_packet.is_s2mbisnp():
-            cxl_mem_packet = CxlMemS2MBISnpPacket()
+            cxl_mem_packet = CxlMemS2MBISnpPacket(payload)
         elif cxl_mem_base_packet.is_s2mndr():
-            cxl_mem_packet = CxlMemS2MNDRPacket()
+            cxl_mem_packet = CxlMemS2MNDRPacket(payload)
         elif cxl_mem_base_packet.is_s2mdrs():
-            cxl_mem_packet = CxlMemS2MDRSPacket()
+            cxl_mem_packet = CxlMemS2MDRSPacket(payload)
         else:
             msg_class = cxl_mem_base_packet.cxl_mem_header.msg_class
             raise Exception(f"Unsupported CXL.MEM message class: {msg_class}")
 
-        cxl_mem_packet.reset(payload)
         return cxl_mem_packet
 
     def _get_cxl_cache_packet(self, payload: bytes) -> CxlCacheBasePacket:
-        cxl_cache_base_packet = CxlCacheBasePacket()
-        header_size = len(cxl_cache_base_packet.cxl_cache_header) + BasePacket.get_size()
-        cxl_cache_base_packet.reset(payload[:header_size])
+        payload = bytearray(payload)
+        cxl_cache_base_packet = CxlCacheBasePacket(payload)
         if cxl_cache_base_packet.is_d2hreq():
-            cxl_cache_packet = CxlCacheD2HReqPacket()
+            cxl_cache_packet = CxlCacheCacheD2HReqPacket(payload)
         elif cxl_cache_base_packet.is_d2hrsp():
-            cxl_cache_packet = CxlCacheD2HRspPacket()
+            cxl_cache_packet = CxlCacheCacheD2HRspPacket(payload)
         elif cxl_cache_base_packet.is_d2hdata():
-            cxl_cache_packet = CxlCacheD2HDataPacket()
+            cxl_cache_packet = CxlCacheCacheD2HDataPacket(payload)
         elif cxl_cache_base_packet.is_h2dreq():
-            cxl_cache_packet = CxlCacheH2DReqPacket()
+            cxl_cache_packet = CxlCacheCacheH2DReqPacket(payload)
         elif cxl_cache_base_packet.is_h2drsp():
-            cxl_cache_packet = CxlCacheH2DRspPacket()
+            cxl_cache_packet = CxlCacheCacheH2DRspPacket(payload)
         elif cxl_cache_base_packet.is_h2ddata():
-            cxl_cache_packet = CxlCacheH2DDataPacket()
+            cxl_cache_packet = CxlCacheCacheH2DDataPacket(payload)
         else:
             msg_class = cxl_cache_base_packet.cxl_cache_header.msg_class
             raise Exception(f"Unsupported CXL.CACHE message class: {msg_class}")
 
-        cxl_cache_packet.reset(payload)
         return cxl_cache_packet
 
-    def _get_cci_packet(self, payload: bytes) -> CciBasePacket:
-        cci_base_packet = CciBasePacket()
-        header_size = len(cci_base_packet.cci_header) + BasePacket.get_size()
-        cci_base_packet.reset(payload[:header_size])
+    # def _get_cci_packet(self, payload: bytes) -> CciBasePacket:
+    #     cci_base_packet = CciBasePacket()
+    #     header_size = len(cci_base_packet.cci_header) + SystemHeader.get_size()
+    #     cci_base_packet.reset(payload[:header_size])
 
-        if cci_base_packet.is_req():
-            cci_packet = CciRequestPacket()
-            cci_packet.reset(payload)
-            if cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
-                cci_packet = GetLdInfoRequestPacket()
-                cci_packet.reset(payload)
-            elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:
-                cci_packet = GetLdAllocationsRequestPacket()
-                logger.debug(f"GetLdAllocationsRequestPacket created: {cci_packet}")
-                cci_packet.reset(payload)
-            elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
-                cci_packet = SetLdAllocationsRequestPacket()
-                cci_packet.reset(payload)
-            else:
-                raise Exception("Unsupported CCI packet")
-        elif cci_base_packet.is_rsp():
-            cci_packet = CciResponsePacket()
-            cci_packet.reset(payload)
-            if cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
-                cci_packet = GetLdInfoResponsePacket()
-                cci_packet.reset(payload)
-            elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:
-                cci_packet = GetLdAllocationsResponsePacket()
-                cci_packet.reset(payload)
-            elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
-                cci_packet = SetLdAllocationsResponsePacket()
-                cci_packet.reset(payload)
-            else:
-                raise Exception("Unsupported CCI packet")
-        else:
-            raise Exception("Unsupported CCI packet")
+    #     if cci_base_packet.is_req():
+    #         cci_packet = CciRequestPacket()
+    #         cci_packet.reset(payload)
+    #         if cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
+    #             cci_packet = GetLdInfoRequestPacket()
+    #             cci_packet.reset(payload)
+    #         elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:
+    #             cci_packet = GetLdAllocationsRequestPacket()
+    #             logger.debug(f"GetLdAllocationsRequestPacket created: {cci_packet}")
+    #             cci_packet.reset(payload)
+    #         elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
+    #             cci_packet = SetLdAllocationsRequestPacket()
+    #             cci_packet.reset(payload)
+    #         else:
+    #             raise Exception("Unsupported CCI packet")
+    #     elif cci_base_packet.is_rsp():
+    #         cci_packet = CciResponsePacket()
+    #         cci_packet.reset(payload)
+    #         if cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
+    #             cci_packet = GetLdInfoResponsePacket()
+    #             cci_packet.reset(payload)
+    #         elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:
+    #             cci_packet = GetLdAllocationsResponsePacket()
+    #             cci_packet.reset(payload)
+    #         elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
+    #             cci_packet = SetLdAllocationsResponsePacket()
+    #             cci_packet.reset(payload)
+    #         else:
+    #             raise Exception("Unsupported CCI packet")
+    #     else:
+    #         raise Exception("Unsupported CCI packet")
 
-        return cci_packet
+    #     return cci_packet
 
     def _get_sideband_packet(self, payload: bytes) -> BaseSidebandPacket:
-        base_sideband_packet = BaseSidebandPacket()
-        header_size = len(base_sideband_packet.sideband_header) + BasePacket.get_size()
-        base_sideband_packet.reset(payload[:header_size])
+        payload = bytearray(payload)
+        base_sideband_packet = BaseSidebandPacket(payload)
         if base_sideband_packet.is_connection_request():
-            sideband_packet = SidebandConnectionRequestPacket()
-            sideband_packet.reset(payload)
+            sideband_packet = SidebandConnectionRequestPacket(payload)
         elif (
             base_sideband_packet.is_connection_accept()
             or base_sideband_packet.is_connection_reject()

@@ -81,6 +81,7 @@ class SwitchConnectionClient(RunnableComponent):
             message = "Connection rejected"
             logger.warning(self._create_message(message))
             raise Exception(message)
+        print(f"{response.get_data_as_int()}")
         if not sideband_response.is_connection_accept():
             message = "Received unexpected sideband packet"
             logger.warning(self._create_message(message))
