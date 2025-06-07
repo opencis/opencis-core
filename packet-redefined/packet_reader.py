@@ -16,12 +16,12 @@ from transaction import (
     BaseSidebandPacket,
     SidebandConnectionRequestPacket,
     CxlCacheBasePacket,
-    CxlCacheD2HDataPacket,
-    CxlCacheD2HReqPacket,
-    CxlCacheD2HRspPacket,
-    CxlCacheH2DDataPacket,
-    CxlCacheH2DReqPacket,
-    CxlCacheH2DRspPacket,
+    CxlCacheCacheD2HDataPacket,
+    CxlCacheCacheD2HReqPacket,
+    CxlCacheCacheD2HRspPacket,
+    CxlCacheCacheH2DDataPacket,
+    CxlCacheCacheH2DReqPacket,
+    CxlCacheCacheH2DRspPacket,
     CxlIoBasePacket,
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
@@ -172,17 +172,17 @@ class PacketReader(LabeledComponent):
         payload = bytearray(payload)
         cxl_cache_base_packet = CxlCacheBasePacket(payload)
         if cxl_cache_base_packet.is_d2hreq():
-            cxl_cache_packet = CxlCacheD2HReqPacket(payload)
+            cxl_cache_packet = CxlCacheCacheD2HReqPacket(payload)
         elif cxl_cache_base_packet.is_d2hrsp():
-            cxl_cache_packet = CxlCacheD2HRspPacket(payload)
+            cxl_cache_packet = CxlCacheCacheD2HRspPacket(payload)
         elif cxl_cache_base_packet.is_d2hdata():
-            cxl_cache_packet = CxlCacheD2HDataPacket(payload)
+            cxl_cache_packet = CxlCacheCacheD2HDataPacket(payload)
         elif cxl_cache_base_packet.is_h2dreq():
-            cxl_cache_packet = CxlCacheH2DReqPacket(payload)
+            cxl_cache_packet = CxlCacheCacheH2DReqPacket(payload)
         elif cxl_cache_base_packet.is_h2drsp():
-            cxl_cache_packet = CxlCacheH2DRspPacket(payload)
+            cxl_cache_packet = CxlCacheCacheH2DRspPacket(payload)
         elif cxl_cache_base_packet.is_h2ddata():
-            cxl_cache_packet = CxlCacheH2DDataPacket(payload)
+            cxl_cache_packet = CxlCacheCacheH2DDataPacket(payload)
         else:
             msg_class = cxl_cache_base_packet.cxl_cache_header.msg_class
             raise Exception(f"Unsupported CXL.CACHE message class: {msg_class}")

@@ -10,12 +10,12 @@ from transaction import (
     CxlIoCfgWrPacket,
     CxlIoCompletionPacket,
     CxlIoCompletionWithDataPacket,
-    CxlCacheD2HReqPacket,
-    CxlCacheD2HRspPacket,
-    CxlCacheD2HDataPacket,
-    CxlCacheH2DReqPacket,
-    CxlCacheH2DRspPacket,
-    CxlCacheH2DDataPacket,
+    CxlCacheCacheD2HReqPacket,
+    CxlCacheCacheD2HRspPacket,
+    CxlCacheCacheD2HDataPacket,
+    CxlCacheCacheH2DReqPacket,
+    CxlCacheCacheH2DRspPacket,
+    CxlCacheCacheH2DDataPacket,
     CxlMemMemRdPacket,
     CxlMemMemWrPacket,
     CxlMemBIRspPacket,
@@ -73,25 +73,27 @@ def instantiate_packets():
 
     # CXL.cache packets
     packets.append(
-        CxlCacheD2HReqPacket.create(
+        CxlCacheCacheD2HReqPacket.create(
             addr=0x1000, cache_id=1, opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_CURR, cqid=0
         )
     )
-    packets.append(CxlCacheD2HRspPacket.create(uqid=1, opcode=CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_I))
-    packets.append(CxlCacheD2HDataPacket.create(uqid=1, data=0xDEADBEEF))
     packets.append(
-        CxlCacheH2DReqPacket.create(
+        CxlCacheCacheD2HRspPacket.create(uqid=1, opcode=CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_I)
+    )
+    packets.append(CxlCacheCacheD2HDataPacket.create(uqid=1, data=0xDEADBEEF))
+    packets.append(
+        CxlCacheCacheH2DReqPacket.create(
             addr=0x1000, cache_id=1, opcode=CXL_CACHE_H2DREQ_OPCODE.SNP_DATA
         )
     )
     packets.append(
-        CxlCacheH2DRspPacket.create(
+        CxlCacheCacheH2DRspPacket.create(
             cache_id=1,
             opcode=CXL_CACHE_H2DRSP_OPCODE.WRITE_PULL,
             rsp_data=CXL_CACHE_H2DRSP_CACHE_STATE.EXCLUSIVE,
         )
     )
-    packets.append(CxlCacheH2DDataPacket.create(cache_id=1, data=0xBEEF))
+    packets.append(CxlCacheCacheH2DDataPacket.create(cache_id=1, data=0xBEEF))
 
     # CXL.mem packets
     packets.append(CxlMemMemRdPacket.create(addr=0x1000))

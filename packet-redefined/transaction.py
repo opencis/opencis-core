@@ -173,6 +173,14 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
 class CxlIoCfgReqPacket(
     BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoCfgReqPacket, PacketDataMixin
 ):
+    _tag_counter: int = 0
+
+    @classmethod
+    def get_tag(cls) -> int:
+        tag = cls._tag_counter
+        cls._tag_counter = (cls._tag_counter + 1) % 256
+        return tag
+
     def fill(self, id: int, cfg_addr: int, size: int, req_id: int, tag: int) -> "CxlIoCfgReqPacket":
         self.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_IO
 
@@ -274,7 +282,7 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
     ) -> "CxlIoCfgWrPacket":
         offset = cfg_addr % 4
         pkt = cls(None)
-        pkt.set_data(value << (8 * offset))
+        pkt.set_data(bytes(value << (8 * offset)))
         pkt.fill(id, cfg_addr, size, htotlp16(req_id), cls.get_tag())
         pkt.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_WR0 if is_type0 else CXL_IO_FMT_TYPE.CFG_WR1
@@ -452,7 +460,7 @@ class CxlCacheCacheD2HDataPacket(
         pkt.d2hdata_header.valid = 1
         pkt.d2hdata_header.uqid = uqid
         pkt.d2hdata_header.poison = 0
-        pkt.set_data(data)
+        pkt.set_data(bytes(data))
         pkt.system_header.payload_length = pkt.get_size()
         return pkt
 

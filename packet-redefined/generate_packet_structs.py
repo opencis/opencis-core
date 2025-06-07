@@ -51,13 +51,13 @@ def emit_composite(packet_name, layout, field_sizes):
         "",
         f"cdef class Raw{packet_name}(PacketBuffer):",
     ]
-    field_entries = []
-    has_data_field = False
 
+    has_data_field = False
+    field_entries = []
     for entry in layout:
-        if entry == ("DataField", "data"):
+        if isinstance(entry, tuple) and entry[0] == "DataField":
             has_data_field = True
-            field_entries.append(("DataField", "data"))
+            field_entries.append(entry)
         elif isinstance(entry, tuple):
             field_entries.append(entry)
         else:
