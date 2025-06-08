@@ -114,7 +114,7 @@ class PacketReader(LabeledComponent):
         logger.debug(self._create_message("Waiting Packet"))
         header_load = await self._read_payload(SystemHeader.get_size())
 
-        logger.debug(self._create_message(f"//////////////////////////{list(header_load)}"))
+        # logger.debug(self._create_message(f"list(header_load)}"))
 
         base_packet = BasePacket(bytearray(header_load))
         remaining_length = base_packet.system_header.payload_length - len(base_packet)
@@ -126,7 +126,7 @@ class PacketReader(LabeledComponent):
 
     async def _read_payload(self, size: int) -> bytes:
         payload = await self._reader.read(size)
-        logger.debug(self._create_message(f"rx: {payload}"))
+        # logger.debug(self._create_message(f"rx: {payload}"))
         if not payload:
             raise Exception("Connection disconnected")
         return payload

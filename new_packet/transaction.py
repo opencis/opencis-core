@@ -397,10 +397,12 @@ class CxlIoCompletionWithDataPacket(
         pkt.cpl_header.byte_count_upper = extract_upper(pload_len, 4, 12)
         pkt.cpl_header.byte_count_lower = extract_lower(pload_len, 8, 12)
 
-        # logger.info(f"DATA: {data}")
+
         if isinstance(data, int):
+            logger.info(f"!!!DATA i: {data:x}")
             pkt.set_data_as_int(data)
         else:
+            logger.info(f"!!!DATA b: {data:x}")
             pkt.set_data(data)
 
         pkt.tlp_prefix.ld_id = ld_id
