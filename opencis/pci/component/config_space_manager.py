@@ -80,6 +80,8 @@ class ConfigSpaceManager(RunnableComponent):
         tag = cfg_rd_packet.cfg_req_header.tag
         ld_id = cfg_rd_packet.tlp_prefix.ld_id
 
+        logger.info(f"R::: cfg_rd_packet.cfg_req_header.dest_id:{cfg_rd_packet.cfg_req_header.dest_id:x}")
+        logger.info(f"R::: dest_id:{dest_id:x}, req_id:{req_id:x}, tag:{tag:x}")#, {bdf_str}")
         # NOTE: Only downstream port supports non-zero device number.
         if cfg_rd_packet.get_function() != 0:
             logger.debug(
@@ -87,6 +89,7 @@ class ConfigSpaceManager(RunnableComponent):
                     f"Received request for {bdf_str}, however, this device supports function 0 only"
                 )
             )
+            logger.info(f"UR 1")
             await self._send_unsupported_request(req_id, tag, ld_id)
             return
 
@@ -99,11 +102,12 @@ class ConfigSpaceManager(RunnableComponent):
                     f"Received request for {bdf_str}, however, this device supports device 0 only"
                 )
             )
+            logger.info(f"UR 2, {self._device_type}:{cfg_rd_packet.get_device()}")
             await self._send_unsupported_request(req_id, tag, ld_id)
             return
 
         cfg_addr, size = cfg_rd_packet.get_cfg_addr_read_info()
-
+        print(f"cfg_addr:{cfg_addr:x}, size:{size:x}")
         # TODO: Fix OOB
 
         logger.debug(
@@ -126,6 +130,8 @@ class ConfigSpaceManager(RunnableComponent):
         tag = cfg_wr_packet.cfg_req_header.tag
         ld_id = cfg_wr_packet.tlp_prefix.ld_id
 
+        logger.info(f"W::: cfg_wr_packet.cfg_req_header.dest_id:{cfg_wr_packet.cfg_req_header.dest_id:x}")
+        logger.info(f"W::: dest_id:{dest_id:x}, req_id:{req_id:x}, tag:{tag:x}")#, {bdf_str}")
         if cfg_wr_packet.get_function() != 0:
             dest_id = tlptoh16(cfg_wr_packet.cfg_req_header.dest_id)
             bdf_str = bdf_to_string(dest_id)
@@ -134,6 +140,7 @@ class ConfigSpaceManager(RunnableComponent):
                     f"Received request for {bdf_str}, however, this device supports function 0 only"
                 )
             )
+            logger.info(f"UR 3")
             await self._send_unsupported_request(req_id, tag, ld_id)
             return
 
@@ -185,6 +192,7 @@ class ConfigSpaceManager(RunnableComponent):
                     req_id = tlptoh16(cfg_req_packet.cfg_req_header.req_id)
                     tag = cfg_req_packet.cfg_req_header.tag
                     ld_id = cfg_req_packet.tlp_prefix.ld_id
+                    logger.info(f"UR 4")
                     await self._send_unsupported_request(req_id, tag, ld_id=ld_id)
             else:
                 raise Exception("Unexpected packet received from ConfigSpaceManager")

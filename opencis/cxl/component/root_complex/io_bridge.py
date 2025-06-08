@@ -15,6 +15,7 @@ from opencis.util.logger import logger
 from opencis.util.pci import (
     extract_bus_from_bdf,
     extract_device_from_bdf,
+    extract_function_from_bdf,
     bdf_to_string,
 )
 from new_packet.transaction import (
@@ -125,6 +126,7 @@ class IoBridge(RunnableComponent):
             if device_num != 0:
                 return 0xFFFFFFFF & bit_mask
 
+        logger.info(f"bdf:{bdf:x}, b:{extract_bus_from_bdf(bdf):x}, d:{extract_device_from_bdf(bdf):x}, f:{extract_function_from_bdf(bdf):x}")
         packet = CxlIoCfgRdPacket.create(bdf, offset, size, is_type0, req_id=0, tag=self._next_tag)
         self._next_tag = (self._next_tag + 1) % 256
         await self._cxl_io_cfg_fifos.host_to_target.put(packet)
@@ -136,7 +138,7 @@ class IoBridge(RunnableComponent):
         bit_offset = (offset % 4) * 8
 
         tpl_type_str = "CFG RD0" if is_type0 else "CFG RD1"
-
+        logger.info(f"packet:{packet}")
         if not is_cxl_io_completion_status_sc(packet):
             cpl_packet = cast(CxlIoCompletionPacket, packet)
             logger.debug(
@@ -177,7 +179,7 @@ class IoBridge(RunnableComponent):
             logger.error(self._create_message("CXL.io mmio RD: Timed-out"))
             return None
 
-        print(f"?????????????{packet}, {packet.get_data_as_int()}, {bytes(packet)}")
+        # print(f"?????????????{packet}, {packet.get_data_as_int()}, {bytes(packet)}")
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
         return cpld_packet.get_data_as_int()
 

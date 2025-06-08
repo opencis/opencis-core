@@ -170,6 +170,7 @@ class MmioManager(PacketProcessor):
         tag = mem_req_packet.mreq_header.tag
         ld_id = mem_req_packet.tlp_prefix.ld_id
 
+        logger.info(f"address:{address:x}, size:{size:x}")
         register, offset = self._get_register_and_offset(address, size)
         if register is None and offset is None:
             if self._should_forward_packet(address, size):
@@ -196,9 +197,7 @@ class MmioManager(PacketProcessor):
         elif mem_req_packet.is_mem_read():
             logger.debug(self._create_message(f"RD: 0x{address:x}[{size}]"))
             data = register.read_bytes(start_offset, end_offset)
-
-            # TODO: HACK: Force it to be integer
-            data = int.from_bytes(bytes(data), "little")
+            logger.info(f"RD data:{data:x}, {type(data)}")
             await self._send_completion(req_id, tag, data, size, ld_id=ld_id)
         else:
             raise Exception("Unsupported MMIO packet")

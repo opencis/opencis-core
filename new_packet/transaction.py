@@ -419,11 +419,15 @@ class CxlIoCompletionWithDataPacket(
 
 def is_cxl_io_completion_status_sc(packet) -> bool:
     if not packet.is_cxl_io():
+        logger.info(f"HERE 1")
         return False
     if packet.is_cpld():
+        logger.info(f"HERE 2")
         return True
     if not packet.is_cpl():
+        logger.info(f"HERE 3")
         return False
+    logger.info(f"HERE 4, {packet.cpl_header.status}")
     return packet.cpl_header.status == CXL_IO_CPL_STATUS.SC
 
 
