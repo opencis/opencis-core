@@ -286,7 +286,7 @@ class CxlRootPortDevice(RunnableComponent):
             return 0xFFFFFFFF & bit_mask
 
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
-        data = (cpld_packet.data >> bit_offset) & bit_mask
+        data = (cpld_packet.get_data_as_int() >> bit_offset) & bit_mask
 
         logger.debug(
             self._create_message(
@@ -301,7 +301,7 @@ class CxlRootPortDevice(RunnableComponent):
             logger.info(message)
         else:
             logger.debug(message)
-        packet = CxlIoMemWrPacket.create(address, size, data)
+        packet = CxlIoMemWrPacket.create(address, data)
         await self._downstream_connection.mmio_fifo.host_to_target.put(packet)
 
     async def read_mmio(
@@ -317,7 +317,7 @@ class CxlRootPortDevice(RunnableComponent):
         packet = await self._downstream_connection.mmio_fifo.target_to_host.get()
         assert is_cxl_io_completion_status_sc(packet)
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
-        return cpld_packet.data
+        return cpld_packet.get_data_as_int()
 
     async def cxl_mem_read(self, address: int) -> int:
         logger.info(self._create_message(f"CXL.mem Read: HPA addr:0x{address:08x}"))
@@ -328,7 +328,7 @@ class CxlRootPortDevice(RunnableComponent):
                 packet = await self._downstream_connection.cxl_mem_fifo.target_to_host.get()
             assert is_cxl_mem_data(packet)
             mem_data_packet = cast(CxlMemMemDataPacket, packet)
-            return mem_data_packet.data
+            return mem_data_packet.get_data_as_int()
         except asyncio.exceptions.TimeoutError:
             logger.error(self._create_message("CXL.mem Read: Timed-out"))
             return None

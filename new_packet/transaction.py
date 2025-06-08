@@ -141,22 +141,10 @@ class CxlIoMemReqPacket(
         )
 
         # YOU THINK, Correctly set addr_upper and addr_lower
-        logger.info("=" * 60)
-        logger.info(f"FILL PHASE")
-        logger.info(f"Original addr: 0x{addr:x}")
-
         addr_upper_bytes = (addr >> 8).to_bytes(7, "big")
-        logger.info(f"addr_upper_bytes (BE): {addr_upper_bytes.hex()}")
-
-        val = int.from_bytes(addr_upper_bytes, "little")
-        logger.info(f"Converted int (LE interpretation): 0x{val:x}")
-
+        val = int.from_bytes(addr_upper_bytes, "big")
         self.mreq_header.addr_upper = val
-        logger.info(f"Stored mreq_header.addr_upper: 0x{self.mreq_header.addr_upper:x}")
-
         self.mreq_header.addr_lower = (addr & 0xFF) >> 2
-        logger.info(f"Stored mreq_header.addr_lower: 0x{self.mreq_header.addr_lower:x}")
-        logger.info("=" * 60)
         #### YOU THINK,
 
         # DEBUG
@@ -173,23 +161,11 @@ class CxlIoMemReqPacket(
         # logger.info(f"self.mreq_header.addr_lower: {self.mreq_header.addr_lower:x}")
 
     def get_address(self) -> int:
-        logger.info("=" * 60)
-        logger.info(f"GET PHASE")
         val = self.mreq_header.addr_upper
-        logger.info(f"Read mreq_header.addr_upper: 0x{val:x}")
-
-        addr_upper_bytes = val.to_bytes(7, "little")
-        logger.info(f"addr_upper_bytes (LE): {addr_upper_bytes.hex()}")
-
+        addr_upper_bytes = val.to_bytes(7, "big")
         addr = int.from_bytes(addr_upper_bytes, "big") << 8
-        logger.info(f"Shifted addr_upper (<< 8): 0x{addr:x}")
-
         addr_lower = self.mreq_header.addr_lower << 2
-        logger.info(f"addr_lower component: 0x{addr_lower:x}")
-
         addr |= addr_lower
-        logger.info(f"Reconstructed addr: 0x{addr:x}")
-        logger.info("=" * 60)
         return addr
 
     def get_data_size(self) -> int:
@@ -224,7 +200,6 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         pkt.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
         pkt.tlp_prefix.ld_id = ld_id
         pkt.system_header.payload_length = pkt.get_size()
-        logger.info(f"my_type: {pkt.get_type()}")
         return pkt
 
 
@@ -312,7 +287,7 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
         cfg_addr: int,
         size: int,
         is_type0: bool = True,
-        req_id: Optional[int] = None,
+        req_id: int = 0,
         tag: Optional[int] = None,
         ld_id: int = 0,
     ) -> "CxlIoCfgRdPacket":
@@ -323,7 +298,6 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
         )
         pkt.system_header.payload_length = pkt.get_size()
         pkt.tlp_prefix.ld_id = ld_id
-        logger.info(f"my_type: {pkt.get_type()}")
         return pkt
 
 
@@ -350,7 +324,6 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
         )
         pkt.tlp_prefix.ld_id = ld_id
         pkt.system_header.payload_length = pkt.get_size()
-        logger.info(f"my_type: {pkt.get_type()}")
         return pkt
 
     def get_value(self) -> int:
@@ -424,6 +397,7 @@ class CxlIoCompletionWithDataPacket(
         pkt.cpl_header.byte_count_upper = extract_upper(pload_len, 4, 12)
         pkt.cpl_header.byte_count_lower = extract_lower(pload_len, 8, 12)
 
+        # logger.info(f"DATA: {data}")
         if isinstance(data, int):
             pkt.set_data_as_int(data)
         else:
@@ -815,7 +789,6 @@ class CxlMemBISnpPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MBISn
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")
         pkt.s2mbisnp_header.addr = addr >> 6
-        logger.info(f"my_type: {pkt.get_type()}")
         return pkt
 
 
@@ -846,7 +819,6 @@ class CxlMemMemDataPacket(
             pkt.set_data(data)
 
         pkt.system_header.payload_length = pkt.get_size()
-        logger.info(f"my_type: {pkt.get_type()}")
         return pkt
 
 
@@ -875,7 +847,7 @@ class CxlMemCmpPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MNDRPac
 def is_cxl_mem_data(packet) -> bool:
     return (
         packet.is_cxl_mem()
-        and packet.is_s2mdr()
+        and packet.is_s2mdrs()
         and packet.s2mdrs_header.opcode == CXL_MEM_S2MDRS_OPCODE.MEM_DATA
     )
 

@@ -22,7 +22,7 @@ cdef class PacketBuffer:
 
     cpdef void write_bits(self, int start_bit, int width, unsigned long long value):
         cdef int i, byte_index, bit_offset
-        print(f"[WRITE_BITS] Writing value 0x{value:x} to bits {start_bit}...{start_bit+width-1}")
+        # print(f"[WRITE_BITS] Writing value 0x{value:x} to bits {start_bit}...{start_bit+width-1}")
         for i in range(width):
             byte_index = (start_bit + i) // 8
             bit_offset = (start_bit + i) % 8

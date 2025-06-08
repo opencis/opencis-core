@@ -139,7 +139,7 @@ async def test_multi_logical_device_ld_id():
         assert packet.tlp_prefix.ld_id == target_ld_id
         assert is_cxl_io_completion_status_sc(packet)
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
-        assert cpld_packet.data == (EEUM_VID | (SW_MLD_DID << 16))
+        assert cpld_packet.get_data_as_int() == (EEUM_VID | (SW_MLD_DID << 16))
 
         # NOTE: Test Config Space Type0 Write - BAR WRITE
         logger.info("[PyTest] Testing Config Space Type0 Write (BAR)")
@@ -163,7 +163,7 @@ async def test_multi_logical_device_ld_id():
         assert packet.tlp_prefix.ld_id == target_ld_id
         assert is_cxl_io_completion_status_sc(packet)
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
-        size = 0xFFFFFFFF - cpld_packet.data + 1
+        size = 0xFFFFFFFF - cpld_packet.get_data_as_int() + 1
         assert size == bar_size
 
         # NOTE: Test Config Space Type1 Read - VID/DID: Expect UR
@@ -227,11 +227,11 @@ async def test_multi_logical_device_ld_id():
             dpa_skip_low = dpa_skip & 0xFFFFFFFF
             dpa_skip_high = (dpa_skip >> 32) & 0xFFFFFFFF
 
-            packet = CxlIoMemWrPacket.create(dpa_skip_low_offset, 4, dpa_skip_low, ld_id=ld_id)
+            packet = CxlIoMemWrPacket.create(dpa_skip_low_offset, dpa_skip_low, ld_id=ld_id)
             writer.write(bytes(packet))
             await writer.drain()
 
-            packet = CxlIoMemWrPacket.create(dpa_skip_high_offset, 4, dpa_skip_high, ld_id=ld_id)
+            packet = CxlIoMemWrPacket.create(dpa_skip_high_offset, dpa_skip_high, ld_id=ld_id)
             writer.write(bytes(packet))
             await writer.drain()
 
@@ -296,7 +296,7 @@ async def test_multi_logical_device_ld_id():
 
         # NOTE: Write 0xDEADBEEF
         data = 0xDEADBEEF
-        packet = CxlIoMemWrPacket.create(memory_base_address, 4, data=data, ld_id=target_ld_id)
+        packet = CxlIoMemWrPacket.create(memory_base_address, data=data, ld_id=target_ld_id)
         packet_writer.write(bytes(packet))
         await packet_writer.drain()
 
@@ -309,17 +309,17 @@ async def test_multi_logical_device_ld_id():
         assert packet.tlp_prefix.ld_id == target_ld_id
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
         logger.info(f"[PyTest] Received CXL.io packet: {cpld_packet}")
-        assert cpld_packet.data == data
+        assert cpld_packet.get_data_as_int() == data
 
         # NOTE: Write OOB (Upper Boundary), Expect No Error
         packet = CxlIoMemWrPacket.create(
-            memory_base_address + bar_size, 4, data=data, ld_id=target_ld_id
+            memory_base_address + bar_size, data=data, ld_id=target_ld_id
         )
         packet_writer.write(bytes(packet))
         await packet_writer.drain()
 
         # NOTE: Write OOB (Lower Boundary), Expect No Error
-        packet = CxlIoMemWrPacket.create(memory_base_address - 4, 4, data=data, ld_id=target_ld_id)
+        packet = CxlIoMemWrPacket.create(memory_base_address - 4, data=data, ld_id=target_ld_id)
         packet_writer.write(bytes(packet))
         await packet_writer.drain()
 
@@ -331,7 +331,7 @@ async def test_multi_logical_device_ld_id():
         # assert is_cxl_io_completion_status_sc(packet)
         # assert packet.tlp_prefix.ld_id == target_ld_id
         # cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
-        # assert cpld_packet.data == 0
+        # assert cpld_packet.get_data_as_int() == 0
 
         # NOTE: Read OOB (Lower Boundary), Expect 0
         packet = CxlIoMemRdPacket.create(memory_base_address - 4, 4, ld_id=target_ld_id)
@@ -341,7 +341,7 @@ async def test_multi_logical_device_ld_id():
         assert is_cxl_io_completion_status_sc(packet)
         assert packet.tlp_prefix.ld_id == target_ld_id
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
-        assert cpld_packet.data == 0
+        assert cpld_packet.get_data_as_int() == 0
 
     async def convert_test(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         packet_reader = PacketReader(reader, label="convert_test")

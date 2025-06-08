@@ -290,7 +290,7 @@ async def test_multi_logical_device_ld_id():
         await packet_writer.drain()
 
         # NOTE: Confirm 0xDEADBEEF is written
-        packet = CxlIoMemRdPacket.create(memory_base_address, ld_id=target_ld_id)
+        packet = CxlIoMemRdPacket.create(memory_base_address, 4, ld_id=target_ld_id)
         packet_writer.write(bytes(packet))
         await packet_writer.drain()
         packet = await packet_reader.get_packet()

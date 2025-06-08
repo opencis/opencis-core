@@ -69,7 +69,7 @@ class CxlMemManager(PacketProcessor):
             raise Exception("CxlMemoryDeviceComponent isn't set yet")
 
         addr = mem_wr_packet.get_address()
-        data = mem_wr_packet.data
+        data = mem_wr_packet.get_data_as_int()
         ld_id = mem_wr_packet.m2srwd_header.ld_id
         logger.debug(
             self._create_message(

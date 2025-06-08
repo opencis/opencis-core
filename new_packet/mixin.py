@@ -23,6 +23,8 @@ class PacketDataMixin:
         data = data.to_bytes(length, byteorder="little")
         self.set_data(data)
 
+    def get_pretty_string(self):
+        return ""
 
 class BasePacketMixin:
     def is_cxl_io(self) -> bool:

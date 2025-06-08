@@ -187,12 +187,18 @@ class MmioManager(PacketProcessor):
         start_offset = offset
         end_offset = offset + size - 1
         if mem_req_packet.is_mem_write():
-            data = cast(CxlIoMemWrPacket, mem_req_packet).data
+
+            # TODO: HACK: Convert ALL data to bytes only and convert "register"
+            data = mem_req_packet.get_data_as_int()
+
             logger.debug(self._create_message(f"WR: 0x{address:x}[{size}]=0x{data:08x}"))
             register.write_bytes(start_offset, end_offset, data)
         elif mem_req_packet.is_mem_read():
             logger.debug(self._create_message(f"RD: 0x{address:x}[{size}]"))
             data = register.read_bytes(start_offset, end_offset)
+
+            # TODO: HACK: Force it to be integer
+            data = int.from_bytes(bytes(data), "little")
             await self._send_completion(req_id, tag, data, size, ld_id=ld_id)
         else:
             raise Exception("Unsupported MMIO packet")

@@ -1393,6 +1393,7 @@ class CxlMemM2SReqPacket(CxlMemBasePacket):
         return self.m2sreq_header.mem_opcode == CXL_MEM_M2SREQ_OPCODE.MEM_INV
 
     def get_address(self) -> int:
+        print(f"self.m2sreq_header.addr: {self.m2sreq_header.addr:x}")
         return self.m2sreq_header.addr << 6
 
 
@@ -1454,6 +1455,7 @@ class CxlMemM2SRwDPacket(CxlMemBasePacket):
         return self.m2srwd_header.mem_opcode == CXL_MEM_M2SRWD_OPCODE.MEM_WR
 
     def get_address(self) -> int:
+        print(f"self.m2srwd_header.addr: {self.m2srwd_header.addr:x}")
         return self.m2srwd_header.addr << 6
 
 
