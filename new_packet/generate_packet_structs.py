@@ -43,6 +43,7 @@ def emit_struct(name, layout):
         f"        return self.to_bytes()\n"
     )
 
+
 def emit_composite(packet_name, layout, field_sizes):
     lines = [
         "# Generated file\n",
@@ -125,7 +126,7 @@ def emit_composite(packet_name, layout, field_sizes):
     else:
         lines.append("")
         lines.append("    cpdef bytes get_data(self):")
-        lines.append("        return b\"\"")
+        lines.append('        return b""')
         lines.append("")
         lines.append("    def set_data(self, data):")
         lines.append("        pass")

@@ -110,6 +110,7 @@ class SidebandConnectionRequestPacket(
 class CxlIoBasePacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoBasePacket):
     pass
 
+
 class CxlIoMemReqPacket(
     BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoMemReqPacket, PacketDataMixin
 ):
@@ -143,28 +144,28 @@ class CxlIoMemReqPacket(
         logger.info("=" * 60)
         logger.info(f"FILL PHASE")
         logger.info(f"Original addr: 0x{addr:x}")
-        
-        addr_upper_bytes = (addr >> 8).to_bytes(7, 'big')
+
+        addr_upper_bytes = (addr >> 8).to_bytes(7, "big")
         logger.info(f"addr_upper_bytes (BE): {addr_upper_bytes.hex()}")
-        
-        val = int.from_bytes(addr_upper_bytes, 'little')
+
+        val = int.from_bytes(addr_upper_bytes, "little")
         logger.info(f"Converted int (LE interpretation): 0x{val:x}")
-        
+
         self.mreq_header.addr_upper = val
         logger.info(f"Stored mreq_header.addr_upper: 0x{self.mreq_header.addr_upper:x}")
-        
+
         self.mreq_header.addr_lower = (addr & 0xFF) >> 2
         logger.info(f"Stored mreq_header.addr_lower: 0x{self.mreq_header.addr_lower:x}")
         logger.info("=" * 60)
-        #### YOU THINK, 
+        #### YOU THINK,
 
         # DEBUG
-        start_bit = 32  # Confirm based on CxlIoMReqHeader bit layout
-        bit_width = 56
-        byte_start = start_bit // 8
-        byte_end = (start_bit + bit_width + 7) // 8
-        raw_bytes = bytes(self.mreq_header.buf[byte_start:byte_end])
-        logger.info(f"[DEBUG] Raw buffer after write ({byte_start}:{byte_end}): {raw_bytes.hex()}")
+        # start_bit = 32  # Confirm based on CxlIoMReqHeader bit layout
+        # bit_width = 56
+        # byte_start = start_bit // 8
+        # byte_end = (start_bit + bit_width + 7) // 8
+        # raw_bytes = bytes(self.mreq_header.buf[byte_start:byte_end])
+        # logger.info(f"[DEBUG] Raw buffer after write ({byte_start}:{byte_end}): {raw_bytes.hex()}")
         # DEBUG
 
         # logger.info(f"addr: 0x{addr:x}")
@@ -176,16 +177,16 @@ class CxlIoMemReqPacket(
         logger.info(f"GET PHASE")
         val = self.mreq_header.addr_upper
         logger.info(f"Read mreq_header.addr_upper: 0x{val:x}")
-        
-        addr_upper_bytes = val.to_bytes(7, 'little')
+
+        addr_upper_bytes = val.to_bytes(7, "little")
         logger.info(f"addr_upper_bytes (LE): {addr_upper_bytes.hex()}")
-        
-        addr = int.from_bytes(addr_upper_bytes, 'big') << 8
+
+        addr = int.from_bytes(addr_upper_bytes, "big") << 8
         logger.info(f"Shifted addr_upper (<< 8): 0x{addr:x}")
-        
+
         addr_lower = self.mreq_header.addr_lower << 2
         logger.info(f"addr_lower component: 0x{addr_lower:x}")
-        
+
         addr |= addr_lower
         logger.info(f"Reconstructed addr: 0x{addr:x}")
         logger.info("=" * 60)
