@@ -190,10 +190,13 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
     @classmethod
     def create(cls, addr: int, data: bytes | int, req_id: int = 0, tag: int = None, ld_id: int = 0):
         pkt = cls()
+        logger.info(f"data as is:{data}")
         if isinstance(data, int):
+            logger.info(f"data int:{data:x}")
             pkt.set_data_as_int(data)
             length = (data.bit_length() + 7) // 8 or 1
         else:
+            logger.info(f"data b:{data}")
             pkt.set_data(data)
             length = len(data)
         pkt.fill(addr, length, htotlp16(req_id), cls.get_tag(tag))
