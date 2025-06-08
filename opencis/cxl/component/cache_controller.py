@@ -277,6 +277,7 @@ class CacheController(RunnableComponent):
                 raise Exception(f"OOB Memory Address: 0x{addr:x}")
 
     async def _memory_load(self, addr: int, size: int) -> CacheResponse:
+        logger.info(f"_memory_load, addr:{addr}")
         cache_fifo = self._get_cache_fifo(addr)
         packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_DATA, addr, size)
         await cache_fifo.request.put(packet)
@@ -286,6 +287,7 @@ class CacheController(RunnableComponent):
     async def _memory_store(self, addr: int, size: int, prev_state: CacheState, value) -> None:
         cache_fifo = self._get_cache_fifo(addr)
         # Check for dirtiness, use WRITE_BACK_CLEAN if clean
+        logger.info(f"_memory_store, addr:{addr}")
         if prev_state == CacheState.CACHE_MODIFIED:
             packet = CacheRequest(CACHE_REQUEST_TYPE.WRITE_BACK, addr, size, value)
         else:
@@ -421,12 +423,14 @@ class CacheController(RunnableComponent):
             self._cache_data_write(set, cache_blk, data)
 
     async def _uncached_load(self, addr: int, size: int) -> int:
+        logger.info(f"_uncached_load, addr:{addr}")
         packet = CacheRequest(CACHE_REQUEST_TYPE.UNCACHED_READ, addr, size)
         await self._cache_to_coh_agent_fifo.request.put(packet)
         resp = await self._cache_to_coh_agent_fifo.response.get()
         return resp.data
 
     async def _uncached_store(self, addr: int, size: int, data: int) -> int:
+        logger.info(f"_uncached_store, addr:{addr}")
         packet = CacheRequest(CACHE_REQUEST_TYPE.UNCACHED_WRITE, addr, size, data)
         await self._cache_to_coh_agent_fifo.request.put(packet)
         await self._cache_to_coh_agent_fifo.response.get()
@@ -440,7 +444,7 @@ class CacheController(RunnableComponent):
                     self._create_message("Stop processing processor request scheduler fifo")
                 )
                 break
-
+            logger.info(f"_processor_request_scheduler, packet.addr:{packet.addr}")
             match packet.type:
                 case MEMORY_REQUEST_TYPE.READ:
                     data = await self.cache_coherent_load(packet.addr, packet.size)

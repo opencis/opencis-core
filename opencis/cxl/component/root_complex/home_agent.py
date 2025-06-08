@@ -113,6 +113,7 @@ class HomeAgent(RunnableComponent):
         addr: int,
         data: int,
     ) -> CxlMemMemWrPacket:
+        logger.info(f"ha._create_m2s_rwd_packet, addr:{addr}")
         return CxlMemMemWrPacket.create(addr, data, opcode, meta_field, meta_value, snp_type)
 
     async def _write_memory(self, addr: int, size: int, value: int):
@@ -306,6 +307,7 @@ class HomeAgent(RunnableComponent):
                 CACHE_REQUEST_TYPE.WRITE_BACK_CLEAN,
                 CACHE_REQUEST_TYPE.UNCACHED_WRITE,
             ):
+                print(f"_process_upstream_host_to_target_packets, {addr:x}, {cache_packet.type}")
                 opcode = CXL_MEM_M2SRWD_OPCODE.MEM_WR
                 data = cache_packet.data
 

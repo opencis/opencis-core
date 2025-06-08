@@ -749,6 +749,7 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
             raise Exception("Address must be a multiple of 0x40")
         pkt.m2srwd_header.addr = addr >> 6
 
+        print(f"addr:{addr:x}, pkt.m2srwd_header.addr:{pkt.m2srwd_header.addr:x}")
         if isinstance(data, int):
             pkt.set_data_as_int(data)
         else:

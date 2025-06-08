@@ -387,8 +387,53 @@ def test_addr_upper_field_encoding():
             print("✅ PASS")
 
 
+def test_dot_mem_addr():
+    addr = 0x100000000000
+    data = 0x12345678
+    ld_id = 0xA
+    meta_field = CXL_MEM_META_FIELD.NO_OP
+    meta_value = CXL_MEM_META_VALUE.ANY
+    snp_type = CXL_MEM_M2S_SNP_TYPE.NO_OP
+
+    rd_pkt = CxlMemMemRdPacket.create(
+        addr=addr,
+        opcode=CXL_MEM_M2SREQ_OPCODE.MEM_RD,
+        meta_field=meta_field,
+        meta_value=meta_value,
+        snp_type=snp_type,
+        ld_id=ld_id
+    )
+
+    assert rd_pkt.m2sreq_header.addr == addr >> 6, \
+        f"RD: header.addr = {rd_pkt.m2sreq_header.addr:#x}, expected {addr >> 6:#x}"
+    assert rd_pkt.get_address() == addr, \
+        f"RD: get_address() = {rd_pkt.get_address():#x}, expected {addr:#x}"
+
+    print("✅ Read packet fields verified.")
+
+    wr_pkt = CxlMemMemWrPacket.create(
+        addr=addr,
+        data=data,
+        opcode=CXL_MEM_M2SRWD_OPCODE.MEM_WR,
+        meta_field=meta_field,
+        meta_value=meta_value,
+        snp_type=snp_type,
+        ld_id=ld_id
+    )
+
+    assert wr_pkt.m2srwd_header.addr == addr >> 6, \
+        f"WR: header.addr = {wr_pkt.m2srwd_header.addr:#x}, expected {addr >> 6:#x}"
+    assert wr_pkt.get_address() == addr, \
+        f"WR: get_address() = {wr_pkt.get_address():#x}, expected {addr:#x}"
+
+    data_readback = wr_pkt.get_data_as_int()
+    assert data_readback == data, \
+        f"WR: data = {data_readback:#x}, expected {data:#x}"
+
+    print("✅ Write packet fields and data verified.")
+
+
 if __name__ == "__main__":
     # main()
-    test_addr_upper_field_encoding()
-    test_set_and_get_data_as_int()
-    test_set_and_get_data_with_varied_lengths()
+    test_dot_mem_addr()
+
