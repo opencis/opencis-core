@@ -124,4 +124,8 @@ PACKETS = {
         ("SystemHeader", "system_header"),
         ("CciHeader", "cci_header"),
     ],
+    "CciMessageBasePacket": [
+        ("CciMessageHeader", "cci_msg_header"),
+        ("DataField", "data"),
+    ],
 }

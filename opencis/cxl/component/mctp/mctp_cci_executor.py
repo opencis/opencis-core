@@ -65,16 +65,15 @@ class MctpCciExecutor(RunnableComponent):
         return CciRequest(opcode=packet.header.command_opcode, payload=packet.get_payload())
 
     async def _send_response(self, response: CciResponse, message_tag: int):
-        header = CciMessageHeaderPacket()
-        header.message_category = CCI_MCTP_MESSAGE_CATEGORY.RESPONSE
-        header.message_tag = message_tag
-        header.command_opcode = 0
-        header.set_message_payload_length(len(response.payload))
-        header.background_operation = 1 if response.bo_flag else 0
-        header.return_code = response.return_code
-        header.vendor_specific_extended_status = response.vendor_specific_status
-        response_packet = CciMessagePacket.create(header, response.payload)
-        # Wrap twice
+        response_packet = CciMessageHeaderPacket.create(
+            message_category=CCI_MCTP_MESSAGE_CATEGORY.RESPONSE,
+            opcode=0,
+            data=response.payload,
+            message_tag=message_tag,
+            vendor_specific_extended_status=response.vendor_specific_status,
+            return_code = response.return_code,
+            background_operation = int(response.bo_flag),
+        )
 
         response_packet_tmc = CciPayloadPacket.create(
             response_packet, response_packet.get_total_size()

@@ -201,3 +201,17 @@ CciHeader = [
     ("port_index", 0, 8),
     ("msg_class", 8, 8),
 ]
+
+CciMessageHeader = [
+    ("message_category", 0, 3),
+    ("reserved0", 4, 7),
+    ("message_tag", 8, 15),
+    ("reserved1", 16, 23),
+    ("command_opcode", 24, 39),
+    ("message_payload_length_low", 40, 55),
+    ("message_payload_length_high", 56, 60),
+    ("reserved2", 61, 62),
+    ("background_operation", 63, 63),
+    ("return_code", 64, 79),
+    ("vendor_specific_extended_status", 80, 95),
+]

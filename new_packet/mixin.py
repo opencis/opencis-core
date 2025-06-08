@@ -176,9 +176,6 @@ class CciBasePacketMixin:
     def is_rsp(self) -> bool:
         return self.cci_header.msg_class == CCI_MSG_CLASS.RSP
 
-    # def get_payload_size(self) -> int:
-    #     return self.system_header.payload_length - CCI_FIELD_START
-
     def update_len(self, cci_msg_length: int):
         self.set_dynamic_field_length(cci_msg_length)
         self.system_header.payload_length = len(self)

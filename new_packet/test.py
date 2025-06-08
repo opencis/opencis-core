@@ -65,7 +65,7 @@ def instantiate_packets():
 
     # CXL.io memory packets
     packets.append(CxlIoMemRdPacket.create(addr=0x1000, length=4, req_id=1, tag=2))
-    packets.append(CxlIoMemWrPacket.create(addr=0x1000, data=0xDEADBEEF, req_id=1, tag=2))
+    packets.append(CxlIoMemWrPacket.create(addr=0x1000, length=4, data=0xDEADBEEF, req_id=1, tag=2))
 
     # CXL.io config packets
     packets.append(CxlIoCfgRdPacket.create(id=0x10, cfg_addr=0x04, size=1, req_id=1, tag=1))
@@ -217,7 +217,7 @@ def main():
 
     print(f"Python: {platform.python_version()}, PID: {os.getpid()}")
     print("Initial sanity benchmark with CxlIoMemWrPacket:")
-    wr_pkt = CxlIoMemWrPacket(buf_wr)
+    wr_pkt = CxlIoMemWrPacket.create(buf_wr, len(buf_wr), buf_wr)
     wr_pkt.mreq_header.req_id = 0x4341
     wr_pkt.mreq_header.tag = 0x78
     wr_pkt.mreq_header.addr_upper = 0xFFFFFFFF12345678
@@ -441,5 +441,5 @@ def test_dot_mem_addr():
 
 
 if __name__ == "__main__":
-    # main()
+    main()
     test_dot_mem_addr()

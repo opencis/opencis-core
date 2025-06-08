@@ -145,11 +145,7 @@ class MctpCciApiClient(RunnableComponent):
         return tag
 
     def _create_request_packet(self, request: CciRequest) -> CciMessagePacket:
-        header = CciMessageHeaderPacket()
-        header.message_category = CCI_MCTP_MESSAGE_CATEGORY.REQUEST
-        header.command_opcode = request.opcode
-        header.set_message_payload_length(len(request.payload))
-        message_packet = CciMessagePacket.create(header, request.payload)
+        message_packet = CciMessagePacket.create(CCI_MCTP_MESSAGE_CATEGORY.REQUEST, request.opcode, request.payload)
         return message_packet
 
     async def _wait_for_background_operation(self) -> CCI_RETURN_CODE:

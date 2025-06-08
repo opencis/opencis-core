@@ -66,6 +66,7 @@ from packet_constants import (
     CXL_MEM_S2MDRS_OPCODE,
     CXL_MEM_S2MNDR_OPCODE,
     CCI_MSG_CLASS,
+    CCI_MCTP_MESSAGE_CATEGORY
 )
 from mixin import (
     BasePacketMixin,
@@ -140,32 +141,15 @@ class CxlIoMemReqPacket(
             (bytes_enabled_with_offset >> ((length_dword - 1) * 4)) & 0xF if length_dword > 1 else 0
         )
 
-        # YOU THINK, Correctly set addr_upper and addr_lower
-        addr_upper_bytes = (addr >> 8).to_bytes(7, "big")
-        val = int.from_bytes(addr_upper_bytes, "big")
-        self.mreq_header.addr_upper = val
+        addr_upper_bytes = (addr >> 8).to_bytes(7, byteorder="big")
+        self.mreq_header.addr_upper = int.from_bytes(addr_upper_bytes, byteorder="little")
         self.mreq_header.addr_lower = (addr & 0xFF) >> 2
-        #### YOU THINK,
-
-        # DEBUG
-        # start_bit = 32  # Confirm based on CxlIoMReqHeader bit layout
-        # bit_width = 56
-        # byte_start = start_bit // 8
-        # byte_end = (start_bit + bit_width + 7) // 8
-        # raw_bytes = bytes(self.mreq_header.buf[byte_start:byte_end])
-        # logger.info(f"[DEBUG] Raw buffer after write ({byte_start}:{byte_end}): {raw_bytes.hex()}")
-        # DEBUG
-
-        # logger.info(f"addr: 0x{addr:x}")
-        # logger.info(f"self.mreq_header.addr_upper: {self.mreq_header.addr_upper:x}")
-        # logger.info(f"self.mreq_header.addr_lower: {self.mreq_header.addr_lower:x}")
 
     def get_address(self) -> int:
-        val = self.mreq_header.addr_upper
-        addr_upper_bytes = val.to_bytes(7, "big")
-        addr = int.from_bytes(addr_upper_bytes, "big") << 8
-        addr_lower = self.mreq_header.addr_lower << 2
-        addr |= addr_lower
+        addr = 0
+        addr_upper_bytes = self.mreq_header.addr_upper.to_bytes(7, byteorder="little")
+        addr |= int.from_bytes(addr_upper_bytes, byteorder="big") << 8
+        addr |= self.mreq_header.addr_lower << 2
         return addr
 
     def get_data_size(self) -> int:
@@ -917,8 +901,40 @@ class CciMessageHeaderPacket:
     pass
 
 
-class CciMessagePacket:
-    pass
+class CciMessagePacket(CciBasePacket):
+    @staticmethod
+    def create(
+        cls,
+        data: bytes,
+        message_category: CCI_MCTP_MESSAGE_CATEGORY,
+        opcode: int,
+        message_tag: int = 0,
+        vendor_specific_status: int = 0,
+        return_code: int=0,
+        background_operation: int=0,
+    ) -> "CciMessagePacket":
+        pkt = cls()
+        pkt.cci_msg_header.message_category = message_category
+        pkt.cci_msg_header.command_opcode = opcode
+        pkt.cci_msg_header.message_tag = message_tag
+        pkt.cci_msg_header.vendor_specific_extended_status = vendor_specific_status
+        pkt.cci_msg_header.return_code = return_code
+        pkt.cci_msg_header.background_operation = background_operation
+
+        length = len(data)
+        pkt.cci_msg_header.message_payload_length_high = (length >> 16) & 0x1F
+        pkt.cci_msg_header.message_payload_length_low = length & 0xFFFF
+        pkt.set_data(data)
+        return pkt
+
+    def get_message_payload_length(self) -> int:
+        return self.message_payload_length_high << 16 | self.message_payload_length_low
+
+    def set_message_payload_length(self, length):
+        payload_length_low = length & 0xFFFF
+        payload_length_high = (length >> 16) & 0x1F
+        self.message_payload_length_high = payload_length_high
+        self.message_payload_length_low = payload_length_low
 
 
 class CciHeaderPacket:
