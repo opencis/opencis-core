@@ -245,7 +245,7 @@ class HomeAgent(RunnableComponent):
     async def _process_cxl_s2m_drs_packet(self, s2mdrs_packet: CxlMemS2MDRSPacket):
         assert s2mdrs_packet.s2mdrs_header.opcode == CXL_MEM_S2MDRS_OPCODE.MEM_DATA
 
-        cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.OK, s2mdrs_packet.data)
+        cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.OK, s2mdrs_packet.get_data_as_int())
         await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
         self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
 

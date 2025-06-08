@@ -230,7 +230,9 @@ class CxlMemDcoh(PacketProcessor):
         if m2srwd_packet.m2srwd_header.meta_field == CXL_MEM_META_FIELD.NO_OP:
             await self._memory_device_component.write_mem_dpa(dpa, m2srwd_packet.get_data_as_int())
 
-            packet, _ = self._create_mem_rsp_packet(CXL_MEM_S2MNDR_OPCODE.CMP, m2srwd_packet.get_data_as_int())
+            packet, _ = self._create_mem_rsp_packet(
+                CXL_MEM_S2MNDR_OPCODE.CMP, m2srwd_packet.get_data_as_int()
+            )
             await self._upstream_fifo.target_to_host.put(packet)
             self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
             return

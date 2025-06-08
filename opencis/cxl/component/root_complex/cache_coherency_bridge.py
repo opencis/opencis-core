@@ -225,7 +225,9 @@ class CacheCoherencyBridge(RunnableComponent):
                     return
                 packet = await self._cxl_channel.d2h_data.get()
                 addr = self._cur_state.packet.get_address()
-                mem_packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, 64, packet.data)
+                mem_packet = MemoryRequest(
+                    MEMORY_REQUEST_TYPE.WRITE, addr, 64, packet.get_data_as_int()
+                )
                 await self._memory_producer_fifos.request.put(mem_packet)
                 sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_OUT)
                 self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT

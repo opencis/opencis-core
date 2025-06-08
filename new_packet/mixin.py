@@ -29,6 +29,7 @@ class PacketDataMixin:
     def get_pretty_string(self):
         return ""
 
+
 class BasePacketMixin:
     def is_cxl_io(self) -> bool:
         return self.system_header.payload_type == SYSTEM_PAYLOAD_TYPE.CXL_IO

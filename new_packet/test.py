@@ -388,7 +388,8 @@ def test_addr_upper_field_encoding():
 
 
 def test_dot_mem_addr():
-    addr = 0x100000000000
+    addr = 0x123456789040
+    # addr = 0x100000000000
     data = 0x12345678
     ld_id = 0xA
     meta_field = CXL_MEM_META_FIELD.NO_OP
@@ -401,13 +402,15 @@ def test_dot_mem_addr():
         meta_field=meta_field,
         meta_value=meta_value,
         snp_type=snp_type,
-        ld_id=ld_id
+        ld_id=ld_id,
     )
 
-    assert rd_pkt.m2sreq_header.addr == addr >> 6, \
-        f"RD: header.addr = {rd_pkt.m2sreq_header.addr:#x}, expected {addr >> 6:#x}"
-    assert rd_pkt.get_address() == addr, \
-        f"RD: get_address() = {rd_pkt.get_address():#x}, expected {addr:#x}"
+    assert (
+        rd_pkt.m2sreq_header.addr == addr >> 6
+    ), f"RD: header.addr = {rd_pkt.m2sreq_header.addr:#x}, expected {addr >> 6:#x}"
+    assert (
+        rd_pkt.get_address() == addr
+    ), f"RD: get_address() = {rd_pkt.get_address():#x}, expected {addr:#x}"
 
     print("✅ Read packet fields verified.")
 
@@ -418,22 +421,25 @@ def test_dot_mem_addr():
         meta_field=meta_field,
         meta_value=meta_value,
         snp_type=snp_type,
-        ld_id=ld_id
+        ld_id=ld_id,
     )
 
-    assert wr_pkt.m2srwd_header.addr == addr >> 6, \
-        f"WR: header.addr = {wr_pkt.m2srwd_header.addr:#x}, expected {addr >> 6:#x}"
-    assert wr_pkt.get_address() == addr, \
-        f"WR: get_address() = {wr_pkt.get_address():#x}, expected {addr:#x}"
+    assert (
+        wr_pkt.m2srwd_header.addr == addr >> 6
+    ), f"WR: header.addr = {wr_pkt.m2srwd_header.addr:#x}, expected {addr >> 6:#x}"
+    assert (
+        wr_pkt.get_address() == addr
+    ), f"WR: get_address() = {wr_pkt.get_address():#x}, expected {addr:#x}"
 
     data_readback = wr_pkt.get_data_as_int()
-    assert data_readback == data, \
-        f"WR: data = {data_readback:#x}, expected {data:#x}"
+    assert data_readback == data, f"WR: data = {data_readback:#x}, expected {data:#x}"
 
     print("✅ Write packet fields and data verified.")
+
+    pkt = CxlMemMemRdPacket.create(addr=0x100000000000)
+    print(f"Raw encoded field: {pkt.m2sreq_header.addr:#x}")
 
 
 if __name__ == "__main__":
     # main()
     test_dot_mem_addr()
-

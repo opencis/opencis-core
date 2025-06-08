@@ -119,8 +119,8 @@ class CxlIoMemReqPacket(
     @classmethod
     def get_tag(cls, tag) -> int:
         if tag is None:
-            tag = cls._tag_counter
-            cls._tag_counter = (cls._tag_counter + 1) % 256
+            tag = CxlIoMemReqPacket._tag_counter
+            CxlIoMemReqPacket._tag_counter = (CxlIoMemReqPacket._tag_counter + 1) % 256
         return tag
 
     def fill(self, addr: int, length: int, req_id: int, tag: int):
@@ -179,7 +179,7 @@ class CxlIoMemRdPacket(CxlIoMemReqPacket):
     @classmethod
     def create(cls, addr: int, length: int, req_id: int = 0, tag: int = None, ld_id: int = 0):
         pkt = cls()
-        pkt.fill(addr, length, htotlp16(req_id), cls.get_tag(tag))
+        pkt.fill(addr, length, htotlp16(req_id), super().get_tag(tag))
         pkt.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MRD_64B
         pkt.tlp_prefix.ld_id = ld_id
         pkt.system_header.payload_length = pkt.get_size()
@@ -188,7 +188,15 @@ class CxlIoMemRdPacket(CxlIoMemReqPacket):
 
 class CxlIoMemWrPacket(CxlIoMemReqPacket):
     @classmethod
-    def create(cls, addr: int, length: int, data: bytes | int, req_id: int = 0, tag: int = None, ld_id: int = 0):
+    def create(
+        cls,
+        addr: int,
+        length: int,
+        data: bytes | int,
+        req_id: int = 0,
+        tag: int = None,
+        ld_id: int = 0,
+    ):
         pkt = cls()
         logger.info(f"data as is:{data}")
         if isinstance(data, int):
@@ -199,7 +207,7 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
             logger.info(f"data b:{data}")
             pkt.set_data(data)
             length = len(data)
-        pkt.fill(addr, length, htotlp16(req_id), cls.get_tag(tag))
+        pkt.fill(addr, length, htotlp16(req_id), super().get_tag(tag))
         pkt.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
         pkt.tlp_prefix.ld_id = ld_id
         pkt.system_header.payload_length = pkt.get_size()
@@ -214,8 +222,8 @@ class CxlIoCfgReqPacket(
     @classmethod
     def get_tag(cls, tag) -> int:
         if tag is None:
-            tag = cls._tag_counter
-            cls._tag_counter = (cls._tag_counter + 1) % 256
+            tag = CxlIoCfgReqPacket._tag_counter
+            CxlIoCfgReqPacket._tag_counter = (CxlIoCfgReqPacket._tag_counter + 1) % 256
         return tag
 
     def fill(self, id: int, cfg_addr: int, size: int, req_id: int, tag: int) -> "CxlIoCfgReqPacket":
@@ -295,7 +303,7 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
         ld_id: int = 0,
     ) -> "CxlIoCfgRdPacket":
         pkt = cls(None)
-        pkt.fill(id, cfg_addr, size, htotlp16(req_id), cls.get_tag(tag))
+        pkt.fill(id, cfg_addr, size, htotlp16(req_id), super().get_tag(tag))
         pkt.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_RD0 if is_type0 else CXL_IO_FMT_TYPE.CFG_RD1
         )
@@ -321,7 +329,7 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
         pkt = cls(None)
         value = value << (8 * offset)
         pkt.set_data_as_int(value)
-        pkt.fill(id, cfg_addr, size, htotlp16(req_id), cls.get_tag(tag))
+        pkt.fill(id, cfg_addr, size, htotlp16(req_id), super().get_tag(tag))
         pkt.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_WR0 if is_type0 else CXL_IO_FMT_TYPE.CFG_WR1
         )
@@ -400,17 +408,16 @@ class CxlIoCompletionWithDataPacket(
         pkt.cpl_header.byte_count_upper = extract_upper(pload_len, 4, 12)
         pkt.cpl_header.byte_count_lower = extract_lower(pload_len, 8, 12)
 
-
-        if hasattr(data, '__int__'):
+        if hasattr(data, "__int__"):
             pkt.set_data_as_int(int(data))
         else:
             pkt.set_data(bytes(data))
-    #     if isinstance(data, int):
-    #         logger.info(f"!!!DATA i: {data:x}")
-    #         pkt.set_data_as_int(data)
-    #     else:
-    #         logger.info(f"!!!DATA b: {data}")
-    #         pkt.set_data(data)
+        #     if isinstance(data, int):
+        #         logger.info(f"!!!DATA i: {data:x}")
+        #         pkt.set_data_as_int(data)
+        #     else:
+        #         logger.info(f"!!!DATA b: {data}")
+        #         pkt.set_data(data)
 
         pkt.tlp_prefix.ld_id = ld_id
         pkt.system_header.payload_length = pkt.get_size()
@@ -663,7 +670,9 @@ class CxlMemM2SReqPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SReq
         return self.m2sreq_header.addr << 6
 
 
-class CxlMemM2SRwDPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SRwDPacket, PacketDataMixin):
+class CxlMemM2SRwDPacket(
+    BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SRwDPacket, PacketDataMixin
+):
     def is_mem_wr(self) -> bool:
         return self.m2srwd_header.mem_opcode == CXL_MEM_M2SRWD_OPCODE.MEM_WR
 
@@ -684,7 +693,9 @@ class CxlMemS2MNDRPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MNDR
     pass
 
 
-class CxlMemS2MDRSPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MDRSPacket, PacketDataMixin):
+class CxlMemS2MDRSPacket(
+    BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MDRSPacket, PacketDataMixin
+):
     pass
 
 
@@ -757,6 +768,7 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
 
         pkt.system_header.payload_length = pkt.get_size()
         return pkt
+
 
 class CxlMemBIRspPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SBIRspPacket):
     @classmethod

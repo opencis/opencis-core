@@ -15,10 +15,9 @@ cdef class PacketBuffer:
         for i in range(width):
             byte_index = (start_bit + i) // 8
             bit_offset = (start_bit + i) % 8
-            if (self.buf[byte_index] >> bit_offset) & 1:
-                result |= (1 << i)
+            bit = (self.buf[byte_index] >> bit_offset) & 1
+            result |= (bit << i)
         return result
-
 
     cpdef void write_bits(self, int start_bit, int width, unsigned long long value):
         cdef int i, byte_index, bit_offset

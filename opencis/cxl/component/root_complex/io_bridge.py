@@ -126,7 +126,9 @@ class IoBridge(RunnableComponent):
             if device_num != 0:
                 return 0xFFFFFFFF & bit_mask
 
-        logger.info(f"bdf:{bdf:x}, b:{extract_bus_from_bdf(bdf):x}, d:{extract_device_from_bdf(bdf):x}, f:{extract_function_from_bdf(bdf):x}")
+        logger.info(
+            f"bdf:{bdf:x}, b:{extract_bus_from_bdf(bdf):x}, d:{extract_device_from_bdf(bdf):x}, f:{extract_function_from_bdf(bdf):x}"
+        )
         packet = CxlIoCfgRdPacket.create(bdf, offset, size, is_type0, req_id=0, tag=self._next_tag)
         self._next_tag = (self._next_tag + 1) % 256
         await self._cxl_io_cfg_fifos.host_to_target.put(packet)
