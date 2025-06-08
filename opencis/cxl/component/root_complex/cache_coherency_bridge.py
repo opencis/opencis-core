@@ -384,7 +384,7 @@ class CacheCoherencyBridge(RunnableComponent):
                 if self._cxl_channel.d2h_data.empty():
                     return
                 packet = await self._cxl_channel.d2h_data.get()
-                data = packet.data
+                data = packet.get_data_as_int()
             else:  # Unsupported for now
                 assert 0
             cache_packet = CacheResponse(self._cur_state.cache_rsp, data)

@@ -78,7 +78,7 @@ class HostLlcIoGen(RunnableComponent):
                         stop_process = True
                     assert packet.status == MEMORY_RESPONSE_STATUS.OK
 
-                    read_data = packet.data
+                    read_data = packet.get_data_as_int()
                     logger.debug(f"[{self._host_name}] Read 0x{read_data:X} from 0x{addr:x}")
                     assert addr == read_data, f"addr={hex(addr)}:data={hex(read_data)}"
 

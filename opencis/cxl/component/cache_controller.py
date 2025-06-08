@@ -366,7 +366,7 @@ class CacheController(RunnableComponent):
             # coherency check whenever inserting a cache block
             # snoop_data to get mesi response
             packet = await self._memory_load(addr, size)
-            data = packet.data
+            data = packet.get_data_as_int()
 
             cache_state = self._cache_rsp_state_lookup(packet)
             if cache_state == CacheState.CACHE_INVALID:

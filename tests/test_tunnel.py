@@ -227,11 +227,11 @@ async def test_multi_logical_device_ld_id():
             dpa_skip_low = dpa_skip & 0xFFFFFFFF
             dpa_skip_high = (dpa_skip >> 32) & 0xFFFFFFFF
 
-            packet = CxlIoMemWrPacket.create(dpa_skip_low_offset, dpa_skip_low, ld_id=ld_id)
+            packet = CxlIoMemWrPacket.create(dpa_skip_low_offset, 4, dpa_skip_low, ld_id=ld_id)
             writer.write(bytes(packet))
             await writer.drain()
 
-            packet = CxlIoMemWrPacket.create(dpa_skip_high_offset, dpa_skip_high, ld_id=ld_id)
+            packet = CxlIoMemWrPacket.create(dpa_skip_high_offset, 4, dpa_skip_high, ld_id=ld_id)
             writer.write(bytes(packet))
             await writer.drain()
 
@@ -296,7 +296,7 @@ async def test_multi_logical_device_ld_id():
 
         # NOTE: Write 0xDEADBEEF
         data = 0xDEADBEEF
-        packet = CxlIoMemWrPacket.create(memory_base_address, data=data, ld_id=target_ld_id)
+        packet = CxlIoMemWrPacket.create(memory_base_address, 4, data=data, ld_id=target_ld_id)
         packet_writer.write(bytes(packet))
         await packet_writer.drain()
 
@@ -313,13 +313,13 @@ async def test_multi_logical_device_ld_id():
 
         # NOTE: Write OOB (Upper Boundary), Expect No Error
         packet = CxlIoMemWrPacket.create(
-            memory_base_address + bar_size, data=data, ld_id=target_ld_id
+            memory_base_address + bar_size, 4, data=data, ld_id=target_ld_id
         )
         packet_writer.write(bytes(packet))
         await packet_writer.drain()
 
         # NOTE: Write OOB (Lower Boundary), Expect No Error
-        packet = CxlIoMemWrPacket.create(memory_base_address - 4, data=data, ld_id=target_ld_id)
+        packet = CxlIoMemWrPacket.create(memory_base_address - 4, 4, data=data, ld_id=target_ld_id)
         packet_writer.write(bytes(packet))
         await packet_writer.drain()
 

@@ -197,7 +197,6 @@ class MmioManager(PacketProcessor):
         elif mem_req_packet.is_mem_read():
             logger.debug(self._create_message(f"RD: 0x{address:x}[{size}]"))
             data = register.read_bytes(start_offset, end_offset)
-            logger.info(f"RD data:{data:x}, {type(data)}")
             await self._send_completion(req_id, tag, data, size, ld_id=ld_id)
         else:
             raise Exception("Unsupported MMIO packet")

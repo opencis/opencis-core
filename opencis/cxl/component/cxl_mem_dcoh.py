@@ -198,7 +198,7 @@ class CxlMemDcoh(PacketProcessor):
                         data_flush = True
             elif packet.status == CACHE_RESPONSE_STATUS.RSP_V:
                 pass
-            data = packet.data
+            packet.get_data_as_int()
 
         if sf_update_list:
             self._snoop_filter_update(dpa, sf_update_list)
@@ -228,9 +228,9 @@ class CxlMemDcoh(PacketProcessor):
             dpa = self._memory_device_component.get_dpa(addr)
 
         if m2srwd_packet.m2srwd_header.meta_field == CXL_MEM_META_FIELD.NO_OP:
-            await self._memory_device_component.write_mem_dpa(dpa, m2srwd_packet.data)
+            await self._memory_device_component.write_mem_dpa(dpa, m2srwd_packet.get_data_as_int())
 
-            packet, _ = self._create_mem_rsp_packet(CXL_MEM_S2MNDR_OPCODE.CMP, m2srwd_packet.data)
+            packet, _ = self._create_mem_rsp_packet(CXL_MEM_S2MNDR_OPCODE.CMP, m2srwd_packet.get_data_as_int())
             await self._upstream_fifo.target_to_host.put(packet)
             self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
             return
@@ -253,7 +253,7 @@ class CxlMemDcoh(PacketProcessor):
             self._snoop_filter_update(dpa, sf_update_list)
 
         if data_flush is True:
-            await self._memory_device_component.write_mem_dpa(dpa, m2srwd_packet.data)
+            await self._memory_device_component.write_mem_dpa(dpa, m2srwd_packet.get_data_as_int())
 
         ndr_packet, _ = self._create_mem_rsp_packet(rsp_code)
         await self._upstream_fifo.target_to_host.put(ndr_packet)

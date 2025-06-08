@@ -301,7 +301,7 @@ class CxlRootPortDevice(RunnableComponent):
             logger.info(message)
         else:
             logger.debug(message)
-        packet = CxlIoMemWrPacket.create(address, data)
+        packet = CxlIoMemWrPacket.create(address, size, data)
         await self._downstream_connection.mmio_fifo.host_to_target.put(packet)
 
     async def read_mmio(

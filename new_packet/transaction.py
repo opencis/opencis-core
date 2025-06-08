@@ -188,12 +188,12 @@ class CxlIoMemRdPacket(CxlIoMemReqPacket):
 
 class CxlIoMemWrPacket(CxlIoMemReqPacket):
     @classmethod
-    def create(cls, addr: int, data: bytes | int, req_id: int = 0, tag: int = None, ld_id: int = 0):
+    def create(cls, addr: int, length: int, data: bytes | int, req_id: int = 0, tag: int = None, ld_id: int = 0):
         pkt = cls()
         logger.info(f"data as is:{data}")
         if isinstance(data, int):
             logger.info(f"data int:{data:x}")
-            pkt.set_data_as_int(data)
+            pkt.set_data_as_int(data, length)
             length = (data.bit_length() + 7) // 8 or 1
         else:
             logger.info(f"data b:{data}")
@@ -401,12 +401,16 @@ class CxlIoCompletionWithDataPacket(
         pkt.cpl_header.byte_count_lower = extract_lower(pload_len, 8, 12)
 
 
-        if isinstance(data, int):
-            logger.info(f"!!!DATA i: {data:x}")
-            pkt.set_data_as_int(data)
+        if hasattr(data, '__int__'):
+            pkt.set_data_as_int(int(data))
         else:
-            logger.info(f"!!!DATA b: {data:x}")
-            pkt.set_data(data)
+            pkt.set_data(bytes(data))
+    #     if isinstance(data, int):
+    #         logger.info(f"!!!DATA i: {data:x}")
+    #         pkt.set_data_as_int(data)
+    #     else:
+    #         logger.info(f"!!!DATA b: {data}")
+    #         pkt.set_data(data)
 
         pkt.tlp_prefix.ld_id = ld_id
         pkt.system_header.payload_length = pkt.get_size()
@@ -648,11 +652,24 @@ class CxlMemBasePacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemBasePack
 
 
 class CxlMemM2SReqPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SReqPacket):
-    pass
+    def is_mem_rd(self) -> bool:
+        return self.m2sreq_header.mem_opcode == CXL_MEM_M2SREQ_OPCODE.MEM_RD
+
+    def is_mem_inv(self) -> bool:
+        return self.m2sreq_header.mem_opcode == CXL_MEM_M2SREQ_OPCODE.MEM_INV
+
+    def get_address(self) -> int:
+        print(f"self.m2sreq_header.addr: {self.m2sreq_header.addr:x}")
+        return self.m2sreq_header.addr << 6
 
 
-class CxlMemM2SRwDPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SRwDPacket):
-    pass
+class CxlMemM2SRwDPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SRwDPacket, PacketDataMixin):
+    def is_mem_wr(self) -> bool:
+        return self.m2srwd_header.mem_opcode == CXL_MEM_M2SRWD_OPCODE.MEM_WR
+
+    def get_address(self) -> int:
+        print(f"self.m2srwd_header.addr: {self.m2srwd_header.addr:x}")
+        return self.m2srwd_header.addr << 6
 
 
 class CxlMemM2SBIRspPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SBIRspPacket):
@@ -667,11 +684,11 @@ class CxlMemS2MNDRPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MNDR
     pass
 
 
-class CxlMemS2MDRSPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MDRSPacket):
+class CxlMemS2MDRSPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MDRSPacket, PacketDataMixin):
     pass
 
 
-class CxlMemMemRdPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SReqPacket):
+class CxlMemMemRdPacket(CxlMemM2SReqPacket):
     @classmethod
     def create(
         cls,
@@ -707,9 +724,7 @@ class CxlMemMemRdPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SReqP
         return self.m2sreq_header.addr << 6
 
 
-class CxlMemMemWrPacket(
-    BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SRwDPacket, PacketDataMixin
-):
+class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
     @classmethod
     def create(
         cls,
@@ -741,13 +756,6 @@ class CxlMemMemWrPacket(
 
         pkt.system_header.payload_length = pkt.get_size()
         return pkt
-
-    def is_mem_wr(self) -> bool:
-        return self.m2srwd_header.mem_opcode == CXL_MEM_M2SRWD_OPCODE.MEM_WR
-
-    def get_address(self) -> int:
-        return self.m2srwd_header.addr << 6
-
 
 class CxlMemBIRspPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SBIRspPacket):
     @classmethod

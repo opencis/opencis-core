@@ -176,7 +176,7 @@ async def test_pci_device_mmio():
         logger.info("[PyTest] Accessing MMIO register")
         # NOTE: Write 0xDEADBEEF
         data = 0xDEADBEEF
-        packet = CxlIoMemWrPacket.create(base_addresss, data=data)
+        packet = CxlIoMemWrPacket.create(base_addresss, 4, data=data)
         await transport_connection.mmio_fifo.host_to_target.put(packet)
 
         # NOTE: Confirm 0xDEADBEEF is written
@@ -188,11 +188,11 @@ async def test_pci_device_mmio():
         assert cpld_packet.get_data_as_int() == data
 
         # NOTE: Write OOB (Upper Boundary), Expect No Error
-        packet = CxlIoMemWrPacket.create(base_addresss + bar_size, data=data)
+        packet = CxlIoMemWrPacket.create(base_addresss + bar_size, 4, data=data)
         await transport_connection.mmio_fifo.host_to_target.put(packet)
 
         # NOTE: Write OOB (Lower Boundary), Expect No Error
-        packet = CxlIoMemWrPacket.create(base_addresss - 4, data=data)
+        packet = CxlIoMemWrPacket.create(base_addresss - 4, 4, data=data)
         await transport_connection.mmio_fifo.host_to_target.put(packet)
 
         # NOTE: Read OOB (Upper Boundary), Expect 0

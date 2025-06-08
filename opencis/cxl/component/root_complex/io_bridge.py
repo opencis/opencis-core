@@ -162,7 +162,7 @@ class IoBridge(RunnableComponent):
     async def write_mmio(self, address: int, size: int, value: int):
         message = self._create_message(f"MMIO: Writing 0x{value:08x} to 0x{address:08x}")
         logger.debug(message)
-        packet = CxlIoMemWrPacket.create(address, value)
+        packet = CxlIoMemWrPacket.create(address, size, value)
         await self._cxl_io_mmio_fifos.host_to_target.put(packet)
 
     async def read_mmio(self, address: int, size: int) -> int:
