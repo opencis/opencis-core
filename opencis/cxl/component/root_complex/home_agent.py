@@ -113,7 +113,6 @@ class HomeAgent(RunnableComponent):
         addr: int,
         data: int,
     ) -> CxlMemMemWrPacket:
-        logger.info(f"ha._create_m2s_rwd_packet, addr:{addr}")
         return CxlMemMemWrPacket.create(addr, data, opcode, meta_field, meta_value, snp_type)
 
     async def _write_memory(self, addr: int, size: int, value: int):
@@ -234,7 +233,7 @@ class HomeAgent(RunnableComponent):
                 await asyncio.sleep(0)  # just spin
             cxl_packet = await self._cxl_channel.s2m_drs.get()
             assert cast(CxlMemBasePacket, cxl_packet).is_s2mdrs()
-            cache_packet = CacheResponse(status, cxl_packet.data)
+            cache_packet = CacheResponse(status, cxl_packet.get_data_as_int())
         else:
             cache_packet = CacheResponse(status)
         await self._upstream_cache_to_home_agent_fifos.response.put(cache_packet)
@@ -307,7 +306,6 @@ class HomeAgent(RunnableComponent):
                 CACHE_REQUEST_TYPE.WRITE_BACK_CLEAN,
                 CACHE_REQUEST_TYPE.UNCACHED_WRITE,
             ):
-                print(f"_process_upstream_host_to_target_packets, {addr:x}, {cache_packet.type}")
                 opcode = CXL_MEM_M2SRWD_OPCODE.MEM_WR
                 data = cache_packet.data
 

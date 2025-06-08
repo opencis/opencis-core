@@ -170,7 +170,6 @@ class MmioManager(PacketProcessor):
         tag = mem_req_packet.mreq_header.tag
         ld_id = mem_req_packet.tlp_prefix.ld_id
 
-        logger.info(f"address:{address:x}, size:{size:x}")
         register, offset = self._get_register_and_offset(address, size)
         if register is None and offset is None:
             if self._should_forward_packet(address, size):

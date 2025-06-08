@@ -182,13 +182,10 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         ld_id: int = 0,
     ):
         pkt = cls()
-        logger.info(f"data as is:{data}")
         if isinstance(data, int):
-            logger.info(f"data int:{data:x}")
             pkt.set_data_as_int(data, length)
             length = (data.bit_length() + 7) // 8 or 1
         else:
-            logger.info(f"data b:{data}")
             pkt.set_data(data)
             length = len(data)
         pkt.fill(addr, length, htotlp16(req_id), super().get_tag(tag))
@@ -417,15 +414,11 @@ class CxlIoCompletionWithDataPacket(
 
 def is_cxl_io_completion_status_sc(packet) -> bool:
     if not packet.is_cxl_io():
-        logger.info(f"HERE 1")
         return False
     if packet.is_cpld():
-        logger.info(f"HERE 2")
         return True
     if not packet.is_cpl():
-        logger.info(f"HERE 3")
         return False
-    logger.info(f"HERE 4, {packet.cpl_header.status}")
     return packet.cpl_header.status == CXL_IO_CPL_STATUS.SC
 
 
@@ -650,7 +643,6 @@ class CxlMemM2SReqPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SReq
         return self.m2sreq_header.mem_opcode == CXL_MEM_M2SREQ_OPCODE.MEM_INV
 
     def get_address(self) -> int:
-        print(f"self.m2sreq_header.addr: {self.m2sreq_header.addr:x}")
         return self.m2sreq_header.addr << 6
 
 
@@ -661,7 +653,6 @@ class CxlMemM2SRwDPacket(
         return self.m2srwd_header.mem_opcode == CXL_MEM_M2SRWD_OPCODE.MEM_WR
 
     def get_address(self) -> int:
-        print(f"self.m2srwd_header.addr: {self.m2srwd_header.addr:x}")
         return self.m2srwd_header.addr << 6
 
 
@@ -670,7 +661,8 @@ class CxlMemM2SBIRspPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SB
 
 
 class CxlMemS2MBISnpPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MBISnpPacket):
-    pass
+    def get_address(self) -> int:
+        return self.s2mbisnp_header.addr << 6
 
 
 class CxlMemS2MNDRPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MNDRPacket):
@@ -744,7 +736,6 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
             raise Exception("Address must be a multiple of 0x40")
         pkt.m2srwd_header.addr = addr >> 6
 
-        print(f"addr:{addr:x}, pkt.m2srwd_header.addr:{pkt.m2srwd_header.addr:x}")
         if isinstance(data, int):
             pkt.set_data_as_int(data)
         else:
@@ -935,6 +926,16 @@ class CciMessagePacket(CciBasePacket):
         payload_length_high = (length >> 16) & 0x1F
         self.message_payload_length_high = payload_length_high
         self.message_payload_length_low = payload_length_low
+
+    def get_total_size(self) -> int:
+        return self.cci_msg_header.get_message_payload_length() + len(self.header)
+
+    def get_payload_size(self) -> int:
+        return self.cci_msg_header.get_message_payload_length()
+
+    def get_payload(self) -> bytes:
+        return int.to_bytes(self._payload_data, self.get_payload_size(), "little")
+
 
 
 class CciHeaderPacket:

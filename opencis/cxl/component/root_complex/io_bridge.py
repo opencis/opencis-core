@@ -126,9 +126,6 @@ class IoBridge(RunnableComponent):
             if device_num != 0:
                 return 0xFFFFFFFF & bit_mask
 
-        logger.info(
-            f"bdf:{bdf:x}, b:{extract_bus_from_bdf(bdf):x}, d:{extract_device_from_bdf(bdf):x}, f:{extract_function_from_bdf(bdf):x}"
-        )
         packet = CxlIoCfgRdPacket.create(bdf, offset, size, is_type0, req_id=0, tag=self._next_tag)
         self._next_tag = (self._next_tag + 1) % 256
         await self._cxl_io_cfg_fifos.host_to_target.put(packet)
@@ -140,7 +137,6 @@ class IoBridge(RunnableComponent):
         bit_offset = (offset % 4) * 8
 
         tpl_type_str = "CFG RD0" if is_type0 else "CFG RD1"
-        logger.info(f"packet:{packet}")
         if not is_cxl_io_completion_status_sc(packet):
             cpl_packet = cast(CxlIoCompletionPacket, packet)
             logger.debug(

@@ -198,7 +198,7 @@ class CxlMemDcoh(PacketProcessor):
                         data_flush = True
             elif packet.status == CACHE_RESPONSE_STATUS.RSP_V:
                 pass
-            packet.get_data_as_int()
+            data = packet.data
 
         if sf_update_list:
             self._snoop_filter_update(dpa, sf_update_list)

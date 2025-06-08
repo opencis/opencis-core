@@ -11,7 +11,6 @@ from typing import cast, Any, Tuple, Optional, Callable, Dict, Coroutine
 from opencis.cxl.component.mctp.mctp_connection import MctpConnection
 from new_packet.transaction import (
     CciMessagePacket,
-    CciMessageHeaderPacket,
     CciPayloadPacket,
 )
 from new_packet.packet_constants import CCI_MCTP_MESSAGE_CATEGORY
