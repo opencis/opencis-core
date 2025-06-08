@@ -80,6 +80,7 @@ dependencies = [
     "langchain-huggingface>=0.2.0",
     "langchain-google-genai>=2.1.5",
     "multidict>6.3.2",
+    "cython>=3.1.1",
 ]
 name = "opencis"
 version = "0.5"
