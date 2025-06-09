@@ -7,6 +7,9 @@ from packet_constants import (
     CCI_MSG_CLASS,
 )
 
+class PacketFieldMixin:
+    def get_byte_offset(field_view):
+        return field_view._bit_offset // 8
 
 class PacketDataMixin:
     def get_data(self) -> bytes:

@@ -359,7 +359,7 @@ async def test_multi_logical_device_ld_id():
             f"[PyTest]  @@ {get_ld_info_cci_message.cci_msg_header.message_payload_length_low}"
         )
 
-        get_ld_info_packet = GetLdInfoRequestPacket.create_from_ccimessage(get_ld_info_cci_message)
+        get_ld_info_packet = GetLdInfoRequestPacket.create_from_cci_message(get_ld_info_cci_message)
         logger.info(f"[PyTest]  @@ {get_ld_info_packet.cci_msg_header.message_payload_length_high}")
         logger.info(f"[PyTest]  @@ {get_ld_info_packet.cci_msg_header.message_payload_length_low}")
         packet_writer.write(bytes(get_ld_info_packet))
@@ -396,7 +396,7 @@ async def test_multi_logical_device_ld_id():
         get_ld_allocations_cci_message = CciMessagePacket.create(
             get_ld_allocations_cci_message_header, payload_bytes
         )
-        get_ld_allocations_packet = GetLdAllocationsRequestPacket.create_from_ccimessage(
+        get_ld_allocations_packet = GetLdAllocationsRequestPacket.create_from_cci_message(
             get_ld_allocations_cci_message
         )
         packet_writer.write(bytes(get_ld_allocations_packet))
@@ -453,7 +453,7 @@ async def test_multi_logical_device_ld_id():
         # reserved = 0
         # payload_bytes = bytes([number_of_lds, start_ld_id, reserved, reserved]) + bytes(ld_allocation_list)
         # set_ld_allocations_cci_message = CciMessagePacket.create(set_ld_allocations_cci_message_header, payload_bytes)
-        # set_ld_allocations_packet = SetLdAllocationsRequestPacket.create_from_ccimessage(0xFFFF, set_ld_allocations_cci_message)
+        # set_ld_allocations_packet = SetLdAllocationsRequestPacket.create_from_cci_message(0xFFFF, set_ld_allocations_cci_message)
         # packet_writer.write(bytes(set_ld_allocations_packet))
         # await packet_writer.drain()
         # packet = await packet_reader.get_packet()

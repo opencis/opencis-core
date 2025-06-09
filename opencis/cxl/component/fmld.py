@@ -73,8 +73,8 @@ class FMLD(RunnableComponent):
             raise Exception("Invalid command opcode")
         logger.info(f"Get LD Allocations: {get_ld_allocations_packet}")
 
-        start_ld_id = get_ld_allocations_packet.get_start_ld_id()
-        ld_alloc_list_limit = get_ld_allocations_packet.get_ld_allocation_list_limit()
+        start_ld_id = get_ld_allocations_packet.payload.start_ld_id
+        ld_alloc_list_limit = get_ld_allocations_packet.payload.ld_allocation_list_limit
 
         if start_ld_id < 0 or start_ld_id >= len(self._ld_dict):
             raise Exception("Invalid start_ld_id")

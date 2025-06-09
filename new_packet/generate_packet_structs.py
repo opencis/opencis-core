@@ -107,7 +107,6 @@ def emit_composite(packet_name, layout, field_sizes):
     else:
         lines.append("        self._data_length = 0")
 
-    # ✨ Add payload offset properties *after* __cinit__ method ends
     lines.append("")
     lines.append("    @property")
     lines.append("    def payload_byte_offset(self) -> int:")

@@ -110,14 +110,14 @@ class MctpCciExecutor(RunnableComponent):
 
                 downstream_packet = None
                 if opcode == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
-                    downstream_packet = GetLdInfoRequestPacket.create_from_ccimessage(cci_packet)
+                    downstream_packet = GetLdInfoRequestPacket.create_from_cci_message(cci_packet)
                 if opcode == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:
-                    downstream_packet = GetLdAllocationsRequestPacket.create_from_ccimessage(
+                    downstream_packet = GetLdAllocationsRequestPacket.create_from_cci_message(
                         cci_packet
                     )
 
                 if opcode == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
-                    downstream_packet = SetLdAllocationsRequestPacket.create_from_ccimessage(
+                    downstream_packet = SetLdAllocationsRequestPacket.create_from_cci_message(
                         cci_packet
                     )
 

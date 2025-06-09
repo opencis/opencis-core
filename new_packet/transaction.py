@@ -82,8 +82,8 @@ from mixin import (
     CxlCacheBasePacketMixin,
     CxlMemBasePacketMixin,
     CciBasePacketMixin,
+    PacketFieldMixin,
     PacketDataMixin,
-    populate_header_from_ccimessage,
 )
 
 
@@ -95,11 +95,11 @@ class BasePacket(BasePacketMixin, RawBasePacket):
 class BaseSidebandPacket(BasePacketMixin, SidebandPacketMixin, RawBaseSidebandPacket):
     @classmethod
     def create(cls, type: SIDEBAND_TYPES) -> "BaseSidebandPacket":
-        pkt = cls()
-        pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.SIDEBAND
-        pkt.sideband_header.type = type
-        pkt.system_header.payload_length = len(pkt)
-        return pkt
+        packet = cls()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.SIDEBAND
+        packet.sideband_header.type = type
+        packet.system_header.payload_length = len(packet)
+        return packet
 
 
 class SidebandConnectionRequestPacket(
@@ -107,12 +107,12 @@ class SidebandConnectionRequestPacket(
 ):
     @classmethod
     def create(cls, port_index: int) -> "SidebandConnectionRequestPacket":
-        pkt = cls()
-        pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.SIDEBAND
-        pkt.sideband_header.type = SIDEBAND_TYPES.CONNECTION_REQUEST
-        pkt.set_data_as_int(port_index)
-        pkt.system_header.payload_length = len(pkt)
-        return pkt
+        packet = cls()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.SIDEBAND
+        packet.sideband_header.type = SIDEBAND_TYPES.CONNECTION_REQUEST
+        packet.set_data_as_int(port_index)
+        packet.system_header.payload_length = len(packet)
+        return packet
 
 
 ######## IO
@@ -170,12 +170,12 @@ class CxlIoMemReqPacket(
 class CxlIoMemRdPacket(CxlIoMemReqPacket):
     @classmethod
     def create(cls, addr: int, length: int, req_id: int = 0, tag: int = None, ld_id: int = 0):
-        pkt = cls()
-        pkt.fill(addr, length, htotlp16(req_id), super().get_tag(tag))
-        pkt.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MRD_64B
-        pkt.tlp_prefix.ld_id = ld_id
-        pkt.system_header.payload_length = pkt.get_size()
-        return pkt
+        packet = cls()
+        packet.fill(addr, length, htotlp16(req_id), super().get_tag(tag))
+        packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MRD_64B
+        packet.tlp_prefix.ld_id = ld_id
+        packet.system_header.payload_length = packet.get_size()
+        return packet
 
 
 class CxlIoMemWrPacket(CxlIoMemReqPacket):
@@ -189,18 +189,18 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         tag: int = None,
         ld_id: int = 0,
     ):
-        pkt = cls()
+        packet = cls()
         if isinstance(data, int):
-            pkt.set_data_as_int(data, length)
+            packet.set_data_as_int(data, length)
             length = (data.bit_length() + 7) // 8 or 1
         else:
-            pkt.set_data(data)
+            packet.set_data(data)
             length = len(data)
-        pkt.fill(addr, length, htotlp16(req_id), super().get_tag(tag))
-        pkt.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
-        pkt.tlp_prefix.ld_id = ld_id
-        pkt.system_header.payload_length = pkt.get_size()
-        return pkt
+        packet.fill(addr, length, htotlp16(req_id), super().get_tag(tag))
+        packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MWR_64B
+        packet.tlp_prefix.ld_id = ld_id
+        packet.system_header.payload_length = packet.get_size()
+        return packet
 
 
 class CxlIoCfgReqPacket(
@@ -291,14 +291,14 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
         tag: Optional[int] = None,
         ld_id: int = 0,
     ) -> "CxlIoCfgRdPacket":
-        pkt = cls(None)
-        pkt.fill(id, cfg_addr, size, req_id, super().get_tag(tag))
-        pkt.cxl_io_header.fmt_type = (
+        packet = cls(None)
+        packet.fill(id, cfg_addr, size, req_id, super().get_tag(tag))
+        packet.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_RD0 if is_type0 else CXL_IO_FMT_TYPE.CFG_RD1
         )
-        pkt.system_header.payload_length = pkt.get_size()
-        pkt.tlp_prefix.ld_id = ld_id
-        return pkt
+        packet.system_header.payload_length = packet.get_size()
+        packet.tlp_prefix.ld_id = ld_id
+        return packet
 
 
 class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
@@ -315,16 +315,16 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
         ld_id: int = 0,
     ) -> "CxlIoCfgWrPacket":
         offset = cfg_addr % 4
-        pkt = cls(None)
+        packet = cls(None)
         value = value << (8 * offset)
-        pkt.set_data_as_int(value)
-        pkt.fill(id, cfg_addr, size, req_id, super().get_tag(tag))
-        pkt.cxl_io_header.fmt_type = (
+        packet.set_data_as_int(value)
+        packet.fill(id, cfg_addr, size, req_id, super().get_tag(tag))
+        packet.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_WR0 if is_type0 else CXL_IO_FMT_TYPE.CFG_WR1
         )
-        pkt.tlp_prefix.ld_id = ld_id
-        pkt.system_header.payload_length = pkt.get_size()
-        return pkt
+        packet.tlp_prefix.ld_id = ld_id
+        packet.system_header.payload_length = packet.get_size()
+        return packet
 
     def get_value(self) -> int:
         cfg_addr, size = self.get_cfg_addr_write_info()
@@ -347,22 +347,22 @@ class CxlIoCompletionPacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoCompl
         status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
         ld_id: int = 0,
     ) -> "CxlIoCompletionPacket":
-        pkt = cls()
-        pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_IO
-        pkt.system_header.payload_length = pkt.get_size()
-        pkt.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL
-        pkt.cxl_io_header.length_upper = 0
-        pkt.cxl_io_header.length_lower = 0
-        pkt.tlp_prefix.ld_id = ld_id
+        packet = cls()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_IO
+        packet.system_header.payload_length = packet.get_size()
+        packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL
+        packet.cxl_io_header.length_upper = 0
+        packet.cxl_io_header.length_lower = 0
+        packet.tlp_prefix.ld_id = ld_id
 
-        pkt.cpl_header.cpl_id = htotlp16(cpl_id)
-        pkt.cpl_header.status = status
-        pkt.cpl_header.byte_count_upper = 0
-        pkt.cpl_header.byte_count_lower = 4
-        pkt.cpl_header.req_id = htotlp16(req_id)
-        pkt.cpl_header.tag = tag
+        packet.cpl_header.cpl_id = htotlp16(cpl_id)
+        packet.cpl_header.status = status
+        packet.cpl_header.byte_count_upper = 0
+        packet.cpl_header.byte_count_lower = 4
+        packet.cpl_header.req_id = htotlp16(req_id)
+        packet.cpl_header.tag = tag
 
-        return pkt
+        return packet
 
     def get_transaction_id(self) -> int:
         return self.build_transaction_id(self.cpl_header.req_id, self.cpl_header.tag)
@@ -382,36 +382,36 @@ class CxlIoCompletionWithDataPacket(
         pload_len: int = 0x04,
         ld_id: int = 0,
     ) -> "CxlIoCompletionWithDataPacket":
-        pkt = cls()
-        pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_IO
-        pkt.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL_D
+        packet = cls()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_IO
+        packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL_D
 
-        pkt.cxl_io_header.length_upper = extract_upper(pload_len // 4, 2, 10)
-        pkt.cxl_io_header.length_lower = extract_lower(pload_len // 4, 8, 10)
+        packet.cxl_io_header.length_upper = extract_upper(pload_len // 4, 2, 10)
+        packet.cxl_io_header.length_lower = extract_lower(pload_len // 4, 8, 10)
 
-        pkt.cpl_header.cpl_id = htotlp16(cpl_id)
-        pkt.cpl_header.status = status
-        pkt.cpl_header.req_id = htotlp16(req_id)
-        pkt.cpl_header.tag = tag
+        packet.cpl_header.cpl_id = htotlp16(cpl_id)
+        packet.cpl_header.status = status
+        packet.cpl_header.req_id = htotlp16(req_id)
+        packet.cpl_header.tag = tag
 
-        pkt.cpl_header.byte_count_upper = extract_upper(pload_len, 4, 12)
-        pkt.cpl_header.byte_count_lower = extract_lower(pload_len, 8, 12)
+        packet.cpl_header.byte_count_upper = extract_upper(pload_len, 4, 12)
+        packet.cpl_header.byte_count_lower = extract_lower(pload_len, 8, 12)
 
         if hasattr(data, "__int__"):
-            pkt.set_data_as_int(int(data))
+            packet.set_data_as_int(int(data))
         else:
-            pkt.set_data(bytes(data))
+            packet.set_data(bytes(data))
         #     if isinstance(data, int):
         #         logger.info(f"!!!DATA i: {data:x}")
-        #         pkt.set_data_as_int(data)
+        #         packet.set_data_as_int(data)
         #     else:
         #         logger.info(f"!!!DATA b: {data}")
-        #         pkt.set_data(data)
+        #         packet.set_data(data)
 
-        pkt.tlp_prefix.ld_id = ld_id
-        pkt.system_header.payload_length = pkt.get_size()
+        packet.tlp_prefix.ld_id = ld_id
+        packet.system_header.payload_length = packet.get_size()
 
-        return pkt
+        return packet
 
     def get_transaction_id(self) -> int:
         return self.build_transaction_id(self.cpl_header.req_id, self.cpl_header.tag)
@@ -456,18 +456,18 @@ class CxlCacheCacheD2HReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxl
         opcode: CXL_CACHE_D2HREQ_OPCODE,
         cqid: int = 0,
     ) -> "CxlCacheCacheD2HReqPacket":
-        pkt = cls()
-        pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
-        pkt.system_header.payload_length = pkt.get_size()
-        pkt.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_REQ
-        pkt.d2hreq_header.valid = 1
-        pkt.d2hreq_header.cache_opcode = opcode
-        pkt.d2hreq_header.cqid = cqid
-        pkt.d2hreq_header.cache_id = cache_id
+        packet = cls()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
+        packet.system_header.payload_length = packet.get_size()
+        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_REQ
+        packet.d2hreq_header.valid = 1
+        packet.d2hreq_header.cache_opcode = opcode
+        packet.d2hreq_header.cqid = cqid
+        packet.d2hreq_header.cache_id = cache_id
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")
-        pkt.d2hreq_header.addr = addr >> 6
-        return pkt
+        packet.d2hreq_header.addr = addr >> 6
+        return packet
 
     def get_address(self) -> int:
         return self.d2hreq_header.addr << 6
@@ -487,14 +487,14 @@ class CxlCacheCacheD2HRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxl
         uqid: int,
         opcode: CXL_CACHE_D2HRSP_OPCODE,
     ) -> "CxlCacheCacheD2HRspPacket":
-        pkt = cls()
-        pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
-        pkt.system_header.payload_length = pkt.get_size()
-        pkt.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_RSP
-        pkt.d2hrsp_header.valid = 1
-        pkt.d2hrsp_header.uqid = uqid
-        pkt.d2hrsp_header.cache_opcode = opcode
-        return pkt
+        packet = cls()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
+        packet.system_header.payload_length = packet.get_size()
+        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_RSP
+        packet.d2hrsp_header.valid = 1
+        packet.d2hrsp_header.uqid = uqid
+        packet.d2hrsp_header.cache_opcode = opcode
+        return packet
 
 
 class CxlCacheD2HDataPacket(
@@ -512,20 +512,20 @@ class CxlCacheCacheD2HDataPacket(
         uqid: int,
         data: int,
     ) -> "CxlCacheCacheD2HDataPacket":
-        pkt = cls()
-        pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
-        pkt.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_DATA
-        pkt.d2hdata_header.valid = 1
-        pkt.d2hdata_header.uqid = uqid
-        pkt.d2hdata_header.poison = 0
+        packet = cls()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
+        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_DATA
+        packet.d2hdata_header.valid = 1
+        packet.d2hdata_header.uqid = uqid
+        packet.d2hdata_header.poison = 0
 
         if isinstance(data, int):
-            pkt.set_data_as_int(data)
+            packet.set_data_as_int(data)
         else:
-            pkt.set_data(data)
+            packet.set_data(data)
 
-        pkt.system_header.payload_length = pkt.get_size()
-        return pkt
+        packet.system_header.payload_length = packet.get_size()
+        return packet
 
 
 class CxlCacheH2DReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxlCacheH2DReqPacket):
@@ -540,17 +540,17 @@ class CxlCacheCacheH2DReqPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxl
         cache_id: int,
         opcode: CXL_CACHE_H2DREQ_OPCODE,
     ) -> "CxlCacheCacheH2DReqPacket":
-        pkt = cls()
-        pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
-        pkt.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_REQ
-        pkt.h2dreq_header.valid = 1
-        pkt.h2dreq_header.cache_opcode = opcode
-        pkt.h2dreq_header.cache_id = cache_id
+        packet = cls()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
+        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_REQ
+        packet.h2dreq_header.valid = 1
+        packet.h2dreq_header.cache_opcode = opcode
+        packet.h2dreq_header.cache_id = cache_id
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")
-        pkt.h2dreq_header.addr = addr >> 6
-        pkt.system_header.payload_length = pkt.get_size()
-        return pkt
+        packet.h2dreq_header.addr = addr >> 6
+        packet.system_header.payload_length = packet.get_size()
+        return packet
 
     def get_address(self) -> int:
         return self.h2dreq_header.addr << 6
@@ -572,16 +572,16 @@ class CxlCacheCacheH2DRspPacket(BasePacketMixin, CxlCacheBasePacketMixin, RawCxl
         rsp_data: CXL_CACHE_H2DRSP_CACHE_STATE,
         cqid: int = 0,
     ) -> "CxlCacheCacheH2DRspPacket":
-        pkt = cls()
-        pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
-        pkt.system_header.payload_length = pkt.get_size()
-        pkt.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_RSP
-        pkt.h2drsp_header.valid = 1
-        pkt.h2drsp_header.cache_opcode = opcode
-        pkt.h2drsp_header.cache_id = cache_id
-        pkt.h2drsp_header.rsp_data = rsp_data
-        pkt.h2drsp_header.cqid = cqid
-        return pkt
+        packet = cls()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
+        packet.system_header.payload_length = packet.get_size()
+        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_RSP
+        packet.h2drsp_header.valid = 1
+        packet.h2drsp_header.cache_opcode = opcode
+        packet.h2drsp_header.cache_id = cache_id
+        packet.h2drsp_header.rsp_data = rsp_data
+        packet.h2drsp_header.cqid = cqid
+        return packet
 
     def get_opcode(self) -> CXL_CACHE_H2DRSP_OPCODE:
         return self.h2drsp_header.cache_opcode
@@ -603,20 +603,20 @@ class CxlCacheCacheH2DDataPacket(
         data: int,
         cqid: int = 0,
     ) -> "CxlCacheCacheH2DDataPacket":
-        pkt = cls()
-        pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
-        pkt.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_DATA
-        pkt.h2ddata_header.valid = 1
-        pkt.h2ddata_header.cache_id = cache_id
-        pkt.h2ddata_header.cqid = cqid
+        packet = cls()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
+        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_DATA
+        packet.h2ddata_header.valid = 1
+        packet.h2ddata_header.cache_id = cache_id
+        packet.h2ddata_header.cqid = cqid
 
         if isinstance(data, int):
-            pkt.set_data_as_int(data)
+            packet.set_data_as_int(data)
         else:
-            pkt.set_data(data)
+            packet.set_data(data)
 
-        pkt.system_header.payload_length = pkt.get_size()
-        return pkt
+        packet.system_header.payload_length = packet.get_size()
+        return packet
 
     def get_cqid(self) -> int:
         return self.h2ddata_header.cqid
@@ -694,20 +694,20 @@ class CxlMemMemRdPacket(CxlMemM2SReqPacket):
         snp_type: CXL_MEM_M2S_SNP_TYPE = CXL_MEM_M2S_SNP_TYPE.NO_OP,
         ld_id: int = 0,
     ) -> "CxlMemMemRdPacket":
-        pkt = cls()
-        pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
-        pkt.system_header.payload_length = pkt.get_size()
-        pkt.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_REQ
-        pkt.m2sreq_header.valid = 1
-        pkt.m2sreq_header.mem_opcode = opcode
-        pkt.m2sreq_header.meta_field = meta_field
-        pkt.m2sreq_header.meta_value = meta_value
-        pkt.m2sreq_header.snp_type = snp_type
-        pkt.m2sreq_header.ld_id = ld_id
+        packet = cls()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
+        packet.system_header.payload_length = packet.get_size()
+        packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_REQ
+        packet.m2sreq_header.valid = 1
+        packet.m2sreq_header.mem_opcode = opcode
+        packet.m2sreq_header.meta_field = meta_field
+        packet.m2sreq_header.meta_value = meta_value
+        packet.m2sreq_header.snp_type = snp_type
+        packet.m2sreq_header.ld_id = ld_id
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")
-        pkt.m2sreq_header.addr = addr >> 6
-        return pkt
+        packet.m2sreq_header.addr = addr >> 6
+        return packet
 
     def is_mem_rd(self) -> bool:
         return self.m2sreq_header.mem_opcode == CXL_MEM_M2SREQ_OPCODE.MEM_RD
@@ -731,26 +731,26 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
         snp_type: CXL_MEM_M2S_SNP_TYPE = CXL_MEM_M2S_SNP_TYPE.NO_OP,
         ld_id: int = 0,
     ) -> "CxlMemMemWrPacket":
-        pkt = cls()
-        pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
-        pkt.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_RWD
-        pkt.m2srwd_header.valid = 1
-        pkt.m2srwd_header.mem_opcode = opcode
-        pkt.m2srwd_header.meta_field = meta_field
-        pkt.m2srwd_header.meta_value = meta_value
-        pkt.m2srwd_header.snp_type = snp_type
-        pkt.m2srwd_header.ld_id = ld_id
+        packet = cls()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
+        packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_RWD
+        packet.m2srwd_header.valid = 1
+        packet.m2srwd_header.mem_opcode = opcode
+        packet.m2srwd_header.meta_field = meta_field
+        packet.m2srwd_header.meta_value = meta_value
+        packet.m2srwd_header.snp_type = snp_type
+        packet.m2srwd_header.ld_id = ld_id
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")
-        pkt.m2srwd_header.addr = addr >> 6
+        packet.m2srwd_header.addr = addr >> 6
 
         if isinstance(data, int):
-            pkt.set_data_as_int(data)
+            packet.set_data_as_int(data)
         else:
-            pkt.set_data(data)
+            packet.set_data(data)
 
-        pkt.system_header.payload_length = pkt.get_size()
-        return pkt
+        packet.system_header.payload_length = packet.get_size()
+        return packet
 
 
 class CxlMemBIRspPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SBIRspPacket):
@@ -761,16 +761,16 @@ class CxlMemBIRspPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemM2SBIRs
         bi_id: int = 0,
         bi_tag: int = 0,
     ) -> "CxlMemBIRspPacket":
-        pkt = cls()
-        pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
-        pkt.system_header.payload_length = pkt.get_size()
-        pkt.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_BIRSP
-        pkt.m2sbirsp_header.valid = 1
-        pkt.m2sbirsp_header.opcode = opcode
-        pkt.m2sbirsp_header.low_addr = 0
-        pkt.m2sbirsp_header.bi_id = bi_id
-        pkt.m2sbirsp_header.bi_tag = bi_tag
-        return pkt
+        packet = cls()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
+        packet.system_header.payload_length = packet.get_size()
+        packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_BIRSP
+        packet.m2sbirsp_header.valid = 1
+        packet.m2sbirsp_header.opcode = opcode
+        packet.m2sbirsp_header.low_addr = 0
+        packet.m2sbirsp_header.bi_id = bi_id
+        packet.m2sbirsp_header.bi_tag = bi_tag
+        return packet
 
 
 class CxlMemBISnpPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MBISnpPacket):
@@ -791,18 +791,18 @@ class CxlMemBISnpPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MBISn
         bi_id: int = 0,
         bi_tag: int = None,
     ) -> "CxlMemBISnpPacket":
-        pkt = cls()
-        pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
-        pkt.system_header.payload_length = pkt.get_size()
-        pkt.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_BISNP
-        pkt.s2mbisnp_header.valid = 1
-        pkt.s2mbisnp_header.opcode = opcode
-        pkt.s2mbisnp_header.bi_id = bi_id
-        pkt.s2mbisnp_header.bi_tag = cls.get_tag(bi_tag)
+        packet = cls()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
+        packet.system_header.payload_length = packet.get_size()
+        packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_BISNP
+        packet.s2mbisnp_header.valid = 1
+        packet.s2mbisnp_header.opcode = opcode
+        packet.s2mbisnp_header.bi_id = bi_id
+        packet.s2mbisnp_header.bi_tag = cls.get_tag(bi_tag)
         if addr % 0x40:
             raise Exception("Address must be a multiple of 0x40")
-        pkt.s2mbisnp_header.addr = addr >> 6
-        return pkt
+        packet.s2mbisnp_header.addr = addr >> 6
+        return packet
 
 
 class CxlMemMemDataPacket(
@@ -817,22 +817,22 @@ class CxlMemMemDataPacket(
         meta_value: CXL_MEM_META_VALUE = CXL_MEM_META_VALUE.ANY,
         ld_id: int = 0,
     ) -> "CxlMemMemDataPacket":
-        pkt = cls()
-        pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
-        pkt.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_DRS
-        pkt.s2mdrs_header.valid = 1
-        pkt.s2mdrs_header.opcode = opcode
-        pkt.s2mdrs_header.meta_field = meta_field
-        pkt.s2mdrs_header.meta_value = meta_value
-        pkt.s2mdrs_header.ld_id = ld_id
+        packet = cls()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
+        packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_DRS
+        packet.s2mdrs_header.valid = 1
+        packet.s2mdrs_header.opcode = opcode
+        packet.s2mdrs_header.meta_field = meta_field
+        packet.s2mdrs_header.meta_value = meta_value
+        packet.s2mdrs_header.ld_id = ld_id
 
         if isinstance(data, int):
-            pkt.set_data_as_int(data)
+            packet.set_data_as_int(data)
         else:
-            pkt.set_data(data)
+            packet.set_data(data)
 
-        pkt.system_header.payload_length = pkt.get_size()
-        return pkt
+        packet.system_header.payload_length = packet.get_size()
+        return packet
 
 
 class CxlMemCmpPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MNDRPacket):
@@ -844,16 +844,16 @@ class CxlMemCmpPacket(BasePacketMixin, CxlMemBasePacketMixin, RawCxlMemS2MNDRPac
         meta_value: CXL_MEM_META_VALUE = CXL_MEM_META_VALUE.ANY,
         ld_id: int = 0,
     ) -> "CxlMemCmpPacket":
-        pkt = cls()
-        pkt.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
-        pkt.system_header.payload_length = pkt.get_size()
-        pkt.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_NDR
-        pkt.s2mndr_header.valid = 1
-        pkt.s2mndr_header.opcode = opcode
-        pkt.s2mndr_header.meta_field = meta_field
-        pkt.s2mndr_header.meta_value = meta_value
-        pkt.s2mndr_header.ld_id = ld_id
-        return pkt
+        packet = cls()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
+        packet.system_header.payload_length = packet.get_size()
+        packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_NDR
+        packet.s2mndr_header.valid = 1
+        packet.s2mndr_header.opcode = opcode
+        packet.s2mndr_header.meta_field = meta_field
+        packet.s2mndr_header.meta_value = meta_value
+        packet.s2mndr_header.ld_id = ld_id
+        return packet
 
 
 ######### MEM helper ##################
@@ -879,6 +879,26 @@ def is_cxl_mem_birsp(packet) -> bool:
 
 ############## CCI
 
+class CciPayload:
+    def __init__(self, packet, base_offset_bits, fields):
+        self._packet = packet  # Instance of PacketBuffer (or subclass)
+        self._base = base_offset_bits
+        self._fields = {name: (offset, width) for name, offset, width in fields}
+
+    def __getattr__(self, name):
+        if name in self._fields:
+            offset, width = self._fields[name]
+            return self._packet.read_bits(self._base + offset, width)
+        raise AttributeError(f"{name} not found")
+
+    def __setattr__(self, name, value):
+        if name in {'_packet', '_base', '_fields'}:
+            super().__setattr__(name, value)
+        elif name in self._fields:
+            offset, width = self._fields[name]
+            self._packet.write_bits(self._base + offset, width, value)
+        else:
+            raise AttributeError(f"{name} not found")
 
 class CciBasePacket(BasePacketMixin, CciBasePacketMixin, RawCciBasePacket):
     pass
@@ -896,19 +916,19 @@ class CciMessagePacket(BasePacketMixin, CciBasePacketMixin, RawCciMessagePacket,
         return_code: int = 0,
         background_operation: int = 0,
     ) -> "CciMessagePacket":
-        pkt = cls()
-        pkt.cci_msg_header.message_category = message_category
-        pkt.cci_msg_header.command_opcode = opcode
-        pkt.cci_msg_header.message_tag = message_tag
-        pkt.cci_msg_header.vendor_specific_extended_status = vendor_specific_status
-        pkt.cci_msg_header.return_code = return_code
-        pkt.cci_msg_header.background_operation = background_operation
+        packet = cls()
+        packet.cci_msg_header.message_category = message_category
+        packet.cci_msg_header.command_opcode = opcode
+        packet.cci_msg_header.message_tag = message_tag
+        packet.cci_msg_header.vendor_specific_extended_status = vendor_specific_status
+        packet.cci_msg_header.return_code = return_code
+        packet.cci_msg_header.background_operation = background_operation
 
         length = len(data)
-        pkt.cci_msg_header.message_payload_length_high = (length >> 16) & 0x1F
-        pkt.cci_msg_header.message_payload_length_low = length & 0xFFFF
-        pkt.set_data(data)
-        return pkt
+        packet.cci_msg_header.message_payload_length_high = (length >> 16) & 0x1F
+        packet.cci_msg_header.message_payload_length_low = length & 0xFFFF
+        packet.set_data(data)
+        return packet
 
     def get_message_payload_length(self) -> int:
         return self.message_payload_length_high << 16 | self.message_payload_length_low
@@ -946,7 +966,7 @@ class CciPayloadPacket(BasePacketMixin, CciBasePacketMixin, RawCciPayloadPacket,
         return packet
 
 
-class CciRequestPacket(BasePacketMixin, CciBasePacketMixin, RawCciRequestPacket, PacketDataMixin):
+class CciRequestPacket(BasePacketMixin, CciBasePacketMixin, RawCciRequestPacket, PacketFieldMixin, PacketDataMixin):
     def get_command_opcode(self) -> int:
         return self.cci_msg_header.command_opcode
 
@@ -990,42 +1010,53 @@ class GetLdInfoRequestPacket(CciRequestPacket):
         return cls.create_packet(CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO)
 
     @classmethod
-    def create_from_ccimessage(cls, cci_message: CciMessagePacket) -> "GetLdInfoRequestPacket":
+    def create_from_cci_message(cls, cci_message: CciMessagePacket) -> "GetLdInfoRequestPacket":
         packet = cls()
         packet.initialize_common_headers()
         packet.populate_header_from_ccimessage(cci_message)
+        offset = packet.get_byte_offset(packet.cci_msg_header)
+        packet.set_bytes(offset, bytes(cci_message))
         packet.cci_msg_header.command_opcode = CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
         return packet
 
 
 class GetLdAllocationsRequestPacket(CciRequestPacket):
+    _fields = [
+        ("start_ld_id", 0, 7),
+        ("ld_allocation_list_limit", 8, 8),
+    ]
+
+    def __init__(self):
+        super().__init__()
+        _, last_offset, last_width = self._fields[-1]
+        payload_bits = last_offset + last_width
+        payload_bytes = (payload_bits + 7) // 8
+        self.set_data(b'\x00' * payload_bytes)
+
+        self.payload = CciPayload(self, self.payload_bit_offset, self._fields)
+
     @classmethod
     def create(
         cls, start_ld_id: int = 0, ld_allocation_list_limit: int = 0
     ) -> "GetLdAllocationsRequestPacket":
-        packet = cls.create_packet(CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS)
-        packet.get_ld_allocations_request.start_ld_id = start_ld_id
-        packet.get_ld_allocations_request.ld_allocation_list_limit = ld_allocation_list_limit
+        packet = cls()
+        packet.initialize_common_headers()
+        packet.cci_msg_header.command_opcode = CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS
+        packet.payload.start_ld_id = start_ld_id
+        packet.payload.ld_allocation_list_limit = ld_allocation_list_limit
         return packet
 
-    def get_start_ld_id(self) -> int:
-        return self.get_ld_allocations_request.start_ld_id
-
-    def get_ld_allocation_list_limit(self) -> int:
-        return self.get_ld_allocations_request.ld_allocation_list_limit
-
     @classmethod
-    def create_from_ccimessage(
+    def create_from_cci_message(
         cls, cci_message: CciMessagePacket
     ) -> "GetLdAllocationsRequestPacket":
         packet = cls()
         packet.initialize_common_headers()
         packet.populate_header_from_ccimessage(cci_message)
-        packet.get_ld_allocations_request.start_ld_id = cci_message._payload_data & 0xFF
-        packet.get_ld_allocations_request.ld_allocation_list_limit = (
-            cci_message._payload_data >> 8
-        ) & 0xFF
         packet.cci_msg_header.command_opcode = CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS
+        data = cci_message.get_data()
+        packet.get_ld_allocations_request.start_ld_id = int.from_bytes(data[0], "little")
+        packet.get_ld_allocations_request.ld_allocation_list_limit = int.from_bytes(data[1], "little")
         return packet
 
 
@@ -1051,7 +1082,7 @@ class SetLdAllocationsRequestPacket(CciRequestPacket):
         return packet
 
     @classmethod
-    def create_from_ccimessage(
+    def create_from_cci_message(
         cls, cci_message: CciMessagePacket
     ) -> "SetLdAllocationsRequestPacket":
         packet = cls()
@@ -1116,6 +1147,13 @@ class CciResponsePacket(BasePacketMixin, CciBasePacketMixin, RawCciResponsePacke
 
 
 class GetLdInfoResponsePacket(CciResponsePacket):
+    _fields = [
+        ("number_of_lds", 0, 7),
+        ("memory_granularity", 8, 15),
+        ("start_ld_id", 16, 23),
+        ("ld_allocation_list_length", 24, 31),
+    ]
+
     def payload_to_bytes(self, byteorder: str) -> bytes:
         return (
             self.payload.memory_size.to_bytes(8, byteorder)
@@ -1141,7 +1179,7 @@ class GetLdInfoResponsePacket(CciResponsePacket):
     def get_ld_count(self) -> int:
         return self.payload.ld_count
 
-    def get_QoS_Telemetry_capability(self) -> int:
+    def get_qos_telemetry_capability(self) -> int:
         return self.payload.qos_telemetry_capability
 
     def get_payload_size(self) -> int:

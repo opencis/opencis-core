@@ -2068,7 +2068,7 @@ class GetLdInfoRequestPacket(CciRequestPacket):
         return packet
 
     @staticmethod
-    def create_from_ccimessage(ccimessage: CciMessagePacket) -> "GetLdInfoRequestPacket":
+    def create_from_cci_message(ccimessage: CciMessagePacket) -> "GetLdInfoRequestPacket":
         packet = GetLdInfoRequestPacket()
         packet.cci_header.msg_class = CCI_MSG_CLASS.REQ
         packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
@@ -2151,7 +2151,7 @@ class GetLdAllocationsRequestPacket(GetLdAllocationsRequestBasePacket):
         return packet
 
     @staticmethod
-    def create_from_ccimessage(ccimessage: CciMessagePacket) -> "GetLdAllocationsRequestPacket":
+    def create_from_cci_message(ccimessage: CciMessagePacket) -> "GetLdAllocationsRequestPacket":
         packet = GetLdAllocationsRequestPacket()
         packet.cci_header.msg_class = CCI_MSG_CLASS.REQ
         packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
@@ -2230,7 +2230,7 @@ class SetLdAllocationsRequestBasePacket(CciRequestPacket):
 
 class SetLdAllocationsRequestPacket(SetLdAllocationsRequestBasePacket):
     @staticmethod
-    def create_from_ccimessage(ccimessage: CciMessagePacket) -> "SetLdAllocationsRequestPacket":
+    def create_from_cci_message(ccimessage: CciMessagePacket) -> "SetLdAllocationsRequestPacket":
         packet = SetLdAllocationsRequestPacket()
         packet.cci_header.msg_class = CCI_MSG_CLASS.REQ
         packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
