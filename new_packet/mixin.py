@@ -7,9 +7,11 @@ from packet_constants import (
     CCI_MSG_CLASS,
 )
 
+
 class PacketFieldMixin:
-    def get_byte_offset(field_view):
-        return field_view._bit_offset // 8
+    def get_byte_offset(self, field):
+        return field._bit_offset // 8
+
 
 class PacketDataMixin:
     def get_data(self) -> bytes:
@@ -181,16 +183,3 @@ class CciBasePacketMixin:
 
     def get_total_size(self) -> int:
         return self.system_header.payload_length
-
-
-def populate_header_from_ccimessage(cci_msg_header, ccimessage_header):
-    cci_msg_header.message_category = ccimessage_header.message_category
-    cci_msg_header.message_tag = ccimessage_header.message_tag
-    cci_msg_header.command_opcode = ccimessage_header.command_opcode
-    cci_msg_header.message_payload_length_high = ccimessage_header.message_payload_length_high
-    cci_msg_header.message_payload_length_low = ccimessage_header.message_payload_length_low
-    cci_msg_header.return_code = ccimessage_header.return_code
-    cci_msg_header.vendor_specific_extended_status = (
-        ccimessage_header.vendor_specific_extended_status
-    )
-    cci_msg_header.background_operation = ccimessage_header.background_operation

@@ -9,7 +9,6 @@ from asyncio import StreamReader, create_task
 from typing import Optional
 
 from new_packet.transaction import (
-    CciMessageHeaderPacket,
     CciMessagePacket,
     CciPayloadPacket,
 )
@@ -64,10 +63,10 @@ class MctpPacketReader(LabeledComponent):
         packet.reset(payload)
         return packet
 
-    async def _get_cci_message_header(self) -> CciMessageHeaderPacket:
+    async def _get_cci_message_header(self) -> CciMessagePacket:
         logger.debug(self._create_message("Waiting for CCI Message Header"))
-        payload = await self._read_payload(CciHeaderPacket.get_size())
-        message_header = CciHeaderPacket()
+        payload = await self._read_payload(CciMessagePacket.get_size())
+        message_header = CciMessagePacket()
         message_header.reset(payload)
         logger.debug(self._create_message("Received CCI Message Header"))
         return message_header

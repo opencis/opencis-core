@@ -24,7 +24,6 @@ from opencis.cxl.component.cxl_component import (
 )
 from new_packet.transaction import (
     CciMessagePacket,
-    CciMessageHeaderPacket,
     CciPayloadPacket,
     GetLdInfoRequestPacket,
     GetLdAllocationsRequestPacket,
@@ -65,7 +64,7 @@ class MctpCciExecutor(RunnableComponent):
         return CciRequest(opcode=packet.header.command_opcode, payload=packet.get_payload())
 
     async def _send_response(self, response: CciResponse, message_tag: int):
-        response_packet = CciMessageHeaderPacket.create(
+        response_packet = CciMessagePacket.create(
             message_category=CCI_MCTP_MESSAGE_CATEGORY.RESPONSE,
             opcode=0,
             data=response.payload,
@@ -149,7 +148,7 @@ class MctpCciExecutor(RunnableComponent):
 
             self._message_tag_list.pop(packet.cci_msg_header.message_tag)
 
-            cci_packet = packet.create_ccimessage()
+            cci_packet = packet.create_cci_message()
             cci_packet_tmc = CciPayloadPacket.create(cci_packet, cci_packet.get_total_size())
 
             await self._mctp_connection.ep_to_controller.put(cci_packet_tmc)

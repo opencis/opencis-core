@@ -370,7 +370,7 @@ async def test_multi_logical_device_ld_id():
             get_ld_info_response_packet.get_command_opcode()
             == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
         )
-        get_ld_info_cci_message = get_ld_info_response_packet.create_ccimessage()
+        get_ld_info_cci_message = get_ld_info_response_packet.create_cci_message()
         assert (
             get_ld_info_cci_message.header.command_opcode == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
         )
@@ -379,7 +379,7 @@ async def test_multi_logical_device_ld_id():
         logger.info("[PyTest]  Get LD info Finish")
 
         logger.info("[PyTest]  Get LD Allocations Start")
-        get_ld_allocations_cci_message_header = CciMessageHeaderPacket()
+        get_ld_allocations_cci_message_header = CciMessagePacket()
         get_ld_allocations_cci_message_header.message_category = 0
         get_ld_allocations_cci_message_header.message_tag = 0
         get_ld_allocations_cci_message_header.command_opcode = (
