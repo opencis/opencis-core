@@ -43,7 +43,6 @@ def emit_struct(name, layout):
         f"        return self.to_bytes()\n"
     )
 
-
 def emit_composite(packet_name, layout, field_sizes):
     lines = [
         "# Generated file\n",
@@ -108,9 +107,19 @@ def emit_composite(packet_name, layout, field_sizes):
     else:
         lines.append("        self._data_length = 0")
 
+    # ✨ Add payload offset properties *after* __cinit__ method ends
+    lines.append("")
+    lines.append("    @property")
+    lines.append("    def payload_byte_offset(self) -> int:")
+    lines.append("        return self.ACTUAL_SIZE")
+    lines.append("")
+    lines.append("    @property")
+    lines.append("    def payload_bit_offset(self) -> int:")
+    lines.append("        return self.ACTUAL_SIZE * 8")
+    lines.append("")
+
     if has_data_field:
-        lines.append("")
-        lines.append(f"    cpdef bytes get_data(self):")
+        lines.append("    cpdef bytes get_data(self):")
         lines.append(
             f"        return (<const unsigned char*> &self.buf[{offset}])[:self._data_length]"
         )
@@ -124,7 +133,6 @@ def emit_composite(packet_name, layout, field_sizes):
         lines.append(f"        memcpy(&self.buf[{offset}], data, n)")
         lines.append("        self._data_length = n")
     else:
-        lines.append("")
         lines.append("    cpdef bytes get_data(self):")
         lines.append('        return b""')
         lines.append("")
@@ -147,7 +155,6 @@ def emit_composite(packet_name, layout, field_sizes):
     lines.append("        return self.to_bytes()")
 
     return "\n".join(lines)
-
 
 def main():
     base = Path(__file__).parent
