@@ -216,7 +216,7 @@ class CxlIoCfgReqPacket(
         self.cxl_io_header.length_upper = 0b00
         self.cxl_io_header.length_lower = 0b00000001
         # NOTE: Request ID for CfgRd and CfgWr is always 0
-        self.cfg_req_header.req_id = req_id
+        self.cfg_req_header.req_id = htotlp16(req_id)
         self.cfg_req_header.tag = tag
 
         # compute byte-enable bits
@@ -284,7 +284,7 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
         ld_id: int = 0,
     ) -> "CxlIoCfgRdPacket":
         pkt = cls(None)
-        pkt.fill(id, cfg_addr, size, htotlp16(req_id), super().get_tag(tag))
+        pkt.fill(id, cfg_addr, size, req_id, super().get_tag(tag))
         pkt.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_RD0 if is_type0 else CXL_IO_FMT_TYPE.CFG_RD1
         )
@@ -310,7 +310,7 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
         pkt = cls(None)
         value = value << (8 * offset)
         pkt.set_data_as_int(value)
-        pkt.fill(id, cfg_addr, size, htotlp16(req_id), super().get_tag(tag))
+        pkt.fill(id, cfg_addr, size, req_id, super().get_tag(tag))
         pkt.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_WR0 if is_type0 else CXL_IO_FMT_TYPE.CFG_WR1
         )
