@@ -215,3 +215,16 @@ CciMessageHeader = [
     ("return_code", 64, 79),
     ("vendor_specific_extended_status", 80, 95),
 ]
+
+GetLdInfoResponsePayload = [
+    ("memory_size", 0, 63),
+    ("ld_count", 64, 79),
+    ("qos_telemetry_capability", 80, 87),
+]
+
+GetLdAllocationsResponsePayload = [
+    ("number_of_lds", 0, 7),
+    ("memory_granularity", 8, 15),
+    ("start_ld_id", 16, 23),
+    ("ld_allocation_list_length", 24, 31),
+]

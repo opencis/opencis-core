@@ -1120,7 +1120,7 @@ class GetLdInfoResponsePacket(CciResponsePacket):
         return (
             self.payload.memory_size.to_bytes(8, byteorder)
             + self.payload.ld_count.to_bytes(2, byteorder)
-            + self.payload.QoS_Telemetry_capability.to_bytes(1, byteorder)
+            + self.payload.qos_telemetry_capability.to_bytes(1, byteorder)
         )
 
     @classmethod
@@ -1129,11 +1129,23 @@ class GetLdInfoResponsePacket(CciResponsePacket):
         packet.cci_msg_header.message_tag = message_tag
         packet.payload.memory_size = memory_size
         packet.payload.ld_count = ld_count
-        packet.payload.QoS_Telemetry_capability = 0
+        packet.payload.qos_telemetry_capability = 0
         return packet
 
     def create_ccimessage(self) -> "CciMessagePacket":
         return super().create_ccimessage(self.payload_to_bytes("little"))
+
+    def get_memory_size(self) -> int:
+        return self.payload.memory_size
+
+    def get_ld_count(self) -> int:
+        return self.payload.ld_count
+
+    def get_QoS_Telemetry_capability(self) -> int:
+        return self.payload.qos_telemetry_capability
+
+    def get_payload_size(self) -> int:
+        return self.payload.get_size()
 
 
 class GetLdAllocationsResponsePacket(CciResponsePacket):
