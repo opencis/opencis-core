@@ -176,11 +176,11 @@ class MctpCciExecutor(RunnableComponent):
         return status
 
     async def send_notification(self, request: CciRequest):
-        header = CciMessageHeaderPacket()
-        header.message_category = CCI_MCTP_MESSAGE_CATEGORY.REQUEST
-        header.set_message_payload_length(len(request.payload))
-        header.command_opcode = request.opcode
-        message_packet = CciMessagePacket.create(header, request.payload)
+        message_packet = CciMessagePacket.create(
+            request.payload,
+            message_category=CCI_MCTP_MESSAGE_CATEGORY.REQUEST,
+            opcode=request.opcode
+        )
         opcode_str = get_opcode_string(request.opcode)
         message_packet_tmc = CciPayloadPacket.create(
             message_packet, message_packet.get_total_size()

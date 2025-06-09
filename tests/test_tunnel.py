@@ -26,7 +26,6 @@ from new_packet.transaction import (
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
     CxlIoCfgWrPacket,
-    CciMessageHeaderPacket,
     CciMessagePacket,
     CxlIoCompletionWithDataPacket,
     GetLdInfoRequestPacket,
@@ -348,22 +347,15 @@ async def test_multi_logical_device_ld_id():
         packet_writer = writer
 
         logger.info("[PyTest]  Get LD info Start")
-
-        get_ld_info_cci_message_header = CciMessageHeaderPacket()
-        get_ld_info_cci_message_header.message_category = 0
-        get_ld_info_cci_message_header.message_tag = 0
-        get_ld_info_cci_message_header.command_opcode = CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
-        get_ld_info_cci_message_header.message_payload_length_high = 0
-        get_ld_info_cci_message_header.message_payload_length_low = 11
-        get_ld_info_cci_message_header.return_code = 0
-        get_ld_info_cci_message_header.vendor_specific_extended_status = 0
-        # data is bytes format and 0
-        data = bytes([0])
-
-        get_ld_info_cci_message = CciMessagePacket.create(get_ld_info_cci_message_header, data)
-        tag_check = get_ld_info_cci_message.header.message_tag
-        logger.info(f"[PyTest]  @@ {get_ld_info_cci_message.header.message_payload_length_high}")
-        logger.info(f"[PyTest]  @@ {get_ld_info_cci_message.header.message_payload_length_low}")
+        data = bytes([0]*11)
+        get_ld_info_cci_message = CciMessagePacket.create(
+            data=data,
+            message_category=0,
+            opcode=CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
+        )
+        tag_check = get_ld_info_cci_message.cci_msg_header.message_tag
+        logger.info(f"[PyTest]  @@ {get_ld_info_cci_message.cci_msg_header.message_payload_length_high}")
+        logger.info(f"[PyTest]  @@ {get_ld_info_cci_message.cci_msg_header.message_payload_length_low}")
 
         get_ld_info_packet = GetLdInfoRequestPacket.create_from_ccimessage(get_ld_info_cci_message)
         logger.info(f"[PyTest]  @@ {get_ld_info_packet.header_data.message_payload_length_high}")
