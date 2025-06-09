@@ -11,7 +11,6 @@ from typing import Optional
 from new_packet.transaction import (
     CciMessageHeaderPacket,
     CciMessagePacket,
-    CciHeaderPacket,
     CciPayloadPacket,
 )
 from opencis.util.logger import logger

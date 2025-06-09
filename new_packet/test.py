@@ -56,14 +56,32 @@ def instantiate_packets():
     packets.append(CxlIoMemRdPacket.create(addr=0x1000, length=4, req_id=1, tag=2))
     packets.append(CxlIoMemWrPacket.create(addr=0x1000, length=4, data=0xDEADBEEF, req_id=1, tag=2))
     packets.append(CxlIoCfgRdPacket.create(id=0x10, cfg_addr=0x04, size=1, req_id=1, tag=1))
-    packets.append(CxlIoCfgWrPacket.create(id=0x10, cfg_addr=0x04, size=1, value=0xDE, req_id=1, tag=1))
+    packets.append(
+        CxlIoCfgWrPacket.create(id=0x10, cfg_addr=0x04, size=1, value=0xDE, req_id=1, tag=1)
+    )
     packets.append(CxlIoCompletionPacket.create(req_id=0x10, tag=0x1A))
     packets.append(CxlIoCompletionWithDataPacket.create(req_id=0x10, tag=0x1A, data=buf))
-    packets.append(CxlCacheCacheD2HReqPacket.create(addr=0x1000, cache_id=1, opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_CURR, cqid=0))
-    packets.append(CxlCacheCacheD2HRspPacket.create(uqid=1, opcode=CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_I))
+    packets.append(
+        CxlCacheCacheD2HReqPacket.create(
+            addr=0x1000, cache_id=1, opcode=CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_CURR, cqid=0
+        )
+    )
+    packets.append(
+        CxlCacheCacheD2HRspPacket.create(uqid=1, opcode=CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_I)
+    )
     packets.append(CxlCacheCacheD2HDataPacket.create(uqid=1, data=0xDEADBEEF))
-    packets.append(CxlCacheCacheH2DReqPacket.create(addr=0x1000, cache_id=1, opcode=CXL_CACHE_H2DREQ_OPCODE.SNP_DATA))
-    packets.append(CxlCacheCacheH2DRspPacket.create(cache_id=1, opcode=CXL_CACHE_H2DRSP_OPCODE.WRITE_PULL, rsp_data=CXL_CACHE_H2DRSP_CACHE_STATE.EXCLUSIVE))
+    packets.append(
+        CxlCacheCacheH2DReqPacket.create(
+            addr=0x1000, cache_id=1, opcode=CXL_CACHE_H2DREQ_OPCODE.SNP_DATA
+        )
+    )
+    packets.append(
+        CxlCacheCacheH2DRspPacket.create(
+            cache_id=1,
+            opcode=CXL_CACHE_H2DRSP_OPCODE.WRITE_PULL,
+            rsp_data=CXL_CACHE_H2DRSP_CACHE_STATE.EXCLUSIVE,
+        )
+    )
     packets.append(CxlCacheCacheH2DDataPacket.create(cache_id=1, data=0xBEEF))
     packets.append(CxlMemMemRdPacket.create(addr=0x1000))
     packets.append(CxlMemMemWrPacket.create(addr=0x1000, data=0x12345678))

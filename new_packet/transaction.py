@@ -66,7 +66,7 @@ from packet_constants import (
     CXL_MEM_S2MDRS_OPCODE,
     CXL_MEM_S2MNDR_OPCODE,
     CCI_MSG_CLASS,
-    CCI_MCTP_MESSAGE_CATEGORY
+    CCI_MCTP_MESSAGE_CATEGORY,
 )
 from mixin import (
     BasePacketMixin,
@@ -876,8 +876,40 @@ class CciBasePacket(BasePacketMixin, CciBasePacketMixin, RawCciBasePacket):
     pass
 
 
-class CciPayloadPacket:
-    pass
+class CciPayloadPacket(BasePacketMixin, CciBasePacketMixin, RawCciBasePacket, PacketDataMixin):
+    def get_packet(self):
+        # Go through setter, don't inline self.cci_msg
+        cci_msg = self.cci_msg
+        cci_len = self.get_payload_size()
+        packet = CciMessagePacket()
+        packet.reset(int.to_bytes(cci_msg, cci_len, "little"))
+        packet.set_dynamic_field_length(packet.get_payload_size())
+        # We don't need this as it's not read directly from PacketReader
+        # packet.system_header.payload_length = len(packet)
+        return packet
+
+    def update_len(self, cci_msg_length: int):
+        self.set_dynamic_field_length(cci_msg_length)
+        self.system_header.payload_length = len(self)
+
+    @staticmethod
+    def create(data, length: int, index: int = 0) -> "CciPayloadPacket":
+        packet = CciPayloadPacket()
+        packet.set_dynamic_field_length(length)
+        packet.cci_header.port_index = index
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
+        packet.system_header.payload_length = len(packet)
+
+        if isinstance(data, CciMessagePacket):
+            packet.cci_msg = int.from_bytes(bytes(data.header) + data.get_payload(), "little")
+        else:
+            packet.cci_msg = int.from_bytes(
+                bytes(data.system_header)
+                + bytes(data.cci_header)
+                + data.cci_msg.to_bytes(data.get_payload_size(), "little"),
+                "little",
+            )
+        return packet
 
 
 class CciRequestPacket:
@@ -892,7 +924,7 @@ class CciMessageHeaderPacket:
     pass
 
 
-class CciMessagePacket(CciBasePacket):
+class CciMessagePacket(CciBasePacket, PacketDataMixin):
     @staticmethod
     def create(
         cls,
@@ -901,8 +933,8 @@ class CciMessagePacket(CciBasePacket):
         opcode: int,
         message_tag: int = 0,
         vendor_specific_status: int = 0,
-        return_code: int=0,
-        background_operation: int=0,
+        return_code: int = 0,
+        background_operation: int = 0,
     ) -> "CciMessagePacket":
         pkt = cls()
         pkt.cci_msg_header.message_category = message_category
@@ -921,25 +953,14 @@ class CciMessagePacket(CciBasePacket):
     def get_message_payload_length(self) -> int:
         return self.message_payload_length_high << 16 | self.message_payload_length_low
 
-    def set_message_payload_length(self, length):
-        payload_length_low = length & 0xFFFF
-        payload_length_high = (length >> 16) & 0x1F
-        self.message_payload_length_high = payload_length_high
-        self.message_payload_length_low = payload_length_low
-
     def get_total_size(self) -> int:
-        return self.cci_msg_header.get_message_payload_length() + len(self.header)
+        return len(self)
 
     def get_payload_size(self) -> int:
         return self.cci_msg_header.get_message_payload_length()
 
     def get_payload(self) -> bytes:
-        return int.to_bytes(self._payload_data, self.get_payload_size(), "little")
-
-
-
-class CciHeaderPacket:
-    pass
+        return self.get_data()
 
 
 class GetLdInfoResponsePacket:

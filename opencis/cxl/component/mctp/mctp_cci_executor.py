@@ -71,8 +71,8 @@ class MctpCciExecutor(RunnableComponent):
             data=response.payload,
             message_tag=message_tag,
             vendor_specific_extended_status=response.vendor_specific_status,
-            return_code = response.return_code,
-            background_operation = int(response.bo_flag),
+            return_code=response.return_code,
+            background_operation=int(response.bo_flag),
         )
 
         response_packet_tmc = CciPayloadPacket.create(
