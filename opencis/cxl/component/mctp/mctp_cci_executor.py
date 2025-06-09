@@ -143,11 +143,11 @@ class MctpCciExecutor(RunnableComponent):
             opcode = packet.get_command_opcode()
             if opcode == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
                 logger.info(self._create_message("switch received SetLdAllocationsResponsePacket"))
-                port_index = self._message_tag_list.get(packet.header_data.message_tag, None)
+                port_index = self._message_tag_list.get(packet.cci_msg_header.message_tag, None)
                 if port_index is None:
                     raise ValueError("Invalid message tag")
 
-            self._message_tag_list.pop(packet.header_data.message_tag)
+            self._message_tag_list.pop(packet.cci_msg_header.message_tag)
 
             cci_packet = packet.create_ccimessage()
             cci_packet_tmc = CciPayloadPacket.create(cci_packet, cci_packet.get_total_size())
@@ -179,7 +179,7 @@ class MctpCciExecutor(RunnableComponent):
         message_packet = CciMessagePacket.create(
             request.payload,
             message_category=CCI_MCTP_MESSAGE_CATEGORY.REQUEST,
-            opcode=request.opcode
+            opcode=request.opcode,
         )
         opcode_str = get_opcode_string(request.opcode)
         message_packet_tmc = CciPayloadPacket.create(

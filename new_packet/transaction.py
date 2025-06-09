@@ -13,18 +13,18 @@ from new_packet.packet_structs import (
     RawBaseSidebandPacket,
     RawSidebandConnectionRequestPacket,
     RawCxlIoBasePacket,
-    RawCxlCacheBasePacket,
-    RawCxlMemBasePacket,
     RawCxlIoMemReqPacket,
     RawCxlIoCfgReqPacket,
     RawCxlIoCompletionPacket,
     RawCxlIoCompletionWithDataPacket,
+    RawCxlCacheBasePacket,
     RawCxlCacheD2HReqPacket,
     RawCxlCacheD2HRspPacket,
     RawCxlCacheD2HDataPacket,
     RawCxlCacheH2DReqPacket,
     RawCxlCacheH2DRspPacket,
     RawCxlCacheH2DDataPacket,
+    RawCxlMemBasePacket,
     RawCxlMemM2SReqPacket,
     RawCxlMemM2SRwDPacket,
     RawCxlMemM2SBIRspPacket,
@@ -948,60 +948,53 @@ class CciPayloadPacket(BasePacketMixin, CciBasePacketMixin, RawCciPayloadPacket,
 
 class CciRequestPacket(BasePacketMixin, CciBasePacketMixin, RawCciRequestPacket, PacketDataMixin):
     def get_command_opcode(self) -> int:
-        return self.header_data.command_opcode
+        return self.cci_msg_header.command_opcode
 
-    def initialize_common_headers(
-        self, msg_class=CCI_MSG_CLASS.REQ, payload_type=SYSTEM_PAYLOAD_TYPE.CCI_MCTP
-    ):
-        self.cci_header.msg_class = msg_class
-        self.system_header.payload_type = payload_type
+    def initialize_common_headers(self):
+        self.cci_header.msg_class = CCI_MSG_CLASS.REQ
+        self.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
+        self.cci_msg_header.message_category = CCI_MCTP_MESSAGE_CATEGORY.REQUEST
+        self.cci_msg_header.message_tag = 0
+        self.cci_msg_header.command_opcode = 0
+        self.cci_msg_header.message_payload_length_high = 0
+        self.cci_msg_header.message_payload_length_low = 0
+        self.cci_msg_header.return_code = 0
+        self.cci_msg_header.vendor_specific_extended_status = 0
+        self.cci_msg_header.background_operation = 0
         self.system_header.payload_length = len(self)
 
-    def populate_header_from_ccimessage(self, ccimessage):
-        header = ccimessage.header
-        self.header_data.message_category = header.message_category
-        self.header_data.message_tag = header.message_tag
-        self.header_data.command_opcode = header.command_opcode
-        self.header_data.message_payload_length_high = header.message_payload_length_high
-        self.header_data.message_payload_length_low = header.message_payload_length_low
-        self.header_data.return_code = header.return_code
-        self.header_data.vendor_specific_extended_status = header.vendor_specific_extended_status
-        self.header_data.background_operation = header.background_operation
-
-    def reset_header_data_defaults(self):
-        self.header_data.message_category = 0
-        self.header_data.message_tag = 0
-        self.header_data.command_opcode = 0
-        self.header_data.message_payload_length_high = 0
-        self.header_data.message_payload_length_low = 0
-        self.header_data.return_code = 0
-        self.header_data.vendor_specific_extended_status = 0
-        self.header_data.background_operation = 0
+    def populate_header_from_ccimessage(self, cci_message):
+        header = cci_message.cci_msg_header
+        self.cci_msg_header.message_category = header.message_category
+        self.cci_msg_header.message_tag = header.message_tag
+        self.cci_msg_header.command_opcode = header.command_opcode
+        self.cci_msg_header.message_payload_length_high = header.message_payload_length_high
+        self.cci_msg_header.message_payload_length_low = header.message_payload_length_low
+        self.cci_msg_header.return_code = header.return_code
+        self.cci_msg_header.vendor_specific_extended_status = header.vendor_specific_extended_status
+        self.cci_msg_header.background_operation = header.background_operation
 
     @classmethod
     def create_packet(cls, command_opcode: int, payload_length: int = 0) -> "CciRequestPacket":
         packet = cls()
         packet.initialize_common_headers()
-        packet.reset_header_data_defaults()
-        packet.header_data.command_opcode = command_opcode
-        packet.header_data.message_payload_length_low = payload_length & 0xFFFF
-        packet.header_data.message_payload_length_high = (payload_length >> 16) & 0x1F
+        packet.cci_msg_header.command_opcode = command_opcode
+        packet.cci_msg_header.message_payload_length_low = payload_length & 0xFFFF
+        packet.cci_msg_header.message_payload_length_high = (payload_length >> 16) & 0x1F
         return packet
 
 
 class GetLdInfoRequestPacket(CciRequestPacket):
-    def is_get_ld_info(self) -> bool:
-        return self.header_data.command_opcode == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
-
     @classmethod
     def create(cls) -> "GetLdInfoRequestPacket":
         return cls.create_packet(CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO)
 
     @classmethod
-    def create_from_ccimessage(cls, ccimessage: CciMessagePacket) -> "GetLdInfoRequestPacket":
+    def create_from_ccimessage(cls, cci_message: CciMessagePacket) -> "GetLdInfoRequestPacket":
         packet = cls()
         packet.initialize_common_headers()
-        packet.populate_header_from_ccimessage(ccimessage)
+        packet.populate_header_from_ccimessage(cci_message)
+        packet.cci_msg_header.command_opcode = CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
         return packet
 
 
@@ -1023,15 +1016,16 @@ class GetLdAllocationsRequestPacket(CciRequestPacket):
 
     @classmethod
     def create_from_ccimessage(
-        cls, ccimessage: CciMessagePacket
+        cls, cci_message: CciMessagePacket
     ) -> "GetLdAllocationsRequestPacket":
         packet = cls()
         packet.initialize_common_headers()
-        packet.populate_header_from_ccimessage(ccimessage)
-        packet.get_ld_allocations_request.start_ld_id = ccimessage._payload_data & 0xFF
+        packet.populate_header_from_ccimessage(cci_message)
+        packet.get_ld_allocations_request.start_ld_id = cci_message._payload_data & 0xFF
         packet.get_ld_allocations_request.ld_allocation_list_limit = (
-            ccimessage._payload_data >> 8
+            cci_message._payload_data >> 8
         ) & 0xFF
+        packet.cci_msg_header.command_opcode = CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS
         return packet
 
 
@@ -1058,14 +1052,13 @@ class SetLdAllocationsRequestPacket(CciRequestPacket):
 
     @classmethod
     def create_from_ccimessage(
-        cls, ccimessage: CciMessagePacket
+        cls, cci_message: CciMessagePacket
     ) -> "SetLdAllocationsRequestPacket":
         packet = cls()
         packet.initialize_common_headers()
-        packet.populate_header_from_ccimessage(ccimessage)
+        packet.populate_header_from_ccimessage(cci_message)
 
-        payload_size = SetLdAllocationsRequestPayload.get_size()
-        cci_payload = ccimessage.get_payload()
+        cci_payload = cci_message.get_data()
         packet.set_ld_allocations_request_payload.reset(cci_payload[:payload_size])
         raw_list = cci_payload[payload_size:]
         packet.ld_allocation_list = [
@@ -1082,48 +1075,43 @@ class SetLdAllocationsRequestPacket(CciRequestPacket):
 
 class CciResponsePacket(BasePacketMixin, CciBasePacketMixin, RawCciResponsePacket, PacketDataMixin):
     def get_command_opcode(self) -> int:
-        return self.header_data.command_opcode
+        return self.cci_msg_header.command_opcode
 
-    def is_rsp(self) -> bool:
-        return self.cci_header.msg_class == CCI_MSG_CLASS.RSP
-
-    def initialize_common_headers(
-        self, msg_class=CCI_MSG_CLASS.RSP, payload_type=SYSTEM_PAYLOAD_TYPE.CCI_MCTP
-    ):
-        self.cci_header.msg_class = msg_class
-        self.system_header.payload_type = payload_type
+    def initialize_common_headers(self):
+        self.cci_header.msg_class = CCI_MSG_CLASS.RSP
+        self.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
         self.system_header.payload_length = len(self)
 
     def reset_header_data_defaults(self):
-        self.header_data.message_category = 1
-        self.header_data.message_tag = 0
-        self.header_data.command_opcode = 0
-        self.header_data.message_payload_length_high = 0
-        self.header_data.message_payload_length_low = 0
-        self.header_data.return_code = 0
-        self.header_data.vendor_specific_extended_status = 0
-        self.header_data.background_operation = 0
+        self.cci_msg_header.message_category = CCI_MCTP_MESSAGE_CATEGORY.RESPONSE
+        self.cci_msg_header.message_tag = 0
+        self.cci_msg_header.command_opcode = 0
+        self.cci_msg_header.message_payload_length_high = 0
+        self.cci_msg_header.message_payload_length_low = 0
+        self.cci_msg_header.return_code = 0
+        self.cci_msg_header.vendor_specific_extended_status = 0
+        self.cci_msg_header.background_operation = 0
 
     @classmethod
     def create_packet(cls, command_opcode: int, payload_length: int = 0) -> "CciResponsePacket":
         packet = cls()
         packet.initialize_common_headers()
         packet.reset_header_data_defaults()
-        packet.header_data.command_opcode = command_opcode
-        packet.header_data.message_payload_length_low = payload_length & 0xFFFF
-        packet.header_data.message_payload_length_high = (payload_length >> 16) & 0x1F
+        packet.cci_msg_header.command_opcode = command_opcode
+        packet.cci_msg_header.message_payload_length_low = payload_length & 0xFFFF
+        packet.cci_msg_header.message_payload_length_high = (payload_length >> 16) & 0x1F
         return packet
 
     def create_ccimessage(self, payload_bytes: bytes) -> "CciMessagePacket":
         header = CciMessageHeaderPacket()
-        header.message_category = self.header_data.message_category
-        header.message_tag = self.header_data.message_tag
-        header.command_opcode = self.header_data.command_opcode
-        header.message_payload_length_high = self.header_data.message_payload_length_high
-        header.message_payload_length_low = self.header_data.message_payload_length_low
-        header.return_code = self.header_data.return_code
-        header.vendor_specific_extended_status = self.header_data.vendor_specific_extended_status
-        header.background_operation = self.header_data.background_operation
+        header.message_category = self.cci_msg_header.message_category
+        header.message_tag = self.cci_msg_header.message_tag
+        header.command_opcode = self.cci_msg_header.command_opcode
+        header.message_payload_length_high = self.cci_msg_header.message_payload_length_high
+        header.message_payload_length_low = self.cci_msg_header.message_payload_length_low
+        header.return_code = self.cci_msg_header.return_code
+        header.vendor_specific_extended_status = self.cci_msg_header.vendor_specific_extended_status
+        header.background_operation = self.cci_msg_header.background_operation
         return CciMessagePacket.create(header, payload_bytes)
 
 
@@ -1138,7 +1126,7 @@ class GetLdInfoResponsePacket(CciResponsePacket):
     @classmethod
     def create(cls, memory_size: int, ld_count: int, message_tag: int) -> "GetLdInfoResponsePacket":
         packet = cls.create_packet(CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO, payload_length=11)
-        packet.header_data.message_tag = message_tag
+        packet.cci_msg_header.message_tag = message_tag
         packet.payload.memory_size = memory_size
         packet.payload.ld_count = ld_count
         packet.payload.QoS_Telemetry_capability = 0
@@ -1173,7 +1161,7 @@ class GetLdAllocationsResponsePacket(CciResponsePacket):
     ) -> "GetLdAllocationsResponsePacket":
         payload_length = 4 + ld_allocation_list_length * 16
         packet = cls.create_packet(CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS, payload_length)
-        packet.header_data.message_tag = message_tag
+        packet.cci_msg_header.message_tag = message_tag
 
         payload = packet.get_ld_allocations_response_payload
         payload.number_of_lds = number_of_lds
@@ -1207,7 +1195,7 @@ class SetLdAllocationsResponsePacket(CciResponsePacket):
     ) -> "SetLdAllocationsResponsePacket":
         payload_length = 4 + 16 * number_of_lds
         packet = cls.create_packet(CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS, payload_length)
-        packet.header_data.message_tag = message_tag
+        packet.cci_msg_header.message_tag = message_tag
 
         payload = packet.set_ld_allocations_response_payload
         payload.number_of_lds = number_of_lds

@@ -42,7 +42,7 @@ from packet_constants import (
     CXL_MEM_M2SBIRSP_OPCODE,
     CXL_MEM_S2MBISNP_OPCODE,
 )
-from packet_reader import PacketReader
+from new_packet.packet_reader import PacketReader
 
 
 def instantiate_packets():

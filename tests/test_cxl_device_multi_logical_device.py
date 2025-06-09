@@ -14,12 +14,12 @@ import pytest
 from opencis.apps.multi_logical_device import MultiLogicalDevice
 from opencis.cxl.component.common import CXL_COMPONENT_TYPE
 from opencis.cxl.component.cxl_packet_processor import CxlPacketProcessor
-from new_packet.packet_reader import PacketReader
 from opencis.cxl.component.cxl_connection import CxlConnection
 from opencis.pci.component.pci import EEUM_VID, SW_MLD_DID
 from opencis.util.number_const import MB
 from opencis.util.logger import logger
 from opencis.util.pci import create_bdf
+from new_packet.packet_reader import PacketReader
 from new_packet.transaction import (
     CxlIoCfgRdPacket,
     CxlIoMemRdPacket,

@@ -15,12 +15,12 @@ from opencis.apps.multi_logical_device import MultiLogicalDevice
 from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
 from opencis.cxl.component.common import CXL_COMPONENT_TYPE
 from opencis.cxl.component.cxl_packet_processor import CxlPacketProcessor
-from opencis.cxl.component.packet_reader import PacketReader
 from opencis.cxl.component.cxl_connection import CxlConnection
 from opencis.pci.component.pci import EEUM_VID, SW_MLD_DID
 from opencis.util.number_const import MB
 from opencis.util.logger import logger
 from opencis.util.pci import create_bdf
+from new_packet.packet_reader import PacketReader
 from new_packet.transaction import (
     CxlIoCfgRdPacket,
     CxlIoMemRdPacket,
@@ -347,19 +347,21 @@ async def test_multi_logical_device_ld_id():
         packet_writer = writer
 
         logger.info("[PyTest]  Get LD info Start")
-        data = bytes([0]*11)
+        data = bytes([0] * 11)
         get_ld_info_cci_message = CciMessagePacket.create(
-            data=data,
-            message_category=0,
-            opcode=CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
+            data=data, message_category=0, opcode=CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
         )
         tag_check = get_ld_info_cci_message.cci_msg_header.message_tag
-        logger.info(f"[PyTest]  @@ {get_ld_info_cci_message.cci_msg_header.message_payload_length_high}")
-        logger.info(f"[PyTest]  @@ {get_ld_info_cci_message.cci_msg_header.message_payload_length_low}")
+        logger.info(
+            f"[PyTest]  @@ {get_ld_info_cci_message.cci_msg_header.message_payload_length_high}"
+        )
+        logger.info(
+            f"[PyTest]  @@ {get_ld_info_cci_message.cci_msg_header.message_payload_length_low}"
+        )
 
         get_ld_info_packet = GetLdInfoRequestPacket.create_from_ccimessage(get_ld_info_cci_message)
-        logger.info(f"[PyTest]  @@ {get_ld_info_packet.header_data.message_payload_length_high}")
-        logger.info(f"[PyTest]  @@ {get_ld_info_packet.header_data.message_payload_length_low}")
+        logger.info(f"[PyTest]  @@ {get_ld_info_packet.cci_msg_header.message_payload_length_high}")
+        logger.info(f"[PyTest]  @@ {get_ld_info_packet.cci_msg_header.message_payload_length_low}")
         packet_writer.write(bytes(get_ld_info_packet))
         await packet_writer.drain()
         packet = await packet_reader.get_packet()

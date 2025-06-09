@@ -57,7 +57,7 @@ class FMLD(RunnableComponent):
         get_ld_info_response_packet = GetLdInfoResponsePacket.create(
             memory_size=memory_size,
             ld_count=self._ld_count,
-            message_tag=get_ld_info_request_packet.header_data.message_tag,
+            message_tag=get_ld_info_request_packet.cci_msg_header.message_tag,
         )
         logger.info(f"Get LD Info Response: {get_ld_info_response_packet}")
         await self.upstream_fifo.target_to_host.put(get_ld_info_response_packet)
@@ -113,7 +113,7 @@ class FMLD(RunnableComponent):
             start_ld_id=start_ld_id,
             ld_allocation_list_length=allocated_ld_length,
             ld_allocation_list=int.from_bytes(allocated_ld_bytes, "little"),
-            message_tag=get_ld_allocations_packet.header_data.message_tag,
+            message_tag=get_ld_allocations_packet.cci_msg_header.message_tag,
         )
 
         await self.upstream_fifo.target_to_host.put(get_ld_allocations_response_packet)
@@ -173,7 +173,7 @@ class FMLD(RunnableComponent):
             number_of_lds=response_number_of_lds,
             start_ld_id=start_ld_id,
             ld_allocation_list=ld_allocation_list,
-            message_tag=set_ld_allocations_packet.header_data.message_tag,
+            message_tag=set_ld_allocations_packet.cci_msg_header.message_tag,
         )
         await self.upstream_fifo.target_to_host.put(set_ld_allocations_response_packet)
         logger.info("Set LD Allocations Response sent done")

@@ -37,12 +37,21 @@ from new_packet.transaction import (
     CxlMemS2MNDRPacket,
     CxlMemS2MDRSPacket,
     CciBasePacket,
+    CciRequestPacket,
+    CciResponsePacket,
+    GetLdInfoRequestPacket,
+    GetLdAllocationsRequestPacket,
+    SetLdAllocationsRequestPacket,
+    GetLdInfoResponsePacket,
+    GetLdAllocationsResponsePacket,
+    SetLdAllocationsResponsePacket,
 )
 from opencis.util.logger import logger
 from opencis.util.component import LabeledComponent
 
 from new_packet.packet_structs import (
     SystemHeader,
+    CciHeader,
 )
 
 
@@ -193,39 +202,27 @@ class PacketReader(LabeledComponent):
         return cxl_cache_packet
 
     def _get_cci_packet(self, payload: bytes) -> CciBasePacket:
-        logger.info("?????????????CCI??????????")
-        return
-        cci_base_packet = CciBasePacket()
-        header_size = len(cci_base_packet.cci_header) + SystemHeader.get_size()
-        cci_base_packet.reset(payload[:header_size])
+        payload = bytearray(payload)
+        cci_base_packet = CciBasePacket(payload)
 
         if cci_base_packet.is_req():
-            cci_packet = CciRequestPacket()
-            cci_packet.reset(payload)
+            cci_packet = CciRequestPacket(payload)
             if cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
-                cci_packet = GetLdInfoRequestPacket()
-                cci_packet.reset(payload)
+                cci_packet = GetLdInfoRequestPacket(payload)
             elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:
-                cci_packet = GetLdAllocationsRequestPacket()
-                logger.debug(f"GetLdAllocationsRequestPacket created: {cci_packet}")
-                cci_packet.reset(payload)
+                cci_packet = GetLdAllocationsRequestPacket(payload)
             elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
-                cci_packet = SetLdAllocationsRequestPacket()
-                cci_packet.reset(payload)
+                cci_packet = SetLdAllocationsRequestPacket(payload)
             else:
                 raise Exception("Unsupported CCI packet")
         elif cci_base_packet.is_rsp():
-            cci_packet = CciResponsePacket()
-            cci_packet.reset(payload)
+            cci_packet = CciResponsePacket(payload)
             if cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
-                cci_packet = GetLdInfoResponsePacket()
-                cci_packet.reset(payload)
+                cci_packet = GetLdInfoResponsePacket(payload)
             elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:
-                cci_packet = GetLdAllocationsResponsePacket()
-                cci_packet.reset(payload)
+                cci_packet = GetLdAllocationsResponsePacket(payload)
             elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
-                cci_packet = SetLdAllocationsResponsePacket()
-                cci_packet.reset(payload)
+                cci_packet = SetLdAllocationsResponsePacket(payload)
             else:
                 raise Exception("Unsupported CCI packet")
         else:

@@ -21,7 +21,7 @@ from opencis.util.logger import logger
 from opencis.util.component import RunnableComponent
 from opencis.cxl.component.common import CXL_COMPONENT_TYPE
 from opencis.cxl.component.cxl_connection import CxlConnection
-from opencis.cxl.component.packet_reader import PacketReader
+from new_packet.packet_reader import PacketReader
 from new_packet.transaction import (
     BasePacket,
     BaseSidebandPacket,

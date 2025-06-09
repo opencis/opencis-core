@@ -139,4 +139,10 @@ PACKETS = {
         ("CciMessageHeader", "cci_msg_header"),
         ("DataField", "data"),
     ],
+    "CciResponsePacket": [
+        ("SystemHeader", "system_header"),
+        ("CciHeader", "cci_header"),
+        ("CciMessageHeader", "cci_msg_header"),
+        ("DataField", "data"),
+    ],
 }
