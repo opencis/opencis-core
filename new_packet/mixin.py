@@ -9,8 +9,15 @@ from packet_constants import (
 
 
 class PacketFieldMixin:
-    def get_byte_offset(self, field):
-        return field._bit_offset // 8
+    def get_byte_offset(parent, child):
+        import ctypes
+        """
+        Compute byte offset of child.buf relative to parent.raw_buf.
+        Assumes raw_buf is the backing bytearray.
+        """
+        parent_ptr = ctypes.addressof(ctypes.c_char.from_buffer(parent.raw_buf))
+        child_ptr = ctypes.addressof(ctypes.c_char.from_buffer(child.buf))
+        return child_ptr - parent_ptr
 
 
 class PacketDataMixin:

@@ -33,6 +33,7 @@ def emit_struct(name, layout):
 
     return (
         f"cdef class {name}(PacketBuffer):\n"
+        f"    cdef unsigned char[::1] _buf\n\n"
         f"{field_defs}"
         f"    @classmethod\n"
         f"    def get_size(cls):\n"
@@ -40,8 +41,14 @@ def emit_struct(name, layout):
         f"    def __len__(self):\n"
         f"        return self.get_size()\n\n"
         f"    def __bytes__(self):\n"
-        f"        return self.to_bytes()\n"
+        f"        return self.to_bytes()\n\n"
+        f"    def __cinit__(self, unsigned char[::1] buf):\n"
+        f"        self._buf = buf\n\n"
+        f"    @property\n"
+        f"    def buf(self):\n"
+        f"        return self._buf\n"
     )
+
 
 def emit_composite(packet_name, layout, field_sizes):
     lines = [
