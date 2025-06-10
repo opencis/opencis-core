@@ -204,6 +204,7 @@ class PacketReader(LabeledComponent):
     def _get_cci_packet(self, payload: bytes) -> CciBasePacket:
         payload = bytearray(payload)
         cci_base_packet = CciBasePacket(payload)
+        logger.info("HERE 0")
 
         if cci_base_packet.is_req():
             cci_packet = CciRequestPacket(payload)
@@ -214,6 +215,7 @@ class PacketReader(LabeledComponent):
             elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
                 cci_packet = SetLdAllocationsRequestPacket(payload)
             else:
+                logger.info("HERE 1")
                 raise Exception("Unsupported CCI packet")
         elif cci_base_packet.is_rsp():
             cci_packet = CciResponsePacket(payload)
@@ -224,9 +226,12 @@ class PacketReader(LabeledComponent):
             elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
                 cci_packet = SetLdAllocationsResponsePacket(payload)
             else:
+                logger.info("HERE 2")
                 raise Exception("Unsupported CCI packet")
         else:
+            logger.info("HERE 3")
             raise Exception("Unsupported CCI packet")
+        logger.info(f"HERE 5 {cci_packet}")
 
         return cci_packet
 

@@ -2080,7 +2080,9 @@ class GetLdInfoRequestPacket(CciRequestPacket):
         packet.header_data.message_payload_length_high = (
             cci_message.header.message_payload_length_high
         )
-        packet.header_data.message_payload_length_low = cci_message.header.message_payload_length_low
+        packet.header_data.message_payload_length_low = (
+            cci_message.header.message_payload_length_low
+        )
         packet.header_data.return_code = cci_message.header.return_code
         packet.header_data.vendor_specific_extended_status = (
             cci_message.header.vendor_specific_extended_status
@@ -2163,7 +2165,9 @@ class GetLdAllocationsRequestPacket(GetLdAllocationsRequestBasePacket):
         packet.header_data.message_payload_length_high = (
             cci_message.header.message_payload_length_high
         )
-        packet.header_data.message_payload_length_low = cci_message.header.message_payload_length_low
+        packet.header_data.message_payload_length_low = (
+            cci_message.header.message_payload_length_low
+        )
         packet.header_data.return_code = cci_message.header.return_code
         packet.header_data.vendor_specific_extended_status = (
             cci_message.header.vendor_specific_extended_status
@@ -2242,7 +2246,9 @@ class SetLdAllocationsRequestPacket(SetLdAllocationsRequestBasePacket):
         packet.header_data.message_payload_length_high = (
             cci_message.header.message_payload_length_high
         )
-        packet.header_data.message_payload_length_low = cci_message.header.message_payload_length_low
+        packet.header_data.message_payload_length_low = (
+            cci_message.header.message_payload_length_low
+        )
         packet.header_data.return_code = cci_message.header.return_code
         packet.header_data.vendor_specific_extended_status = (
             cci_message.header.vendor_specific_extended_status

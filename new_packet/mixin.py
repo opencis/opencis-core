@@ -1,3 +1,5 @@
+import ctypes
+
 from packet_constants import (
     SYSTEM_PAYLOAD_TYPE,
     CXL_IO_FMT_TYPE,
@@ -9,12 +11,14 @@ from packet_constants import (
 
 
 class PacketFieldMixin:
+    def get_payload_length(self, fields) -> int:
+        if not fields:
+            return 0
+        _, last_offset, last_width = fields[-1]
+        total_bits = last_offset + last_width
+        return (total_bits + 7) // 8
+
     def get_byte_offset(parent, child):
-        import ctypes
-        """
-        Compute byte offset of child.buf relative to parent.raw_buf.
-        Assumes raw_buf is the backing bytearray.
-        """
         parent_ptr = ctypes.addressof(ctypes.c_char.from_buffer(parent.raw_buf))
         child_ptr = ctypes.addressof(ctypes.c_char.from_buffer(child.buf))
         return child_ptr - parent_ptr
