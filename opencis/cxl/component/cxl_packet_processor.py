@@ -420,7 +420,7 @@ class CxlPacketProcessor(RunnableComponent):
                 )
                 if opcode == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
                     packet = cast(GetLdInfoResponsePacket, packet)
-                    logger.info(f"{packet} {packet.get_command_opcode()}")
+                    logger.info(f"{packet} {packet.get_command_opcode():x}")
                     self._writer.write(bytes(packet))
                     await self._writer.drain()
                 elif opcode == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:

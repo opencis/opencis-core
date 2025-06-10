@@ -37,6 +37,9 @@ from new_packet.transaction import (
     is_cxl_io_completion_status_sc,
     is_cxl_io_completion_status_ur,
 )
+from new_packet.packet_constants import (
+    CCI_MCTP_MESSAGE_CATEGORY,
+)
 
 # pylint: disable=duplicate-code,line-too-long
 
@@ -347,7 +350,7 @@ async def test_multi_logical_device_ld_id():
         packet_writer = writer
 
         logger.info("[PyTest]  Get LD info Start")
-        data = bytes([0] * 11)
+        data = None
         get_ld_info_cci_message = CciMessagePacket.create(
             data=data, message_category=0, opcode=CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
         )
@@ -370,32 +373,31 @@ async def test_multi_logical_device_ld_id():
             get_ld_info_response_packet.get_command_opcode()
             == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
         )
-        get_ld_info_cci_message = get_ld_info_response_packet.create_cci_message()
+        get_ld_info_cci_message = get_ld_info_response_packet.get_cci_message()
         assert (
-            get_ld_info_cci_message.header.command_opcode == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
+            get_ld_info_cci_message.cci_msg_header.command_opcode
+            == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
         )
-        assert get_ld_info_cci_message.header.message_tag == tag_check
+        assert get_ld_info_cci_message.cci_msg_header.message_tag == tag_check
 
         logger.info("[PyTest]  Get LD info Finish")
 
         logger.info("[PyTest]  Get LD Allocations Start")
-        get_ld_allocations_cci_message_header = CciMessagePacket()
-        get_ld_allocations_cci_message_header.message_category = 0
-        get_ld_allocations_cci_message_header.message_tag = 0
-        get_ld_allocations_cci_message_header.command_opcode = (
-            CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS
-        )
-        get_ld_allocations_cci_message_header.message_payload_length_high = 0
-        get_ld_allocations_cci_message_header.message_payload_length_low = 0
-        get_ld_allocations_cci_message_header.return_code = 3
-        get_ld_allocations_cci_message_header.vendor_specific_extended_status = 0
 
-        start_ld_id = 1  # 1byte
-        ld_allocation_list_limit = 3  # 1byte
+        start_ld_id = 1
+        ld_allocation_list_limit = 3
         payload_bytes = bytes([start_ld_id, ld_allocation_list_limit])
         get_ld_allocations_cci_message = CciMessagePacket.create(
-            get_ld_allocations_cci_message_header, payload_bytes
+            payload_bytes,
+            message_category=CCI_MCTP_MESSAGE_CATEGORY.REQUEST,
+            opcode=CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS,
+            return_code=3,
         )
+
+        # get_ld_info_cci_message = CciMessagePacket.create(
+        #     data=data, message_category=0, opcode=CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
+        # )
+
         get_ld_allocations_packet = GetLdAllocationsRequestPacket.create_from_cci_message(
             get_ld_allocations_cci_message
         )

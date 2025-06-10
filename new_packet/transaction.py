@@ -926,10 +926,11 @@ class CciMessagePacket(BasePacketMixin, CciBasePacketMixin, RawCciMessagePacket,
         packet.cci_msg_header.return_code = return_code
         packet.cci_msg_header.background_operation = background_operation
 
-        length = len(data)
-        packet.cci_msg_header.message_payload_length_high = (length >> 16) & 0x1F
-        packet.cci_msg_header.message_payload_length_low = length & 0xFFFF
-        packet.set_data(data)
+        if data is not None:
+            length = len(data)
+            packet.cci_msg_header.message_payload_length_high = (length >> 16) & 0x1F
+            packet.cci_msg_header.message_payload_length_low = length & 0xFFFF
+            packet.set_data(data)
         return packet
 
     def get_message_payload_length(self) -> int:
@@ -999,13 +1000,18 @@ class CciRequestPacket(
         self.cci_msg_header.background_operation = header.background_operation
 
     @classmethod
-    def create_packet(cls, command_opcode: int, payload_length: int = 0) -> "CciRequestPacket":
+    def create_packet(cls, command_opcode: int) -> "CciRequestPacket":
         packet = cls()
         packet.initialize_common_headers()
         packet.cci_msg_header.command_opcode = command_opcode
-        packet.cci_msg_header.message_payload_length_low = payload_length & 0xFFFF
-        packet.cci_msg_header.message_payload_length_high = (payload_length >> 16) & 0x1F
         return packet
+
+    def init_cci_payload(self) -> int:
+        cci_payload_length = self.get_cci_payload_length()
+        self.set_data(b"\x00" * self.get_cci_payload_length())
+        self.payload = CciPayload(self, self.get_payload_offset(), self._fields)
+        self.cci_msg_header.message_payload_length_low = cci_payload_length & 0xFFFF
+        self.cci_msg_header.message_payload_length_high = (cci_payload_length >> 16) & 0x1F
 
 
 class GetLdInfoRequestPacket(CciRequestPacket):
@@ -1019,6 +1025,7 @@ class GetLdInfoRequestPacket(CciRequestPacket):
         packet.initialize_common_headers()
         packet.populate_header_from_ccimessage(cci_message)
         cci_msg_header_offset = packet.get_byte_offset(packet.cci_msg_header)
+        print(f"cci_msg_header_offset:{cci_msg_header_offset}, {len(cci_message)}")
         packet.set_bytes(cci_msg_header_offset, bytes(cci_message))
         packet.cci_msg_header.command_opcode = CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
         return packet
@@ -1026,42 +1033,54 @@ class GetLdInfoRequestPacket(CciRequestPacket):
 
 class GetLdAllocationsRequestPacket(CciRequestPacket):
     _fields = [
-        ("start_ld_id", 0, 7),
+        ("start_ld_id", 0, 8),
         ("ld_allocation_list_limit", 8, 8),
     ]
 
-    def __init__(self):
-        super().__init__()
-        payload_offset = len(self)
-        self.set_data(b"\x00" * self.payload_byte_length)
-        self.payload = CciPayload(self, payload_offset, self._fields)
+    # @classmethod
+    # def create(cls, memory_size: int, ld_count: int, message_tag: int) -> "GetLdInfoResponsePacket":
+    #     packet = cls.create_packet(CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO, payload_length=11)
+
+    #     packet.set_data(b"\x00" * packet.get_cci_payload_length(packet._fields))
+    #     packet.payload = CciPayload(packet, packet.get_payload_offset(), packet._fields)
+    #     packet.cci_msg_header.message_tag = message_tag
+    #     packet.payload.memory_size = memory_size
+    #     packet.payload.ld_count = ld_count
+    #     packet.payload.qos_telemetry_capability = 0
+    #     packet.system_header.payload_length = len(packet)
+    #     return packet
 
     @classmethod
     def create(
         cls, start_ld_id: int = 0, ld_allocation_list_limit: int = 0
     ) -> "GetLdAllocationsRequestPacket":
-        packet = cls()
-        packet.initialize_common_headers()
-        packet.cci_msg_header.command_opcode = CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS
+        packet = cls.create_packet(CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS)
+        packet.init_cci_payload()
+
         packet.payload.start_ld_id = start_ld_id
         packet.payload.ld_allocation_list_limit = ld_allocation_list_limit
+
+        print(f"packet.payload.start_ld_id:{packet.payload.start_ld_id}")
+
+        packet.system_header.payload_length = len(packet)
         return packet
 
     @classmethod
     def create_from_cci_message(
         cls, cci_message: CciMessagePacket
     ) -> "GetLdAllocationsRequestPacket":
-        packet = cls()
-        packet.initialize_common_headers()
-        packet.populate_header_from_ccimessage(cci_message)
+        packet = cls.create_packet(CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS)
+        packet.init_cci_payload()
+
         cci_msg_header_offset = packet.get_byte_offset(packet.cci_msg_header)
         packet.set_bytes(cci_msg_header_offset, bytes(cci_message))
-        packet.cci_msg_header.command_opcode = CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS
+
         data = cci_message.get_data()
-        packet.get_ld_allocations_request.start_ld_id = int.from_bytes(data[0], "little")
-        packet.get_ld_allocations_request.ld_allocation_list_limit = int.from_bytes(
-            data[1], "little"
-        )
+        packet.payload.start_ld_id = int.from_bytes(data[:1], "little")
+        packet.payload.ld_allocation_list_limit = int.from_bytes(data[1:3], "little")
+
+        print(f"packet.payload.start_ld_id:{packet.payload.start_ld_id}")
+
         return packet
 
 
@@ -1137,6 +1156,13 @@ class CciResponsePacket(
         packet.cci_msg_header.message_payload_length_high = (payload_length >> 16) & 0x1F
         return packet
 
+    def init_cci_payload(self) -> int:
+        cci_payload_length = self.get_cci_payload_length()
+        self.set_data(b"\x00" * self.get_cci_payload_length())
+        self.payload = CciPayload(self, self.get_payload_offset(), self._fields)
+        self.cci_msg_header.message_payload_length_low = cci_payload_length & 0xFFFF
+        self.cci_msg_header.message_payload_length_high = (cci_payload_length >> 16) & 0x1F
+
     # @classmethod
     # def create_cci_message(cls, payload_bytes: bytes) -> "CciMessagePacket":
     #     header = cls()
@@ -1153,29 +1179,29 @@ class CciResponsePacket(
 
 class GetLdInfoResponsePacket(CciResponsePacket):
     _fields = [
-        ("memory_size", 0, 63),
-        ("ld_count", 64, 79),
-        ("qos_telemetry_capability", 80, 87),
+        ("memory_size", 0, 64),
+        ("ld_count", 64, 16),
+        ("qos_telemetry_capability", 80, 8),
     ]
 
     @classmethod
     def create(cls, memory_size: int, ld_count: int, message_tag: int) -> "GetLdInfoResponsePacket":
-        packet = super().create_packet(CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO, payload_length=11)
+        packet = cls.create_packet(CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO, payload_length=11)
+        packet.init_cci_payload()
 
-        print(
-            f"self.get_payload_length(self._fields){packet.get_payload_length(packet._fields):x}, self.get_payload_offset():{packet.get_payload_offset():x}"
-        )
-
-        packet.set_data(b"\x00" * packet.get_payload_length(packet._fields))
-        packet.payload = CciPayload(packet, packet.get_payload_offset(), packet._fields)
         packet.cci_msg_header.message_tag = message_tag
         packet.payload.memory_size = memory_size
         packet.payload.ld_count = ld_count
         packet.payload.qos_telemetry_capability = 0
+
+        packet.system_header.payload_length = len(packet)
         return packet
 
-    def create_cci_message(self) -> "CciMessagePacket":
-        return super().create_cci_message(self.payload_to_bytes("little"))
+    def get_cci_message(self) -> "CciMessagePacket":
+        offset = self.get_byte_offset(self.cci_msg_header)
+        length = len(self.cci_msg_header) + len(self.get_data())
+        print(f"of:{offset}, len:{length}, d:{bytes(self.get_bytes(offset, length))}")
+        return CciMessagePacket(self.get_bytes(offset, length))
 
     def get_memory_size(self) -> int:
         return self.payload.memory_size

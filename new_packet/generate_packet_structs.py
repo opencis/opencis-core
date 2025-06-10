@@ -70,7 +70,6 @@ def emit_composite(packet_name, layout, field_sizes):
         else:
             field_entries.append((entry, entry.lower()))
 
-    # Determine total header byte size from bit offsets and widths
     offset = 0
     offset_map = {}
     for struct, _ in field_entries:
@@ -84,7 +83,6 @@ def emit_composite(packet_name, layout, field_sizes):
 
     total_bytes = offset
 
-    # Class fields
     lines.append("    cdef readonly int ACTUAL_SIZE")
     lines.append("    cdef int _data_length")
 
@@ -100,13 +98,15 @@ def emit_composite(packet_name, layout, field_sizes):
             lines.append(f"        return self.{varname}_")
             lines.append("")
 
-    # __cinit__ method
     lines.append("    def __cinit__(self, unsigned char[::1] buf = None):")
-    lines.append("        if buf is None:")
-    lines.append("            raw_buf = bytearray(200)")
-    lines.append("            buf = raw_buf")
-    lines.append("        self.buf = buf")
     lines.append(f"        self.ACTUAL_SIZE = {total_bytes}")
+    lines.append("        if buf is None:")
+    lines.append(f"            raw_buf = bytearray(200)")
+    lines.append("            buf = raw_buf")
+    lines.append("            self._data_length = 0")
+    lines.append("        else:")
+    lines.append("            self._data_length = len(buf) - self.ACTUAL_SIZE")
+    lines.append("        self.buf = buf")
 
     for struct, varname in field_entries:
         if struct == "DataField":
@@ -115,11 +115,6 @@ def emit_composite(packet_name, layout, field_sizes):
         lines.append(
             f"        self.{varname}_ = {struct}(buf[{offset_start}:{offset_start + size_bytes}])"
         )
-
-    if has_data_field:
-        lines.append(f"        self._data_length = len(buf) - self.ACTUAL_SIZE")
-    else:
-        lines.append("        self._data_length = 0")
 
     lines.append("")
     lines.append("    def get_payload_offset(self) -> int:")

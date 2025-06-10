@@ -11,13 +11,6 @@ from packet_constants import (
 
 
 class PacketFieldMixin:
-    def get_payload_length(self, fields) -> int:
-        if not fields:
-            return 0
-        _, last_offset, last_width = fields[-1]
-        total_bits = last_offset + last_width
-        return (total_bits + 7) // 8
-
     def get_byte_offset(parent, child):
         parent_ptr = ctypes.addressof(ctypes.c_char.from_buffer(parent.raw_buf))
         child_ptr = ctypes.addressof(ctypes.c_char.from_buffer(child.buf))
@@ -194,3 +187,10 @@ class CciBasePacketMixin:
 
     def get_total_size(self) -> int:
         return self.system_header.payload_length
+
+    def get_cci_payload_length(self) -> int:
+        if not self._fields:
+            return 0
+        _, last_offset, last_width = self._fields[-1]
+        total_bits = last_offset + last_width
+        return (total_bits + 7) // 8
