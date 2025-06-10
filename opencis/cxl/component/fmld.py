@@ -45,7 +45,7 @@ class FMLD(RunnableComponent):
         # ld_id of 0 has 256M of memory
         # ld_id of 1 has 768M of memory
         # ld_id of 2 has 512M of memory
-        self._ld_dict = {i: 1 for i in range(ld_count)}
+        self._ld_allocations = {i: 1 for i in range(ld_count)}
 
     async def _process_get_ld_info_packet(self, get_ld_info_request_packet: CciRequestPacket):
         if get_ld_info_request_packet.get_command_opcode() != CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
@@ -76,11 +76,11 @@ class FMLD(RunnableComponent):
         start_ld_id = get_ld_allocations_packet.payload.start_ld_id
         ld_alloc_list_limit = get_ld_allocations_packet.payload.ld_allocation_list_limit
 
-        if start_ld_id < 0 or start_ld_id >= len(self._ld_dict):
+        if start_ld_id < 0 or start_ld_id >= len(self._ld_allocations):
             raise Exception("Invalid start_ld_id")
 
-        # Number of keys for self._allocated_ld_dict
-        max_len_ld_list = len(self._ld_dict) - start_ld_id
+        # Number of keys for self._ld_allocations
+        max_len_ld_list = len(self._ld_allocations) - start_ld_id
         if ld_alloc_list_limit < max_len_ld_list:
             ld_length = ld_alloc_list_limit
         else:
@@ -89,30 +89,15 @@ class FMLD(RunnableComponent):
         # Calculate number of lds
         number_of_lds = 0
         for i in range(max_len_ld_list):
-            if self._ld_dict.get(start_ld_id + i) == 1:
+            if self._ld_allocations.get(start_ld_id + i) == 1:
                 number_of_lds += 1
-
-        # Create allocated_ld list
-        allocated_ld: List[int] = []
-        allocated_ld_length = 0
-        for i in range(ld_length):
-            if self._ld_dict.get(start_ld_id + i) == 1:
-                # Range 1 Allocation Multiplier: Hardcoded right now to always return 256M
-                allocated_ld.append(1)
-                # Range 2 Allocation Multiplier: Fixed to 0
-                allocated_ld.append(0)
-                allocated_ld_length += 1
-            elif self._ld_dict.get(start_ld_id + i) == 0:
-                break
-
-        allocated_ld_bytes = b"".join(num.to_bytes(8, "little") for num in allocated_ld)
 
         get_ld_allocations_response_packet = GetLdAllocationsResponsePacket.create(
             number_of_lds=number_of_lds,
             memory_granularity=0,
             start_ld_id=start_ld_id,
-            ld_allocation_list_length=allocated_ld_length,
-            ld_allocation_list=int.from_bytes(allocated_ld_bytes, "little"),
+            ld_length=ld_length,
+            ld_allocations=self._ld_allocations,
             message_tag=get_ld_allocations_packet.cci_msg_header.message_tag,
         )
 
