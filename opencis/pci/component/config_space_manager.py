@@ -65,6 +65,7 @@ class ConfigSpaceManager(RunnableComponent):
         packet = CxlIoCompletionPacket.create(
             req_id=req_id, tag=tag, status=CXL_IO_CPL_STATUS.UR, ld_id=ld_id
         )
+        packet.cpl_header.req_id = self._req_id
         await self._upstream_fifo.target_to_host.put(packet)
 
     def _is_bridge(self) -> bool:
@@ -166,7 +167,7 @@ class ConfigSpaceManager(RunnableComponent):
                 logger.debug(self._create_message("Stop processing host to target fifo"))
                 break
             base_packet = cast(CxlIoBasePacket, packet)
-            # self._req_id = base_packet.cfg_req_header.req_id
+            self._req_id = base_packet.cfg_req_header.req_id
             logger.debug(self._create_message("Received host to target packet"))
             if base_packet.is_cfg_type0():
                 if base_packet.is_cfg_read():
