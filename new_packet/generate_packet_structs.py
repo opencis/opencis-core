@@ -33,7 +33,7 @@ def emit_struct(name, layout):
 
     return (
         f"cdef class {name}(PacketBuffer):\n"
-        f"    cdef unsigned char[::1] _buf\n\n"
+        f"    cdef unsigned char[::1] __buf\n\n"
         f"{field_defs}"
         f"    @classmethod\n"
         f"    def get_size(cls):\n"
@@ -43,20 +43,18 @@ def emit_struct(name, layout):
         f"    def __bytes__(self):\n"
         f"        return self.to_bytes()\n\n"
         f"    def __cinit__(self, unsigned char[::1] buf):\n"
-        f"        self._buf = buf\n\n"
-        f"    @property\n"
-        f"    def buf(self):\n"
-        f"        return self._buf\n"
+        f"        self.__buf = buf\n\n"
     )
 
 
 def emit_composite(packet_name, layout, field_sizes):
+    packet_name = f"Raw{packet_name}"
     lines = [
         "# Generated file",
         "from packet_base cimport PacketBuffer",
         "from libc.string cimport memcpy",
         "",
-        f"cdef class Raw{packet_name}(PacketBuffer):",
+        f"cdef class {packet_name}(PacketBuffer):",
     ]
 
     has_data_field = False
@@ -81,9 +79,9 @@ def emit_composite(packet_name, layout, field_sizes):
         offset_map[struct] = (offset, size_bytes)
         offset += size_bytes
 
-    total_bytes = offset
+    total_header_bytes = offset
 
-    lines.append("    cdef readonly int ACTUAL_SIZE")
+    lines.append("    cdef readonly int HEADER_SIZE")
     lines.append("    cdef int _data_length")
 
     for struct, varname in field_entries:
@@ -98,33 +96,33 @@ def emit_composite(packet_name, layout, field_sizes):
             lines.append(f"        return self.{varname}_")
             lines.append("")
 
-    lines.append("    def __cinit__(self, unsigned char[::1] buf = None):")
-    lines.append(f"        self.ACTUAL_SIZE = {total_bytes}")
-    lines.append("        if buf is None:")
-    lines.append(f"            raw_buf = bytearray(200)")
-    lines.append("            buf = raw_buf")
-    lines.append("            self._data_length = 0")
-    lines.append("        else:")
-    lines.append("            self._data_length = len(buf) - self.ACTUAL_SIZE")
-    lines.append("        self.buf = buf")
+    lines.append(f"    def __cinit__(self, buf = None):")
+    lines.append(f"        self._buf = bytearray(200)")
+    lines.append(f"        self.HEADER_SIZE = {total_header_bytes}")
+    lines.append(f"        if buf is not None:")
+    lines.append(f"            self._buf = buf[:]")
+    lines.append(f"            self._data_length = len(buf) - self.HEADER_SIZE")
+    lines.append(f"        else:")
+    lines.append(f"            self._data_length = 0")
+    # lines.append(f"        print(self._buf[0], self._buf[1])")
 
     for struct, varname in field_entries:
         if struct == "DataField":
             continue
         offset_start, size_bytes = offset_map[struct]
         lines.append(
-            f"        self.{varname}_ = {struct}(buf[{offset_start}:{offset_start + size_bytes}])"
+            f"        self.{varname}_ = {struct}(self._buf[{offset_start}:{offset_start + size_bytes}])"
         )
 
     lines.append("")
     lines.append("    def get_payload_offset(self) -> int:")
-    lines.append("        return self.ACTUAL_SIZE")
+    lines.append("        return self.HEADER_SIZE")
     lines.append("")
 
     if has_data_field:
         lines.append("    cpdef bytes get_data(self):")
         lines.append(
-            f"        return (<const unsigned char*> &self.buf[{total_bytes}])[:self._data_length]"
+            f"        return (<const unsigned char*> &self._buf[{total_header_bytes}])[:self._data_length]"
         )
         lines.append("")
         lines.append("    def set_data(self, data):")
@@ -133,7 +131,7 @@ def emit_composite(packet_name, layout, field_sizes):
         lines.append("        self.set_data_raw(ptr, n)")
         lines.append("")
         lines.append("    cpdef void set_data_raw(self, const unsigned char* data, Py_ssize_t n):")
-        lines.append(f"        memcpy(&self.buf[{total_bytes}], data, n)")
+        lines.append(f"        memcpy(&self._buf[{total_header_bytes}], data, n)")
         lines.append("        self._data_length = n")
     else:
         lines.append("    cpdef bytes get_data(self):")
@@ -147,7 +145,7 @@ def emit_composite(packet_name, layout, field_sizes):
 
     lines.append("")
     lines.append("    cpdef int get_size(self):")
-    lines.append("        return self.ACTUAL_SIZE + self._data_length")
+    lines.append("        return self.HEADER_SIZE + self._data_length")
     lines.append("")
     lines.append("    def __len__(self):")
     lines.append("        return self.get_size()")

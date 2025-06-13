@@ -12,8 +12,8 @@ from packet_constants import (
 
 class PacketFieldMixin:
     def get_byte_offset(parent, child):
-        parent_ptr = ctypes.addressof(ctypes.c_char.from_buffer(parent.raw_buf))
-        child_ptr = ctypes.addressof(ctypes.c_char.from_buffer(child.buf))
+        parent_ptr = ctypes.addressof(ctypes.c_char.from_buffer(parent.__buf))
+        child_ptr = ctypes.addressof(ctypes.c_char.from_buffer(child.__buf))
         return child_ptr - parent_ptr
 
 

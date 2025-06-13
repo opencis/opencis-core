@@ -369,6 +369,7 @@ async def test_multi_logical_device_ld_id():
         await packet_writer.drain()
         packet = await packet_reader.get_packet()
         get_ld_info_response_packet = cast(GetLdInfoResponsePacket, packet)
+        # print()
         assert (
             get_ld_info_response_packet.get_command_opcode()
             == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
