@@ -77,6 +77,7 @@ def emit_composite(packet_name, layout, field_sizes):
         size_bits = max(start + width for _, start, width in struct_fields)
         size_bytes = (size_bits + 7) // 8
         offset_map[struct] = (offset, size_bytes)
+        print(f"Struct {struct} has size {size_bytes} bytes")
         offset += size_bytes
 
     total_header_bytes = offset
@@ -104,8 +105,8 @@ def emit_composite(packet_name, layout, field_sizes):
     lines.append(f"            self._data_length = len(buf) - self.HEADER_SIZE")
     lines.append(f"        else:")
     lines.append(f"            self._data_length = 0")
-    # lines.append(f"        print(self._buf[0], self._buf[1])")
-
+    lines.append("")
+    lines.append(f"        cdef unsigned char[::1] mv = self._buf")
     for struct, varname in field_entries:
         if struct == "DataField":
             continue

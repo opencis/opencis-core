@@ -73,7 +73,7 @@ class FMLD(RunnableComponent):
             != CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS
         ):
             raise Exception("Invalid command opcode")
-        logger.info(f"Get LD Allocations: {get_ld_allocations_packet}")
+        logger.info(f"Get LD Allocations: {bytes(get_ld_allocations_packet)}")
 
         start_ld_id = get_ld_allocations_packet.payload.start_ld_id
         ld_alloc_list_limit = get_ld_allocations_packet.payload.ld_allocation_list_limit
@@ -83,6 +83,7 @@ class FMLD(RunnableComponent):
 
         # Number of keys for self._ld_allocations
         max_len_ld_list = len(self._ld_allocations) - start_ld_id
+        print(f"max_len_ld_list:{max_len_ld_list}, ld_alloc_list_limit:{ld_alloc_list_limit}")
         if ld_alloc_list_limit < max_len_ld_list:
             ld_length = ld_alloc_list_limit
         else:
@@ -94,6 +95,9 @@ class FMLD(RunnableComponent):
             if self._ld_allocations.get(start_ld_id + i) == 1:
                 number_of_lds += 1
 
+        print(
+            f"FMLD, create: number_of_lds:{number_of_lds}, ld_length:{ld_length}, start_ld_id:{start_ld_id}, self._ld_allocations:{self._ld_allocations}"
+        )
         get_ld_allocations_response_packet = GetLdAllocationsResponsePacket.create(
             number_of_lds=number_of_lds,
             memory_granularity=0,

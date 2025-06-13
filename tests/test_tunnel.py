@@ -402,6 +402,11 @@ async def test_multi_logical_device_ld_id():
         get_ld_allocations_packet = GetLdAllocationsRequestPacket.create_from_cci_message(
             get_ld_allocations_cci_message
         )
+        packet = get_ld_allocations_packet
+        print(
+            f"after GetLdAllocationsRequestPacket.create_from_cci_message, packet.payload.start_ld_id:{packet.payload.start_ld_id}, packet.payload.ld_allocation_list_limit:{packet.payload.ld_allocation_list_limit}"
+        )
+        print(f"From {list(bytes(get_ld_allocations_packet))}")
         packet_writer.write(bytes(get_ld_allocations_packet))
         await packet_writer.drain()
         logger.info("[PyTest]  !!!!!!!!!!!!!!!!!")

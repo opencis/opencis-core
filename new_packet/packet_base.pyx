@@ -7,13 +7,17 @@ cdef class PacketBuffer:
         self._buf = bytearray(200)
         if input_buf is not None:
             self._buf = input_buf[:]
+            #print("cinit _buf", bytearray(self._buf))
+
 
     cpdef unsigned long long read_bits(self, int start_bit, int width):
         cdef int i, byte_index, bit_offset
         cdef unsigned long long result = 0
+        #print("read_bits", bytearray(self._buf))
         for i in range(width):
             byte_index = (start_bit + i) // 8
             bit_offset = (start_bit + i) % 8
+            #print("byte:",byte_index, "bits:",bit_offset )
             bit = (self._buf[byte_index] >> bit_offset) & 1
             result |= (bit << i)
         return result
