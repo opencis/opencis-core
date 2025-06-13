@@ -425,6 +425,7 @@ class CxlPacketProcessor(RunnableComponent):
                     await self._writer.drain()
                 elif opcode == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:
                     packet = cast(GetLdAllocationsResponsePacket, packet)
+                    logger.info(f"{packet} {packet.get_command_opcode():x}")
                     self._writer.write(bytes(packet))
                     await self._writer.drain()
                 elif opcode == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:

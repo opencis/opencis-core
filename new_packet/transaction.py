@@ -1152,7 +1152,7 @@ class CciResponsePacket(BasePacketMixin, CciBasePacketMixin, RawCciResponsePacke
             self.init_cci_payload()
 
     def get_command_opcode(self) -> int:
-        return getattr(self, "command_opcode", 0)
+        return self.cci_msg_header.command_opcode
 
     def initialize_common_headers(self):
         self.cci_header.msg_class = CCI_MSG_CLASS.RSP
@@ -1208,6 +1208,7 @@ class GetLdInfoResponsePacket(CciResponsePacket):
         packet.payload.qos_telemetry_capability = 0
 
         packet.system_header.payload_length = len(packet)
+        print(f"GetLdInfoResponsePacket, bytes:{bytes(packet)}")
         return packet
 
     def get_cci_message(self) -> "CciMessagePacket":

@@ -218,6 +218,7 @@ class PacketReader(LabeledComponent):
                 logger.info("HERE 1")
                 raise Exception("Unsupported CCI packet")
         elif cci_base_packet.is_rsp():
+            print(f"cci_base_packet: {bytes(cci_base_packet)}")
             cci_packet = CciResponsePacket(payload)
             if cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
                 cci_packet = GetLdInfoResponsePacket(payload)
