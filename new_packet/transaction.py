@@ -1108,7 +1108,7 @@ class SetLdAllocationsRequestPacket(CciRequestPacket):
         if number_of_lds < 1:
             raise ValueError("Number of LDs must be greater than 0")
         payload_length = 4 + 16 * number_of_lds
-        packet = super().create_packet(CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS, payload_length)
+        packet = super().create_packet(CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS)
 
         payload = packet.set_ld_allocations_request_payload
         payload.number_of_lds = number_of_lds
@@ -1159,7 +1159,7 @@ class CciResponsePacket(BasePacketMixin, CciBasePacketMixin, RawCciResponsePacke
         self.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
         self.cci_msg_header.message_category = CCI_MCTP_MESSAGE_CATEGORY.RESPONSE
         self.cci_msg_header.message_tag = 0
-        self.cci_msg_header.command_opcode = 0
+        self.cci_msg_header.command_opcode = 0xA5
         self.cci_msg_header.message_payload_length_high = 0
         self.cci_msg_header.message_payload_length_low = 0
         self.cci_msg_header.return_code = 0
@@ -1168,10 +1168,11 @@ class CciResponsePacket(BasePacketMixin, CciBasePacketMixin, RawCciResponsePacke
         self.system_header.payload_length = len(self)
 
     @classmethod
-    def create_packet(cls, command_opcode: int, payload_length: int = 0):
+    def create_packet(cls, command_opcode: int):
         packet = cls()
         packet.initialize_common_headers()
-        packet.command_opcode = command_opcode
+        packet.cci_msg_header.command_opcode = command_opcode
+        print(f"resp create_packet: {packet.cci_msg_header.command_opcode:x}")
         return packet
 
     def init_cci_payload(self) -> int:
@@ -1199,16 +1200,16 @@ class GetLdInfoResponsePacket(CciResponsePacket):
 
     @classmethod
     def create(cls, memory_size: int, ld_count: int, message_tag: int) -> "GetLdInfoResponsePacket":
-        packet = cls.create_packet(CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO, payload_length=11)
-        packet.init_cci_payload()
+        packet = cls.create_packet(CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO)
 
+        packet.init_cci_payload()
         packet.cci_msg_header.message_tag = message_tag
         packet.payload.memory_size = memory_size
         packet.payload.ld_count = ld_count
         packet.payload.qos_telemetry_capability = 0
-
+        print(f"create: {packet.cci_msg_header.command_opcode:x}")
         packet.system_header.payload_length = len(packet)
-        print(f"GetLdInfoResponsePacket, bytes:{bytes(packet)}")
+        print(f"create GetLdInfoResponsePacket, bytes:{bytes(packet)}")
         return packet
 
     def get_cci_message(self) -> "CciMessagePacket":
@@ -1290,7 +1291,7 @@ class SetLdAllocationsResponsePacket(CciResponsePacket):
         cls, number_of_lds: int, start_ld_id: int, ld_allocation_list: int, message_tag: int
     ) -> "SetLdAllocationsResponsePacket":
         payload_length = 4 + 16 * number_of_lds
-        packet = cls.create_packet(CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS, payload_length)
+        packet = cls.create_packet(CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS)
         packet.cci_msg_header.message_tag = message_tag
 
         payload = packet.set_ld_allocations_response_payload

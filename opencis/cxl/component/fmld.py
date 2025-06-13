@@ -59,7 +59,9 @@ class FMLD(RunnableComponent):
             ld_count=self._ld_count,
             message_tag=get_ld_info_request_packet.cci_msg_header.message_tag,
         )
-        logger.info(f"Get LD Info Response?: {get_ld_info_response_packet.cci_msg_header.command_opcode}")
+        logger.info(
+            f"Get LD Info Response?: {get_ld_info_response_packet.cci_msg_header.command_opcode}"
+        )
         await self.upstream_fifo.target_to_host.put(get_ld_info_response_packet)
         logger.info("Get LD Info Response sent done")
 

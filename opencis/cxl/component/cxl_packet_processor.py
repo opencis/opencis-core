@@ -415,10 +415,11 @@ class CxlPacketProcessor(RunnableComponent):
                     break
                 opcode = packet.get_command_opcode()
                 logger.info(self._create_message(f"Received CCI packet with opcode {opcode:x}"))
-                logger.info(
-                    f"WTF? {packet} {packet.get_command_opcode():x}, {CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:x}"
-                )
+                logger.info(f"WTF? {packet} opcode:{packet.get_command_opcode():x}")
                 if opcode == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
+                    logger.info(
+                        f"GET_LD_INFO: {packet} {packet.get_command_opcode():x}, {CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:x}"
+                    )
                     packet = cast(GetLdInfoResponsePacket, packet)
                     logger.info(f"{packet} {packet.get_command_opcode():x}")
                     self._writer.write(bytes(packet))
