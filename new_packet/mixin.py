@@ -28,11 +28,10 @@ class PacketDataMixin:
         super().set_data(data)
 
     def set_data_as_int(self, data: int, length: int = None):
-        # print(f"set_data_as_int i:{data:x}")
         if length is None:
             length = (data.bit_length() + 7) // 8 or 1
+
         data = data.to_bytes(length, byteorder="little")
-        # print(f"set_data_as_int b:{data}")
         self.set_data(data)
 
     def get_pretty_string(self):

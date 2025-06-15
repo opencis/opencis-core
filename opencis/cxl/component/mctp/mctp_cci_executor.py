@@ -73,10 +73,7 @@ class MctpCciExecutor(RunnableComponent):
             return_code=response.return_code,
             background_operation=int(response.bo_flag),
         )
-
-        response_packet_tmc = CciPayloadPacket.create(
-            response_packet, response_packet.get_total_size()
-        )
+        response_packet_tmc = CciPayloadPacket.create(response_packet)
 
         await self._mctp_connection.ep_to_controller.put(response_packet_tmc)
 
@@ -149,7 +146,7 @@ class MctpCciExecutor(RunnableComponent):
             self._message_tag_list.pop(packet.cci_msg_header.message_tag)
 
             cci_packet = packet.create_cci_message()
-            cci_packet_tmc = CciPayloadPacket.create(cci_packet, cci_packet.get_total_size())
+            cci_packet_tmc = CciPayloadPacket.create(cci_packet)
 
             await self._mctp_connection.ep_to_controller.put(cci_packet_tmc)
 
@@ -181,8 +178,6 @@ class MctpCciExecutor(RunnableComponent):
             opcode=request.opcode,
         )
         opcode_str = get_opcode_string(request.opcode)
-        message_packet_tmc = CciPayloadPacket.create(
-            message_packet, message_packet.get_total_size()
-        )
+        message_packet_tmc = CciPayloadPacket.create(message_packet)
         logger.debug(self._create_message(f"Sending {opcode_str}"))
         await self._mctp_connection.ep_to_controller.put(message_packet_tmc)

@@ -5,7 +5,7 @@ This software is licensed under the terms of the Revised BSD License.
 See LICENSE for details.
 """
 
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, cast
 from opencis.util.logger import logger
 import platform
 
@@ -1040,26 +1040,28 @@ class CciMessagePacket(BasePacketMixin, CciBasePacketMixin, RawCciMessagePacket,
 
 
 class CciPayloadPacket(BasePacketMixin, CciBasePacketMixin, RawCciPayloadPacket, PacketDataMixin):
-    def get_packet(self):
+    def get_cci_message(self):
         return CciMessagePacket(self.get_data())
 
     @classmethod
-    def create(cls, data: bytes, index: int = 0) -> "CciPayloadPacket":
+    def create(cls, data, port_index: int = 0) -> "CciPayloadPacket":
         packet = cls()
-        packet.cci_header.port_index = index
         packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
+        packet.cci_header.port_index = port_index
 
         if isinstance(data, CciMessagePacket):
-            packet.set_data(int.from_bytes(bytes(data.cci_msg_header) + data.get_data(), "little"))
+            cci_message = cast(CciMessagePacket, data)
+            if cci_message.cci_msg_header.message_category == CCI_MCTP_MESSAGE_CATEGORY.REQUEST:
+                packet.cci_header.msg_class = CCI_MSG_CLASS.REQ
+            else:
+                packet.cci_header.msg_class = CCI_MSG_CLASS.RSP
+            packet.set_data(bytes(cci_message))
         else:
-            packet.set_data(
-                int.from_bytes(
-                    bytes(data.system_header) + bytes(data.cci_header) + data.get_data(), "little"
-                )
-            )
+            packet.set_data(bytes(data.system_header) + bytes(data.cci_header) + data.get_data(), "little")
 
         packet.system_header.payload_length = len(packet)
         return packet
+
 
 
 class CciRequestPacket(

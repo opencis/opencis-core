@@ -117,7 +117,7 @@ class MctpCciApiClient(RunnableComponent):
         req_tag = request.header.message_tag
         logger.debug(self._create_message(f"Sending {opcode_name} (Tag: {req_tag})"))
         # wrapping
-        request_tmc = CciPayloadPacket.create(request, request.get_total_size(), port_index)
+        request_tmc = CciPayloadPacket.create(request, port_index)
 
         await self._mctp_connection.controller_to_ep.put(request_tmc)
         response = await self._get_response(req_tag)
