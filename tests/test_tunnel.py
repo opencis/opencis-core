@@ -369,7 +369,6 @@ async def test_multi_logical_device_ld_id():
         await packet_writer.drain()
         packet = await packet_reader.get_packet()
         get_ld_info_response_packet = cast(GetLdInfoResponsePacket, packet)
-        # print()
         assert (
             get_ld_info_response_packet.get_command_opcode()
             == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
@@ -399,47 +398,43 @@ async def test_multi_logical_device_ld_id():
         #     data=data, message_category=0, opcode=CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
         # )
 
-        get_ld_allocations_packet = GetLdAllocationsRequestPacket.create_from_cci_message(
+        request_packet = GetLdAllocationsRequestPacket.create_from_cci_message(
             get_ld_allocations_cci_message
         )
-        packet = get_ld_allocations_packet
-        print(
-            f"after GetLdAllocationsRequestPacket.create_from_cci_message, packet.payload.start_ld_id:{packet.payload.start_ld_id}, packet.payload.ld_allocation_list_limit:{packet.payload.ld_allocation_list_limit}"
-        )
-        print(f"From {list(bytes(get_ld_allocations_packet))}")
-        packet_writer.write(bytes(get_ld_allocations_packet))
+        # print(
+        #     f"after GetLdAllocationsRequestPacket.create_from_cci_message, packet.payload.start_ld_id:{packet.payload.start_ld_id}, packet.payload.ld_allocation_list_limit:{packet.payload.ld_allocation_list_limit}"
+        # )
+        print(f"GetLdAllocationsRequestPacket {list(bytes(request_packet))}")
+        packet_writer.write(bytes(request_packet))
         await packet_writer.drain()
         logger.info("[PyTest]  !!!!!!!!!!!!!!!!!")
         packet = await packet_reader.get_packet()
         logger.info("[PyTest]  @@@@@@@@@@@@@@@@")
+        logger.info("[PyTest]  Get LD Allocations Response Start")
+        logger.info(f"[PyTest]  {bytes(packet)}")
+        response_packet = cast(GetLdAllocationsResponsePacket, packet)
+        assert response_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS
 
-        get_ld_allocations_response_packet = cast(GetLdAllocationsResponsePacket, packet)
-        assert (
-            get_ld_allocations_response_packet.get_command_opcode()
-            == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS
-        )
-        number_of_lds = (
-            get_ld_allocations_response_packet.get_ld_allocations_response_payload.number_of_lds
-        )
-        memory_granularity = (
-            get_ld_allocations_response_packet.get_ld_allocations_response_payload.memory_granularity
-        )
-        start_ld_id = (
-            get_ld_allocations_response_packet.get_ld_allocations_response_payload.start_ld_id
-        )
-        ld_allocation_list_length = (
-            get_ld_allocations_response_packet.get_ld_allocations_response_payload.ld_allocation_list_length
-        )
-        ld_allocation_list = get_ld_allocations_response_packet.get_ld_allocation_list()
-        ld_allocation_list = [
-            int.from_bytes(ld_allocation_list[i : i + 8], "little")
-            for i in range(0, len(ld_allocation_list), 8)
-        ]
+        # NEED TO CONVERT TO CCiPAYLOAD and check bytes
+        number_of_lds = response_packet.payload.number_of_lds
+        memory_granularity = response_packet.payload.memory_granularity
+        start_ld_id = response_packet.payload.start_ld_id
+        ld_allocation_list_length = response_packet.payload.ld_allocation_list_length
+
+        # Get LD Allocation List
+        ld_allocation_list = response_packet.payload.ld_allocation_list
+        print(f"ld_allocation_list: {ld_allocation_list}")
+        # ld_allocation_list = list(response_packet.payload.ld_allocation_list)
+        # ld_allocation_list =
+        #     int.from_bytes(ld_allocation_list[i : i + 8], "little")
+        #     for i in range(0, len(ld_allocation_list), 8)
+        # ]
+
         assert number_of_lds == 3
         assert memory_granularity == 0
         assert start_ld_id == 1
         assert ld_allocation_list_length == 3
-        assert ld_allocation_list == [1, 0, 1, 0, 1, 0]
+        assert ld_allocation_list == (b"\x01" + b"\x00" * 15) * ld_allocation_list_length
         logger.info(
             f"[PyTest] number_of_lds: {number_of_lds}, memory_granularity: {memory_granularity},start_ld_id: {start_ld_id}, ld_allocation_list_length: {ld_allocation_list_length}, ld_allocation_list: {ld_allocation_list}"
         )
@@ -465,10 +460,10 @@ async def test_multi_logical_device_ld_id():
         # packet_writer.write(bytes(set_ld_allocations_packet))
         # await packet_writer.drain()
         # packet = await packet_reader.get_packet()
-        # set_ld_allocations_response_packet = cast(SetLdAllocationsResponsePacket, packet)
-        # number_of_lds = set_ld_allocations_response_packet.set_ld_allocations_response_payload.number_of_lds
-        # start_ld_id = set_ld_allocations_response_packet.set_ld_allocations_response_payload.start_ld_id
-        # ld_allocation_list = set_ld_allocations_response_packet.get_ld_allocation_list()
+        # response_packet = cast(SetLdAllocationsResponsePacket, packet)
+        # number_of_lds = response_packet.set_ld_allocations_response_payload.number_of_lds
+        # start_ld_id = response_packet.set_ld_allocations_response_payload.start_ld_id
+        # ld_allocation_list = response_packet.get_ld_allocation_list()
         # ld_allocation_list = [
         #     int.from_bytes(ld_allocation_list[i:i + 8], "little")
         #     for i in range(0, len(ld_allocation_list), 8)
@@ -492,13 +487,11 @@ async def test_multi_logical_device_ld_id():
         packet_writer.write(bytes(get_ld_info_request_packet))
         await packet_writer.drain()
         packet = await packet_reader.get_packet()
-        get_ld_info_response_packet = cast(GetLdInfoResponsePacket, packet)
-        assert (
-            get_ld_info_response_packet.get_command_opcode()
-            == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
-        )
-        ld_count = get_ld_info_response_packet.payload.ld_count
-        memory_size = get_ld_info_response_packet.payload.memory_size
+        response_packet = cast(GetLdInfoResponsePacket, packet)
+        assert response_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
+        print(f"test_tunnel GetLdInfoResponsePacket: {bytes(response_packet)}")
+        ld_count = response_packet.payload.ld_count
+        memory_size = response_packet.payload.memory_size
         assert ld_count == 4
         assert memory_size == ld_count * 256 * 1024 * 1024  # 1G
         logger.info(
@@ -513,93 +506,71 @@ async def test_multi_logical_device_ld_id():
         packet_writer.write(bytes(get_ld_allocations_request_packet))
         await packet_writer.drain()
         packet = await packet_reader.get_packet()
-        get_ld_allocations_response_packet = cast(GetLdAllocationsResponsePacket, packet)
-        assert (
-            get_ld_allocations_response_packet.get_command_opcode()
-            == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS
-        )
-        number_of_lds = (
-            get_ld_allocations_response_packet.get_ld_allocations_response_payload.number_of_lds
-        )
-        memory_granularity = (
-            get_ld_allocations_response_packet.get_ld_allocations_response_payload.memory_granularity
-        )
-        start_ld_id = (
-            get_ld_allocations_response_packet.get_ld_allocations_response_payload.start_ld_id
-        )
-        ld_allocation_list_length = (
-            get_ld_allocations_response_packet.get_ld_allocations_response_payload.ld_allocation_list_length
-        )
-        ld_allocation_list = get_ld_allocations_response_packet.get_ld_allocation_list()
-        ld_allocation_list = [
-            int.from_bytes(ld_allocation_list[i : i + 8], "little")
-            for i in range(0, len(ld_allocation_list), 8)
-        ]
+        response_packet = cast(GetLdAllocationsResponsePacket, packet)
+        assert response_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS
+
+        number_of_lds = response_packet.payload.number_of_lds
+        memory_granularity = response_packet.payload.memory_granularity
+        start_ld_id = response_packet.payload.start_ld_id
+        ld_allocation_list_length = response_packet.payload.ld_allocation_list_length
+        ld_allocation_list_bytes = response_packet.payload.ld_allocation_list
         assert number_of_lds == 3
         assert memory_granularity == 0
         assert start_ld_id == 1
         assert ld_allocation_list_length == 3
-        assert ld_allocation_list == [1, 0, 1, 0, 1, 0]
+        assert ld_allocation_list_bytes == (b"\x01" + b"\x00" * 15) * ld_allocation_list_length
 
         logger.info(
-            f"[PyTest] number_of_lds: {number_of_lds}, memory_granularity: {memory_granularity},start_ld_id: {start_ld_id}, ld_allocation_list_length: {ld_allocation_list_length}, ld_allocation_list: {ld_allocation_list}"
+            f"[PyTest] number_of_lds: {number_of_lds}, memory_granularity: {memory_granularity},start_ld_id: {start_ld_id}, ld_allocation_list_length: {ld_allocation_list_length}, ld_allocation_list: {ld_allocation_list_bytes}"
         )
-        # logger.hexdump(loglevel="INFO", data=get_ld_allocations_response_packet.ld_allocation_list)
-        # logger.info(f"[PyTest]  get ld allocations field: {get_ld_allocations_response_packet._fields}")
+        # logger.hexdump(loglevel="INFO", data=response_packet.ld_allocation_list)
+        # logger.info(f"[PyTest]  get ld allocations field: {response_packet._fields}")
         logger.info("[PyTest]  Get LD Allocations Finish")
 
         # Set Ld Allocations Packet
         logger.info("[PyTest]  Set LD Allocations Start")
 
-        ld_allocation_list = [
-            int.from_bytes(ld_allocation_list[i : i + 8], "little")
-            for i in range(0, len(ld_allocation_list), 8)
-        ]
+        LD_ALLOCATIONS_SIZE = 16
+        ld_allocations = {}
+        for i in range(number_of_lds):
+            ld_id = start_ld_id + i
+            multiplier = ld_allocation_list_bytes[i * LD_ALLOCATIONS_SIZE]
+            ld_allocations[ld_id] = multiplier
 
-        allocated_ld: List[int] = []
-        allocated_ld_length = 0
-        # make ld allocation list: 4 LDs
-        for i in range(4):
-            allocated_ld.append(
-                1
-            )  # Range 1 Allocation Multiplier: Hardcoded right now to always return 256M
-            allocated_ld.append(0)  # Range 2 Allocation Multiplier: Fixed to 0
-            allocated_ld_length += 1
+        # print(f"????????ld_allocation_list: {ld_allocation_list}")
+        # allocated_ld: List[int] = []
+        # allocated_ld_length = 0
+        # # make ld allocation list: 4 LDs
+        # for i in range(4):
+        #     allocated_ld.append(
+        #         1
+        #     )  # Range 1 Allocation Multiplier: Hardcoded right now to always return 256M
+        #     allocated_ld.append(0)  # Range 2 Allocation Multiplier: Fixed to 0
+        #     allocated_ld_length += 1
 
-        allocated_ld_bytes = b"".join(num.to_bytes(8, "little") for num in allocated_ld)
+        # allocated_ld_bytes = b"".join(num.to_bytes(8, "little") for num in allocated_ld)
 
-        logger.hexdump(loglevel="INFO", data=allocated_ld_bytes)
+        # logger.hexdump(loglevel="INFO", data=allocated_ld_bytes)
 
         set_ld_allocations_request_packet = SetLdAllocationsRequestPacket.create(
-            number_of_lds=4,
-            start_ld_id=0,
-            ld_allocation_list=int.from_bytes(allocated_ld_bytes, "little"),
+            number_of_lds=3,
+            start_ld_id=1,
+            ld_allocations=ld_allocations,
         )
         packet_writer.write(bytes(set_ld_allocations_request_packet))
         await packet_writer.drain()
         packet = await packet_reader.get_packet()
         logger.info(f"[PyTest] Received Set LD Allocations Response: {packet}")
-        set_ld_allocations_response_packet = cast(SetLdAllocationsResponsePacket, packet)
-        assert (
-            set_ld_allocations_response_packet.get_command_opcode()
-            == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS
-        )
-        number_of_lds = (
-            set_ld_allocations_response_packet.set_ld_allocations_response_payload.number_of_lds
-        )
-        start_ld_id = (
-            set_ld_allocations_response_packet.set_ld_allocations_response_payload.start_ld_id
-        )
-        ld_allocation_list = set_ld_allocations_response_packet.get_ld_allocation_list()
-        logger.hexdump(loglevel="INFO", data=ld_allocation_list)
-        ld_allocation_list = [
-            int.from_bytes(ld_allocation_list[i : i + 8], "little")
-            for i in range(0, len(ld_allocation_list), 8)
-        ]
-        assert number_of_lds == 4
-        assert start_ld_id == 0
-        assert ld_allocation_list == [1, 0, 1, 0, 1, 0, 1, 0]
+        response_packet = cast(SetLdAllocationsResponsePacket, packet)
+        assert response_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS
 
+        number_of_lds = response_packet.payload.number_of_lds
+        start_ld_id = response_packet.payload.start_ld_id
+        ld_allocation_list_bytes = response_packet.payload.ld_allocation_list
+
+        assert number_of_lds == 3
+        assert start_ld_id == 1
+        assert ld_allocation_list_bytes == (b"\x01" + b"\x00" * 15) * 3
         logger.info(
             "[PyTest] number_of_lds: {number_of_lds}, start_ld_id: {start_ld_id}, ld_allocation_list: {ld_allocation_list}"
         )

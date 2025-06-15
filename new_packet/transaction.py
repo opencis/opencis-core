@@ -7,6 +7,7 @@ See LICENSE for details.
 
 from typing import Optional, List, Dict
 from opencis.util.logger import logger
+import platform
 
 from new_packet.packet_structs import (
     RawBasePacket,
@@ -883,64 +884,116 @@ def is_cxl_mem_birsp(packet) -> bool:
 class CciPayload:
     class Field:
         def __init__(self, offset, width):
-            self.offset = offset
-            self.width = width
+            self._offset = offset
+            self._width = width
 
-        def get(self, payload, name):
-            offset = self.offset
-            width = self.width
-            if width == "variable":
-                width = payload.resolve_variable_width(name)
-            print(f"name:{name}, payload._base={payload._base}, offset={offset}, width={width}")
-            return payload._packet.read_bits(payload._base + offset, width)
+        def _get_width(self, payload, name) -> int:
+            if self._width != "dynamic":
+                return self._width
 
-        def set(self, payload, name, value):
-            offset = self.offset
-            width = self.width
-            if width == "variable":
-                width = payload.resolve_variable_width(name)
-            payload._packet.write_bits(payload._base + offset, width, value)
+            if name in payload._dynamic_widths:
+                return payload._dynamic_widths[name]
+            else:
+                raise ValueError(f"Width for dynamic field '{name}' not provided.")
 
-    def __init__(self, packet, byte_offset, fields):
+        def get(self, payload, name) -> int | bytes:
+            width = self._get_width(payload, name)
+            offset = self._offset
+
+            print(
+                f"GET: name:{name}, payload._base={payload._base}, offset={offset}, width={width}"
+            )
+            arch_bits = int(platform.architecture()[0].rstrip("bit"))
+            if width <= arch_bits:
+                # field fits in a single word. Read it directly and return int
+                return payload._packet.read_bits(payload._base + offset, width)
+
+            # field is wider than a single word, return bytes
+            byte_start = (payload._base + offset) // 8
+            full_bytes = width // 8
+            data = bytes(payload._packet.buf[byte_start : byte_start + full_bytes])
+
+            tail_bits = width - full_bytes * 8
+            if tail_bits:
+                last = payload._packet.read_bits(payload._base + offset + full_bytes * 8, tail_bits)
+                data += bytes([last])
+            return data
+
+        def set(self, payload, name, value: int | bytes) -> None:
+            width = self._get_width(payload, name)
+            offset = self._offset
+
+            print(
+                f"SET: name:{name}, payload._base={payload._base}, offset={offset}, width={width}, value={value}"
+            )
+            arch_bits = int(platform.architecture()[0].rstrip("bit"))
+            if width <= arch_bits:
+                # field fits in a single word. Read it directly and return int
+                payload._packet.write_bits(payload._base + offset, width, value)
+                return
+
+            if not isinstance(value, bytes):
+                raise AttributeError(
+                    f"value width: {width}. value is {type(value)}, but must be 'bytes' if it does not fit in a single word"
+                )
+
+            byte_start = (payload._base + offset) // 8
+            full_bytes = width // 8
+            if full_bytes:
+                payload._packet.buf[byte_start : byte_start + full_bytes] = value[:full_bytes]
+
+            tail_width = width - (full_bytes * 8)
+            if tail_width:
+                payload._packet.write_bits(
+                    payload._base + offset + full_bytes * 8, tail_width, value[full_bytes]
+                )
+
+    def __init__(self, packet, byte_offset, fields, dynamic_widths: dict[str, int] = None):
         self._packet = packet
         self._base = byte_offset * 8
         self._fields = {name: self.Field(offset, width) for name, offset, width in fields}
 
+        self._dynamic_widths = {}
+        if dynamic_widths:
+            self._dynamic_widths = dynamic_widths
+
     def __getattr__(self, name):
+        if name in {"_packet", "_base", "_fields", "_dynamic_widths"}:
+            super().__getattr__(name)
         if name in self._fields:
             return self._fields[name].get(self, name)
         raise AttributeError(f"{name} not found")
 
     def __setattr__(self, name, value):
-        if name in {"_packet", "_base", "_fields"}:
+        if name in {"_packet", "_base", "_fields", "_dynamic_widths"}:
             super().__setattr__(name, value)
         elif name in self._fields:
             self._fields[name].set(self, name, value)
         else:
             raise AttributeError(f"{name} not found")
 
-    def resolve_variable_width(self, name):
-        if name == "ld_allocation_list":
-            return self.ld_allocation_list_length * 24
-        raise ValueError(f"No dynamic width resolver for field '{name}'")
-
-    def __bytes__(self):
+    def __bytes__(self) -> bytes:
         """
-        Return the contiguous byte slice that covers every field in this payload,
-        including ones whose width is dynamic.
+        Return the contiguous byte slice that spans *all* declared fields,
+        using the current dynamic widths table.  Raises if any variable field
+        is still unresolved.
         """
-        # 1. Find the highest bit used by any field
-        bit_max = 0
-        for name, fld in self._fields.items():
-            width = fld.width if fld.width != "variable" else self.resolve_variable_width(name)
-            bit_max = max(bit_max, fld.offset + width)
+        total_bits = 0
+        for name, field in self._fields.items():
+            width = field._width if field._width != "dynamic" else self._dynamic_widths.get(name)
+            if width is None:
+                raise ValueError(f"Width for variable field '{name}' was never supplied.")
+            total_bits += width
 
-        # 2. Convert that to a payload-relative byte length (ceil division)
-        size_bytes = (bit_max + 7) // 8
+        byte_start = self._base // 8
+        byte_len = (total_bits + 7) // 8
+        return bytes(self._packet.buf[byte_start : byte_start + byte_len])
 
-        # 3. Slice those bytes out of the parent packet’s backing buffer
-        byte_start = self._base // 8            # payload’s first byte in the packet
-        return bytes(self._packet.buf[byte_start : byte_start + size_bytes])
+    def set_dynamic_field_width(self, name: str, width_bits: int) -> None:
+        if name not in self._fields:
+            raise KeyError(f"Unknown field '{name}'")
+        self._dynamic_widths[name] = width_bits
+
 
 class CciBasePacket(BasePacketMixin, CciBasePacketMixin, RawCciBasePacket):
     pass
@@ -1018,7 +1071,7 @@ class CciRequestPacket(
             print(f"init CciRequestPacket, _fields:{self._fields}")
             self.init_cci_payload()
         if buf is not None:
-            print(f"init CciRequestPacket, buf:{buf}")
+            print(f"init buf not None, CciRequestPacket, buf:{buf}")
 
     def get_command_opcode(self) -> int:
         return self.cci_msg_header.command_opcode
@@ -1028,7 +1081,6 @@ class CciRequestPacket(
         self.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
         self.cci_msg_header.message_category = CCI_MCTP_MESSAGE_CATEGORY.REQUEST
         self.cci_msg_header.message_tag = 0
-        self.cci_msg_header.command_opcode = 0
         self.cci_msg_header.message_payload_length_high = 0
         self.cci_msg_header.message_payload_length_low = 0
         self.cci_msg_header.return_code = 0
@@ -1054,20 +1106,12 @@ class CciRequestPacket(
         packet.cci_msg_header.command_opcode = command_opcode
         return packet
 
-    # def init_cci_payload(self) -> int:
-    #     if self.payload is None:
-    #         cci_payload_length = self.get_cci_payload_length()
-    #         self.set_data(b"\x00" * self.get_cci_payload_length())
-    #         self.payload = CciPayload(self, self.get_payload_offset(), self._fields)
-    #         self.cci_msg_header.message_payload_length_low = cci_payload_length & 0xFFFF
-    #         self.cci_msg_header.message_payload_length_high = (cci_payload_length >> 16) & 0x1F
-    def init_cci_payload(self) -> int:
+    def init_cci_payload(self, dynamic_widths: dict[str, int] = None) -> int:
         cci_payload_length = self.get_cci_payload_length()
         cci_payload_offset = self.get_payload_offset()
-        # self.set_bytes(cci_payload_offset, b"\x00" * cci_payload_length)
-        print(f"init_cci_payload, cci_payload_length:{cci_payload_length}, cci_payload_offset:{cci_payload_offset}")
-        self.payload = CciPayload(self, cci_payload_offset, self._fields)
-        print(f"req, cci_payload_length:{cci_payload_length}, cci_payload_offset:{cci_payload_offset}")
+        self.payload = CciPayload(self, cci_payload_offset, self._fields, dynamic_widths)
+        self.cci_msg_header.message_payload_length_low = cci_payload_length & 0xFFFF
+        self.cci_msg_header.message_payload_length_high = (cci_payload_length >> 16) & 0x1F
         return cci_payload_length
 
 
@@ -1103,8 +1147,11 @@ class GetLdAllocationsRequestPacket(CciRequestPacket):
 
         packet.payload.start_ld_id = start_ld_id
         packet.payload.ld_allocation_list_limit = ld_allocation_list_limit
-        print(f"create, after all start_ld_id:{packet.payload.start_ld_id}, ld_allocation_list_limit:{packet.payload.ld_allocation_list_limit}")
+        print(
+            f"create GetLdAllocationsRequestPacket, start_ld_id:{packet.payload.start_ld_id}, ld_allocation_list_limit:{packet.payload.ld_allocation_list_limit}"
+        )
         print(f"PACKET: {bytes(packet)}")
+        packet.set_data(bytes(packet.payload))
         packet.system_header.payload_length = len(packet)
         return packet
 
@@ -1116,76 +1163,106 @@ class GetLdAllocationsRequestPacket(CciRequestPacket):
         packet.init_cci_payload()
 
         cci_msg_header_offset = packet.get_byte_offset(packet.cci_msg_header)
-        print(f"create_from_cci_message, cci_msg_header_offset:{cci_msg_header_offset}, {len(cci_message)}")
+        print(
+            f"create_from_cci_message, cci_msg_header_offset:{cci_msg_header_offset}, {len(cci_message)}"
+        )
         packet.set_bytes(cci_msg_header_offset, bytes(cci_message))
 
         data = cci_message.get_data()
         packet.payload.start_ld_id = int.from_bytes(data[:1], "little")
         packet.payload.ld_allocation_list_limit = int.from_bytes(data[1:3], "little")
         packet.set_data(data)
-        print(f"create_from_cci_message, after all start_ld_id:{packet.payload.start_ld_id}, ld_allocation_list_limit:{packet.payload.ld_allocation_list_limit}")
+        print(
+            f"create_from_cci_message, after all start_ld_id:{packet.payload.start_ld_id}, ld_allocation_list_limit:{packet.payload.ld_allocation_list_limit}"
+        )
         print(f"PACKET: {bytes(packet)}")
         packet.system_header.payload_length = len(packet)
         return packet
 
 
+LD_ALLOCATIONS_SIZE = 16
+
+
 class SetLdAllocationsRequestPacket(CciRequestPacket):
+    _fields = [
+        ("number_of_lds", 0, 8),
+        ("start_ld_id", 8, 8),
+        ("reserved", 16, 16),
+        ("ld_allocation_list", 32, "dynamic"),
+    ]
+
+    def __init__(self, buf: bytes = None):
+        super().__init__(buf)
+        if buf is None:
+            return
+
+        # LD Allocations List: 16 bytes each
+        length = self.payload.number_of_lds * LD_ALLOCATIONS_SIZE
+        self.payload.set_dynamic_field_width("ld_allocation_list", length * 8)
+
     @classmethod
     def create(
-        cls, number_of_lds: int, start_ld_id: int = 0, ld_allocation_list: int = 0
+        cls, number_of_lds: int, start_ld_id: int, ld_allocations: Dict[int, int]
     ) -> "SetLdAllocationsRequestPacket":
         if number_of_lds < 1:
             raise ValueError("Number of LDs must be greater than 0")
-        payload_length = 4 + 16 * number_of_lds
+
         packet = super().create_packet(CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS)
-
-        payload = packet.set_ld_allocations_request_payload
-        payload.number_of_lds = number_of_lds
-        payload.start_ld_id = start_ld_id
-        payload.reserved = 0
-
-        packet.set_dynamic_field_length(number_of_lds * 2 * 8)
-        packet.ld_allocation_list = ld_allocation_list
-        packet.system_header.payload_length = len(packet)
-
-        return packet
-
-    @classmethod
-    def create_from_cci_message(
-        cls, cci_message: CciMessagePacket
-    ) -> "SetLdAllocationsRequestPacket":
-        packet = cls()
-        packet.initialize_common_headers()
-        packet.populate_header_from_ccimessage(cci_message)
-
-        cci_payload = cci_message.get_data()
-        packet.set_ld_allocations_request_payload.reset(cci_payload[:payload_size])
-        raw_list = cci_payload[payload_size:]
-        packet.ld_allocation_list = [
-            int.from_bytes(raw_list[i : i + 8], "little") for i in range(0, len(raw_list), 8)
-        ]
-
-        packet.set_dynamic_field_length(
-            packet.set_ld_allocations_request_payload.number_of_lds * 2 * 8
+        print(
+            f"create SetLdAllocationsRequestPacket, number_of_lds:{number_of_lds}, start_ld_id:{start_ld_id}, ld_allocations:{ld_allocations}"
         )
-        packet.system_header.payload_length = len(packet)
+        allocated_ld_list_bytes = bytes()
+        allocated_ld_length = 0
+        print(ld_allocations)
+        for i in range(number_of_lds):
+            if ld_allocations.get(start_ld_id + i) == 1:
+                # hardcoding it to 256MB (i.e. 1)
+                allocated_ld_list_bytes += b"\x01" + b"\x00" * 7
+                allocated_ld_list_bytes += b"\x00" * 8
+                allocated_ld_length += 1
+            elif ld_allocations.get(start_ld_id + i) == 0:
+                break
 
+        dynamic_widths = {"ld_allocation_list": len(allocated_ld_list_bytes) * 8}  # in bits
+        packet.init_cci_payload(dynamic_widths)
+        packet.payload.number_of_lds = number_of_lds
+        packet.payload.start_ld_id = start_ld_id
+        packet.payload.reserved = 0
+        packet.payload.ld_allocation_list = allocated_ld_list_bytes
+        print
+        packet.set_data(bytes(packet.payload))
+
+        packet.system_header.payload_length = len(packet)
         return packet
+
+    # @classmethod
+    # def create_from_cci_message(
+    #     cls, cci_message: CciMessagePacket
+    # ) -> "SetLdAllocationsRequestPacket":
+    #     packet = cls()
+    #     packet.initialize_common_headers()
+    #     packet.populate_header_from_ccimessage(cci_message)
+
+    #     cci_payload = cci_message.get_data()
+    #     packet.payload.ld_allocation_list = [
+    #         int.from_bytes(raw_list[i : i + 8], "little") for i in range(0, len(raw_list), 8)
+    #     ]
+
+    #     packet.system_header.payload_length = len(packet)
+
+    #     return packet
 
 
 class CciResponsePacket(
     BasePacketMixin, CciBasePacketMixin, RawCciResponsePacket, PacketDataMixin, PacketFieldMixin
 ):
     def __init__(self, buf=None):
-        print(f"Creating CciResponsePacket __init__, buf:{buf}")
         self.payload = None
         if hasattr(self, "_fields"):
+            print(f"init CciResponsePacket, _fields:{self._fields}")
             self.init_cci_payload()
-
-    def __init__(self, buf=None):
-        self.payload = None
-        if hasattr(self, "_fields"):
-            self.init_cci_payload()
+        if buf is not None:
+            print(f"init CciResponsePacket, buf:{buf}")
 
     def get_command_opcode(self) -> int:
         return self.cci_msg_header.command_opcode
@@ -1195,7 +1272,6 @@ class CciResponsePacket(
         self.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
         self.cci_msg_header.message_category = CCI_MCTP_MESSAGE_CATEGORY.RESPONSE
         self.cci_msg_header.message_tag = 0
-        self.cci_msg_header.command_opcode = 0xA5
         self.cci_msg_header.message_payload_length_high = 0
         self.cci_msg_header.message_payload_length_low = 0
         self.cci_msg_header.return_code = 0
@@ -1213,22 +1289,13 @@ class CciResponsePacket(
         print(f"resp create_packet: {packet.cci_msg_header.command_opcode:x}")
         return packet
 
-    def init_cci_payload(self) -> int:
+    def init_cci_payload(self, dynamic_widths: dict[str, int] = None) -> int:
         cci_payload_length = self.get_cci_payload_length()
         cci_payload_offset = self.get_payload_offset()
-        print(f"cci_payload_length:{cci_payload_length}, cci_payload_offset:{cci_payload_offset}")
-        # self.set_bytes(cci_payload_offset, b"\x00" * cci_payload_length)
-        print(f"set_bytes DONE!")
-        self.payload = CciPayload(self, cci_payload_offset, self._fields)
+        self.payload = CciPayload(self, cci_payload_offset, self._fields, dynamic_widths)
+        self.cci_msg_header.message_payload_length_low = cci_payload_length & 0xFFFF
+        self.cci_msg_header.message_payload_length_high = (cci_payload_length >> 16) & 0x1F
         return cci_payload_length
-
-    def get_cci_payload_length(self) -> int:
-        max_bit = 0
-        for name, offset, width in self._fields:
-            if width == "variable" or callable(offset):
-                continue
-            max_bit = max(max_bit, offset + width)
-        return (max_bit + 7) // 8
 
 
 class GetLdInfoResponsePacket(CciResponsePacket):
@@ -1241,21 +1308,26 @@ class GetLdInfoResponsePacket(CciResponsePacket):
     @classmethod
     def create(cls, memory_size: int, ld_count: int, message_tag: int) -> "GetLdInfoResponsePacket":
         packet = cls.create_packet(CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO)
-
         packet.init_cci_payload()
+
+        print(f"create GetLdInfoResponsePacket, before bytes{bytes(packet)}")
         packet.cci_msg_header.message_tag = message_tag
         packet.payload.memory_size = memory_size
         packet.payload.ld_count = ld_count
         packet.payload.qos_telemetry_capability = 0
-        print(f"create: {packet.cci_msg_header.command_opcode:x}")
+        packet.set_data(bytes(packet.payload))
+
         packet.system_header.payload_length = len(packet)
-        print(f"create GetLdInfoResponsePacket, bytes:{bytes(packet)}")
+        print(f"create GetLdInfoResponsePacket, packet.payload.ld_count:{packet.payload.ld_count}")
+        print(f"create GetLdInfoResponsePacket, after bytes:{bytes(packet)}")
         return packet
 
     def get_cci_message(self) -> "CciMessagePacket":
         offset = self.get_byte_offset(self.cci_msg_header)
         length = len(self.cci_msg_header) + self.get_cci_payload_length()
-        print(f"of:{offset}, len:{length}, d:{bytes(self.get_bytes(offset, length))}")
+        print(
+            f"????GetLdInfoResponsePacket, offset:{offset}, len:{length}, d:{bytes(self.get_bytes(offset, length))}"
+        )
         return CciMessagePacket(self.get_bytes(offset, length))
 
     def get_memory_size(self) -> int:
@@ -1277,8 +1349,17 @@ class GetLdAllocationsResponsePacket(CciResponsePacket):
         ("memory_granularity", 8, 8),
         ("start_ld_id", 16, 8),
         ("ld_allocation_list_length", 24, 8),
-        ("ld_allocation_list", 32, "variable"),
+        ("ld_allocation_list", 32, "dynamic"),
     ]
+
+    def __init__(self, buf: bytes = None):
+        super().__init__(buf)
+        if buf is None:
+            return
+
+        # LD Allocations List: 16 bytes each
+        length = self.payload.ld_allocation_list_length * LD_ALLOCATIONS_SIZE
+        self.payload.set_dynamic_field_width("ld_allocation_list", length * 8)
 
     @classmethod
     def create(
@@ -1290,44 +1371,66 @@ class GetLdAllocationsResponsePacket(CciResponsePacket):
         ld_allocations: Dict[int, int],
         message_tag,
     ):
-        packet = cls.create_packet(CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO, message_tag)
-        allocated_ld_list: List[int] = []
+        packet = cls.create_packet(CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS, message_tag)
+
+        allocated_ld_list_bytes = bytes()
         allocated_ld_length = 0
         for i in range(ld_length):
             if ld_allocations.get(start_ld_id + i) == 1:
-                allocated_ld_list.append(1)
-                allocated_ld_list.append(0)
+                # hardcoding it to 256MB (i.e. 1)
+                allocated_ld_list_bytes += b"\x01" + b"\x00" * 7
+                allocated_ld_list_bytes += b"\x00" * 8
                 allocated_ld_length += 1
             elif ld_allocations.get(start_ld_id + i) == 0:
                 break
-        print(f"{start_ld_id}, {ld_length}, {allocated_ld_list}")
+
+        print(f"GetLdAllocationsResponsePacket, list:{allocated_ld_list_bytes}")
+
+        dynamic_widths = {"ld_allocation_list": len(allocated_ld_list_bytes) * 8}
+        packet.init_cci_payload(dynamic_widths)
         packet.payload.number_of_lds = number_of_lds
         packet.payload.memory_granularity = memory_granularity
         packet.payload.start_ld_id = start_ld_id
         packet.payload.ld_allocation_list_length = allocated_ld_length
-        packet.payload.ld_allocation_list = int.from_bytes(bytes(allocated_ld_list), "little")
+        packet.payload.ld_allocation_list = allocated_ld_list_bytes
 
-        print(f"packet.payload:{bytes(packet.payload)}, list:{packet.payload.ld_allocation_list}")
-        exit(1)
+        # exit(1)
         offset1 = packet.get_byte_offset(packet.system_header)
         offset2 = packet.get_byte_offset(packet.cci_header)
         offset3 = packet.get_byte_offset(packet.cci_msg_header)
         print(f"offset1:{offset1}")
         print(f"offset2:{offset2}")
         print(f"offset3:{offset3}")
-        print(f"packet.get_payload_offset():{packet.get_payload_offset()}")
-        packet.set_bytes(packet.get_payload_offset(), bytes(packet.payload))
+        print(
+            f"payload_offset():{packet.get_payload_offset()} payload:{bytes(packet.payload)} payload:{len(bytes(packet.payload))}"
+        )
+        packet.set_data(bytes(packet.payload))
 
         packet.system_header.payload_length = len(packet)
-        exit(1)
-        
         return packet
 
-    def create_cci_message(self) -> "CciMessagePacket":
-        return super().create_cci_message(self.payload_to_bytes("little"))
+    # def create_cci_message(self) -> "CciMessagePacket":
+    #     return super().create_cci_message(self.payload_to_bytes("little"))
 
 
 class SetLdAllocationsResponsePacket(CciResponsePacket):
+    _fields = [
+        ("number_of_lds", 0, 8),
+        ("start_ld_id", 8, 8),
+        ("reserved", 16, 16),
+        ("ld_allocation_list", 32, "dynamic"),
+    ]
+
+    def __init__(self, buf: bytes = None):
+        super().__init__(buf)
+        if buf is None:
+            return
+
+        # LD Allocations List: 16 bytes each
+        length = self.payload.number_of_lds * LD_ALLOCATIONS_SIZE
+        self.payload.set_dynamic_field_width("ld_allocation_list", length * 8)
+
+    # NEED TO REMOVE
     def payload_to_bytes(self) -> bytes:
         payload = self.set_ld_allocations_response_payload
         return (
@@ -1339,22 +1442,34 @@ class SetLdAllocationsResponsePacket(CciResponsePacket):
 
     @classmethod
     def create(
-        cls, number_of_lds: int, start_ld_id: int, ld_allocation_list: int, message_tag: int
+        cls, number_of_lds: int, start_ld_id: int, ld_allocations: Dict[int, int], message_tag: int
     ) -> "SetLdAllocationsResponsePacket":
-        payload_length = 4 + 16 * number_of_lds
         packet = cls.create_packet(CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS)
         packet.cci_msg_header.message_tag = message_tag
 
-        payload = packet.set_ld_allocations_response_payload
-        payload.number_of_lds = number_of_lds
-        payload.start_ld_id = start_ld_id
-        payload.reserved = 0
+        allocated_ld_list_bytes = bytearray()
+        allocated_ld_length = 0
+        print(ld_allocations)
+        for i, _ in enumerate(ld_allocations):
+            if ld_allocations.get(start_ld_id + i) == 1:
+                # hardcoding it to 256MB (i.e. 1)
+                allocated_ld_list_bytes += b"\x01" + b"\x00" * 7
+                allocated_ld_list_bytes += b"\x00" * 8
+                allocated_ld_length += 1
+            elif ld_allocations.get(start_ld_id + i) == 0:
+                break
 
-        packet.set_dynamic_field_length(number_of_lds * 2 * 8)
-        packet.ld_allocation_list = ld_allocation_list
+        dynamic_widths = {"ld_allocation_list": len(allocated_ld_list_bytes) * 8}
+        packet.init_cci_payload(dynamic_widths)
+        packet.payload.number_of_lds = number_of_lds
+        packet.payload.start_ld_id = start_ld_id
+        packet.payload.reserved = 0
+        print(f"{allocated_ld_list_bytes}, {len(allocated_ld_list_bytes)}")
+        packet.payload.ld_allocation_list = bytes(allocated_ld_list_bytes)
+        packet.set_data(bytes(packet.payload))
+
         packet.system_header.payload_length = len(packet)
-
         return packet
 
-    def create_cci_message(self) -> "CciMessagePacket":
-        return super().create_cci_message(self.payload_to_bytes())
+    # def create_cci_message(self) -> "CciMessagePacket":
+    #     return super().create_cci_message(self.payload_to_bytes())

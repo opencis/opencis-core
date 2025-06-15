@@ -189,8 +189,9 @@ class CciBasePacketMixin:
         return self.system_header.payload_length
 
     def get_cci_payload_length(self) -> int:
-        if not self._fields:
-            return 0
-        _, last_offset, last_width = self._fields[-1]
-        total_bits = last_offset + last_width
-        return (total_bits + 7) // 8
+        max_bit = 0
+        for _, offset, width in self._fields:
+            if width == "dynamic" or callable(offset):
+                continue
+            max_bit = max(max_bit, offset + width)
+        return (max_bit + 7) // 8
