@@ -14,7 +14,7 @@ from opencis.util.component import RunnableComponent
 from opencis.util.async_gatherer import AsyncGatherer
 
 from opencis.cxl.component.cxl_connection import CxlConnection
-from new_packet.transaction import (
+from opencis.cxl.transport.transaction import (
     CxlIoBasePacket,
     CxlMemBasePacket,
     CxlMemS2MNDRPacket,

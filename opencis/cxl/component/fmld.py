@@ -12,7 +12,7 @@ from opencis.util.component import RunnableComponent
 from opencis.util.logger import logger
 from opencis.pci.component.fifo_pair import FifoPair
 from opencis.cxl.device.cxl_type3_device import CXL_T3_DEV_TYPE
-from new_packet.transaction import (
+from opencis.cxl.transport.transaction import (
     CciRequestPacket,
     GetLdInfoRequestPacket,
     GetLdInfoResponsePacket,

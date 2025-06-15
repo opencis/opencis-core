@@ -9,11 +9,11 @@ from asyncio import Condition
 from typing import cast, Any, Tuple, Optional, Callable, Dict, Coroutine
 
 from opencis.cxl.component.mctp.mctp_connection import MctpConnection
-from new_packet.transaction import (
+from opencis.cxl.transport.transaction import (
     CciMessagePacket,
     CciPayloadPacket,
 )
-from new_packet.packet_constants import CCI_MCTP_MESSAGE_CATEGORY
+from opencis.cxl.transport.packet_constants import CCI_MCTP_MESSAGE_CATEGORY
 
 from opencis.cxl.cci.common import get_opcode_string
 from opencis.cxl.cci.generic.information_and_status import (

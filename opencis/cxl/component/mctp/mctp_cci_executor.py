@@ -22,14 +22,14 @@ from opencis.cxl.component.cxl_component import (
     PORT_TYPE,
     PortConfig,
 )
-from new_packet.transaction import (
+from opencis.cxl.transport.transaction import (
     CciMessagePacket,
     CciPayloadPacket,
     GetLdInfoRequestPacket,
     GetLdAllocationsRequestPacket,
     SetLdAllocationsRequestPacket,
 )
-from new_packet.packet_constants import CCI_MCTP_MESSAGE_CATEGORY
+from opencis.cxl.transport.packet_constants import CCI_MCTP_MESSAGE_CATEGORY
 
 from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE, get_opcode_string
 from opencis.util.logger import logger

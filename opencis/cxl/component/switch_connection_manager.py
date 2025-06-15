@@ -14,17 +14,17 @@ import traceback
 
 from opencis.cxl.component.cxl_connection import CxlConnection
 
-from new_packet.transaction import (
+from opencis.cxl.transport.transaction import (
     BasePacket,
     BaseSidebandPacket,
     SidebandConnectionRequestPacket,
 )
-from new_packet.packet_constants import (
+from opencis.cxl.transport.packet_constants import (
     SYSTEM_PAYLOAD_TYPE,
     SIDEBAND_TYPES,
 )
 
-from new_packet.packet_reader import PacketReader
+from opencis.cxl.transport.packet_reader import PacketReader
 from opencis.cxl.component.cxl_packet_processor import CxlPacketProcessor
 from opencis.cxl.component.cxl_component import (
     PortConfig,

@@ -36,12 +36,22 @@ from new_packet.transaction import (
     CxlMemS2MBISnpPacket,
     CxlMemS2MNDRPacket,
     CxlMemS2MDRSPacket,
+    CciBasePacket,
+    CciRequestPacket,
+    CciResponsePacket,
+    GetLdInfoRequestPacket,
+    GetLdAllocationsRequestPacket,
+    SetLdAllocationsRequestPacket,
+    GetLdInfoResponsePacket,
+    GetLdAllocationsResponsePacket,
+    SetLdAllocationsResponsePacket,
 )
 from opencis.util.logger import logger
 from opencis.util.component import LabeledComponent
 
 from new_packet.packet_structs import (
     SystemHeader,
+    CciHeader,
 )
 
 
@@ -113,9 +123,7 @@ class PacketReader(LabeledComponent):
     async def _get_payload(self) -> Tuple[BasePacket, bytes]:
         logger.debug(self._create_message("Waiting Packet"))
         header_load = await self._read_payload(SystemHeader.get_size())
-
-        # logger.debug(self._create_message(f"list(header_load)}"))
-
+        # logger.debug(f"header_load: {header_load}")
         base_packet = BasePacket(bytearray(header_load))
         remaining_length = base_packet.system_header.payload_length - len(base_packet)
         if remaining_length < 0:
@@ -126,7 +134,6 @@ class PacketReader(LabeledComponent):
 
     async def _read_payload(self, size: int) -> bytes:
         payload = await self._reader.read(size)
-        # logger.debug(self._create_message(f"rx: {payload}"))
         if not payload:
             raise Exception("Connection disconnected")
         return payload
@@ -194,44 +201,40 @@ class PacketReader(LabeledComponent):
 
         return cxl_cache_packet
 
-    # def _get_cci_packet(self, payload: bytes) -> CciBasePacket:
-    #     cci_base_packet = CciBasePacket()
-    #     header_size = len(cci_base_packet.cci_header) + SystemHeader.get_size()
-    #     cci_base_packet.reset(payload[:header_size])
+    def _get_cci_packet(self, payload: bytes) -> CciBasePacket:
+        payload = bytearray(payload)
+        cci_base_packet = CciBasePacket(payload)
+        logger.info("HERE 0")
 
-    #     if cci_base_packet.is_req():
-    #         cci_packet = CciRequestPacket()
-    #         cci_packet.reset(payload)
-    #         if cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
-    #             cci_packet = GetLdInfoRequestPacket()
-    #             cci_packet.reset(payload)
-    #         elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:
-    #             cci_packet = GetLdAllocationsRequestPacket()
-    #             logger.debug(f"GetLdAllocationsRequestPacket created: {cci_packet}")
-    #             cci_packet.reset(payload)
-    #         elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
-    #             cci_packet = SetLdAllocationsRequestPacket()
-    #             cci_packet.reset(payload)
-    #         else:
-    #             raise Exception("Unsupported CCI packet")
-    #     elif cci_base_packet.is_rsp():
-    #         cci_packet = CciResponsePacket()
-    #         cci_packet.reset(payload)
-    #         if cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
-    #             cci_packet = GetLdInfoResponsePacket()
-    #             cci_packet.reset(payload)
-    #         elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:
-    #             cci_packet = GetLdAllocationsResponsePacket()
-    #             cci_packet.reset(payload)
-    #         elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
-    #             cci_packet = SetLdAllocationsResponsePacket()
-    #             cci_packet.reset(payload)
-    #         else:
-    #             raise Exception("Unsupported CCI packet")
-    #     else:
-    #         raise Exception("Unsupported CCI packet")
+        if cci_base_packet.is_req():
+            cci_packet = CciRequestPacket(payload)
+            if cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
+                cci_packet = GetLdInfoRequestPacket(payload)
+            elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:
+                cci_packet = GetLdAllocationsRequestPacket(payload)
+            elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
+                cci_packet = SetLdAllocationsRequestPacket(payload)
+            else:
+                logger.info("HERE 1")
+                raise Exception("Unsupported CCI packet")
+        elif cci_base_packet.is_rsp():
+            print(f"cci_base_packet: {bytes(cci_base_packet)}")
+            cci_packet = CciResponsePacket(payload)
+            if cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
+                cci_packet = GetLdInfoResponsePacket(payload)
+            elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:
+                cci_packet = GetLdAllocationsResponsePacket(payload)
+            elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
+                cci_packet = SetLdAllocationsResponsePacket(payload)
+            else:
+                logger.info("HERE 2")
+                raise Exception("Unsupported CCI packet")
+        else:
+            logger.info("HERE 3")
+            raise Exception("Unsupported CCI packet")
+        logger.info(f"HERE 5 {cci_packet}")
 
-    #     return cci_packet
+        return cci_packet
 
     def _get_sideband_packet(self, payload: bytes) -> BaseSidebandPacket:
         payload = bytearray(payload)
@@ -244,15 +247,3 @@ class PacketReader(LabeledComponent):
         ):
             sideband_packet = base_sideband_packet
         return sideband_packet
-
-    async def _get_sideband_connection_request_packet(self, packets: bytes):
-        remaining_packets_size = SidebandConnectionRequestPacket.get_size() - len(packets)
-        remaining_packets = await self._reader.read(remaining_packets_size)
-        if not remaining_packets:
-            raise Exception("Connection disconnected")
-
-        packets = packets + remaining_packets
-        sideband = SidebandConnectionRequestPacket()
-        sideband.reset(packets)
-
-        return sideband

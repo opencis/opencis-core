@@ -20,7 +20,7 @@ from opencis.pci.component.pci import (
     PCI_CLASS,
     PCI_SYSTEM_PERIPHERAL_SUBCLASS,
 )
-from new_packet.transaction import (
+from opencis.cxl.transport.transaction import (
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
     CxlIoMemRdPacket,

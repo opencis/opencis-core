@@ -23,7 +23,7 @@ from opencis.cxl.component.cxl_component import (
 )
 from opencis.cxl.component.common import CXL_COMPONENT_TYPE
 from opencis.util.pci import create_bdf
-from new_packet.transaction import (
+from opencis.cxl.transport.transaction import (
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
     CxlIoMemRdPacket,

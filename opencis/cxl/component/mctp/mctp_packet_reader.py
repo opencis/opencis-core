@@ -8,7 +8,7 @@ See LICENSE for details.
 from asyncio import StreamReader, create_task
 from typing import Optional
 
-from new_packet.transaction import (
+from opencis.cxl.transport.transaction import (
     CciMessagePacket,
     CciPayloadPacket,
 )

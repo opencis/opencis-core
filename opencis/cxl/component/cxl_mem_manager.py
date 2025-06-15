@@ -9,7 +9,7 @@ from typing import Optional, cast
 
 from opencis.util.logger import logger
 from opencis.pci.component.fifo_pair import FifoPair
-from new_packet.transaction import (
+from opencis.cxl.transport.transaction import (
     BasePacket,
     CxlMemBasePacket,
     CxlMemM2SBIRspPacket,

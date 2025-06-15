@@ -8,7 +8,7 @@ See LICENSE for details.
 from asyncio import create_task
 import asyncio
 import logging
-from typing import List, cast
+from typing import cast
 import pytest
 
 from opencis.apps.multi_logical_device import MultiLogicalDevice
@@ -20,8 +20,8 @@ from opencis.pci.component.pci import EEUM_VID, SW_MLD_DID
 from opencis.util.number_const import MB
 from opencis.util.logger import logger
 from opencis.util.pci import create_bdf
-from new_packet.packet_reader import PacketReader
-from new_packet.transaction import (
+from opencis.cxl.transport.packet_reader import PacketReader
+from opencis.cxl.transport.transaction import (
     CxlIoCfgRdPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
@@ -37,7 +37,7 @@ from new_packet.transaction import (
     is_cxl_io_completion_status_sc,
     is_cxl_io_completion_status_ur,
 )
-from new_packet.packet_constants import (
+from opencis.cxl.transport.packet_constants import (
     CCI_MCTP_MESSAGE_CATEGORY,
 )
 
