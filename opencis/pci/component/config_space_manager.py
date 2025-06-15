@@ -154,9 +154,9 @@ class ConfigSpaceManager(RunnableComponent):
         logger.debug(
             self._create_message(
                 f"[WR] Config Space - ADDR: 0x{cfg_addr:04x}, "
-                + "SIZE: {size}, "
-                + "VALUE: 0x{value:08x}, "
-                + "LD_ID: {ld_id}"
+                + f"SIZE: {size}, "
+                + f"VALUE: 0x{value:08x}, "
+                + f"LD_ID: {ld_id}"
             )
         )
         self._register.write_bytes(cfg_addr, cfg_addr + size - 1, value)
