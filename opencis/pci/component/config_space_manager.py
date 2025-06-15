@@ -116,7 +116,7 @@ class ConfigSpaceManager(RunnableComponent):
             )
         )
         value = self._register.read_bytes(cfg_addr, cfg_addr + size - 1)
-
+        logger.debug(self._create_message(f"value: 0x{value:x}"))
         cpl_packet = CxlIoCompletionWithDataPacket.create(
             req_id, tag, value, cpl_id=dest_id, ld_id=ld_id
         )

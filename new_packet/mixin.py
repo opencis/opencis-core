@@ -32,6 +32,7 @@ class PacketDataMixin:
             length = (data.bit_length() + 7) // 8 or 1
 
         data = data.to_bytes(length, byteorder="little")
+        print(f"Setting data as int, in bytes:{data}")
         self.set_data(data)
 
     def get_pretty_string(self):
