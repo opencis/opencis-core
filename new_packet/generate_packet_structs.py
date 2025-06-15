@@ -77,7 +77,6 @@ def emit_composite(packet_name, layout, field_sizes):
         size_bits = max(start + width for _, start, width in struct_fields)
         size_bytes = (size_bits + 7) // 8
         offset_map[struct] = (offset, size_bytes)
-        print(f"Struct {struct} has size {size_bytes} bytes")
         offset += size_bytes
 
     total_header_bytes = offset
