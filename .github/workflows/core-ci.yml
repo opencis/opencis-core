@@ -16,7 +16,7 @@ jobs:
       - name: Install Python packages via uv
         run: uv python pin 3.13 && uv sync
       - name: Run pytest
-        run: make test
+        run: make -C opencis/cxl/transport code && make test
   code-quality:
     name: code-quality
     runs-on: ubuntu-22.04
