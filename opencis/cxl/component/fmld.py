@@ -6,7 +6,7 @@ See LICENSE for details.
 """
 
 from asyncio import create_task, gather
-from typing import Optional, cast, List
+from typing import Optional, cast
 from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
 from opencis.util.component import RunnableComponent
 from opencis.util.logger import logger
@@ -71,12 +71,6 @@ class FMLD(RunnableComponent):
         if request_packet.get_command_opcode() != CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:
             raise Exception("Invalid command opcode")
         logger.info(f"FMLD Get LD Allocations: {bytes(request_packet)}")
-        print(
-            f"get_ld_allocations_packet.payload.start_ld_id: {request_packet.payload.start_ld_id}"
-        )
-        print(
-            f"get_ld_allocations_packet.payload.ld_allocation_list_limit: {request_packet.payload.ld_allocation_list_limit}"
-        )
         start_ld_id = request_packet.payload.start_ld_id
         ld_alloc_list_limit = request_packet.payload.ld_allocation_list_limit
 
@@ -97,9 +91,6 @@ class FMLD(RunnableComponent):
             if self._ld_allocations.get(start_ld_id + i) == 1:
                 number_of_lds += 1
 
-        print(
-            f"FMLD, create: number_of_lds:{number_of_lds}, ld_length:{ld_length}, start_ld_id:{start_ld_id}, self._ld_allocations:{self._ld_allocations}"
-        )
         get_ld_allocations_response_packet = GetLdAllocationsResponsePacket.create(
             number_of_lds=number_of_lds,
             memory_granularity=0,
@@ -128,9 +119,6 @@ class FMLD(RunnableComponent):
         print(f"ABOUT TO PROCESS: {ld_allocation_list_bytes}")
         number_of_lds = min(number_of_lds, len(self._ld_allocations) - start_ld_id)
         for i in range(number_of_lds):
-            print(
-                f"Processing LD ID: {start_ld_id + i}, multiplier: {ld_allocation_list_bytes[i * LD_ALLOCATIONS_SIZE]}"
-            )
             ld_id = start_ld_id + i
             multiplier = ld_allocation_list_bytes[i * LD_ALLOCATIONS_SIZE]
             self._ld_allocations[ld_id] = multiplier

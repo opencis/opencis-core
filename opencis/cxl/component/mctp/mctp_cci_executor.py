@@ -69,7 +69,7 @@ class MctpCciExecutor(RunnableComponent):
             opcode=0,
             data=response.payload,
             message_tag=message_tag,
-            vendor_specific_extended_status=response.vendor_specific_status,
+            vendor_specific_extended_status=response.vendor_specific_extended_status,
             return_code=response.return_code,
             background_operation=int(response.bo_flag),
         )

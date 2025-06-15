@@ -15,7 +15,6 @@ from opencis.util.logger import logger
 from opencis.util.pci import (
     extract_bus_from_bdf,
     extract_device_from_bdf,
-    extract_function_from_bdf,
     bdf_to_string,
 )
 from opencis.cxl.transport.transaction import (

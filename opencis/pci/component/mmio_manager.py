@@ -18,7 +18,6 @@ from opencis.pci.component.packet_processor import PacketProcessor
 from opencis.cxl.transport.transaction import (
     BasePacket,
     CxlIoBasePacket,
-    CxlIoMemWrPacket,
     CxlIoMemReqPacket,
     CxlIoCompletionPacket,
     CxlIoCompletionWithDataPacket,

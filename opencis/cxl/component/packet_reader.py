@@ -49,11 +49,6 @@ from opencis.cxl.transport.transaction import (
 from opencis.util.logger import logger
 from opencis.util.component import LabeledComponent
 
-from opencis.cxl.transport.packet_structs import (
-    SystemHeader,
-    CciHeader,
-)
-
 
 class PACKET_READ_STATUS(Enum):
     OK = auto()
@@ -122,7 +117,7 @@ class PacketReader(LabeledComponent):
 
     async def _get_payload(self) -> Tuple[BasePacket, bytes]:
         logger.debug(self._create_message("Waiting Packet"))
-        header_load = await self._read_payload(SystemHeader.get_size())
+        header_load = await self._read_payload(len(BasePacket))
         # logger.debug(f"header_load: {header_load}")
         base_packet = BasePacket(bytearray(header_load))
         remaining_length = base_packet.system_header.payload_length - len(base_packet)

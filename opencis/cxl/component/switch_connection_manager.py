@@ -14,11 +14,7 @@ import traceback
 
 from opencis.cxl.component.cxl_connection import CxlConnection
 
-from opencis.cxl.transport.transaction import (
-    BasePacket,
-    BaseSidebandPacket,
-    SidebandConnectionRequestPacket,
-)
+from opencis.cxl.transport.transaction import BaseSidebandPacket
 from opencis.cxl.transport.packet_constants import (
     SYSTEM_PAYLOAD_TYPE,
     SIDEBAND_TYPES,

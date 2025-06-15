@@ -91,7 +91,6 @@ class ConfigSpaceManager(RunnableComponent):
                     f"Received request for {bdf_str}, however, this device supports function 0 only"
                 )
             )
-            logger.info(f"UR 1")
             await self._send_unsupported_request(req_id, tag, ld_id)
             return
 
@@ -142,7 +141,6 @@ class ConfigSpaceManager(RunnableComponent):
                     f"Received request for {bdf_str}, however, this device supports function 0 only"
                 )
             )
-            logger.info(f"UR 3")
             await self._send_unsupported_request(req_id, tag, ld_id)
             return
 
@@ -194,7 +192,6 @@ class ConfigSpaceManager(RunnableComponent):
                     req_id = tlptoh16(cfg_req_packet.cfg_req_header.req_id)
                     tag = cfg_req_packet.cfg_req_header.tag
                     ld_id = cfg_req_packet.tlp_prefix.ld_id
-                    logger.info(f"UR 4")
                     await self._send_unsupported_request(req_id, tag, ld_id=ld_id)
             else:
                 raise Exception("Unexpected packet received from ConfigSpaceManager")

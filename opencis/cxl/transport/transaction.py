@@ -1013,7 +1013,7 @@ class CciMessagePacket(BasePacketMixin, CciBasePacketMixin, RawCciMessagePacket,
         message_category: CCI_MCTP_MESSAGE_CATEGORY,
         opcode: int,
         message_tag: int = 0,
-        vendor_specific_status: int = 0,
+        vendor_specific_extended_status: int = 0,
         return_code: int = 0,
         background_operation: int = 0,
     ) -> "CciMessagePacket":
@@ -1021,7 +1021,7 @@ class CciMessagePacket(BasePacketMixin, CciBasePacketMixin, RawCciMessagePacket,
         packet.cci_msg_header.message_category = message_category
         packet.cci_msg_header.command_opcode = opcode
         packet.cci_msg_header.message_tag = message_tag
-        packet.cci_msg_header.vendor_specific_extended_status = vendor_specific_status
+        packet.cci_msg_header.vendor_specific_extended_status = vendor_specific_extended_status
         packet.cci_msg_header.return_code = return_code
         packet.cci_msg_header.background_operation = background_operation
 
