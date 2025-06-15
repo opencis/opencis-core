@@ -179,8 +179,8 @@ def main():
             f.write(emit_composite(packet_name, layout, field_sizes))
             f.write("\n")
 
-        py_shim = base / "packet_structs.py"
-        if not py_shim.exists():  # don't overwrite user edits
+        py_shim = base / "packet_structs.pyi"
+        if not py_shim.exists():
             with py_shim.open("w") as s:
                 s.write("# Auto-generated shim. Do NOT edit.\n\n")
                 for pkt in packets.PACKETS:

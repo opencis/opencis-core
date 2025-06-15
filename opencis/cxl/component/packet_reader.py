@@ -11,6 +11,7 @@ import traceback
 from typing import Optional, Tuple
 
 from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
+from opencis.cxl.transport.packet_structs import SystemHeader
 from opencis.cxl.transport.transaction import (
     BasePacket,
     BaseSidebandPacket,
@@ -117,7 +118,7 @@ class PacketReader(LabeledComponent):
 
     async def _get_payload(self) -> Tuple[BasePacket, bytes]:
         logger.debug(self._create_message("Waiting Packet"))
-        header_load = await self._read_payload(len(BasePacket))
+        header_load = await self._read_payload(SystemHeader.get_size())
         # logger.debug(f"header_load: {header_load}")
         base_packet = BasePacket(bytearray(header_load))
         remaining_length = base_packet.system_header.payload_length - len(base_packet)
