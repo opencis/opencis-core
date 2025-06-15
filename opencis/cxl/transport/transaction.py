@@ -959,16 +959,24 @@ class CciPayload:
             self._dynamic_widths = dynamic_widths
 
     def __getattr__(self, name):
-        if name in self._fields:
-            return self._fields[name].get(self, name)
+        if name.startswith("_"):
+            return object.__getattribute__(self, name)
 
-        raise AttributeError(f"{name} not found")
+        fields = self.__dict__.get("_fields", {})
+        if name in fields:
+            return fields[name].get(self, name)
+
+        raise AttributeError(f"{name!r} not found")
 
     def __setattr__(self, name, value):
-        if name in self._fields:
-            self._fields[name].set(self, name, value)
+        if name.startswith("_"):
+            return object.__setattr__(self, name, value)
 
-        raise AttributeError(f"{name} not found")
+        fields = self.__dict__.get("_fields", {})
+        if name in fields:
+            return fields[name].set(self, name, value)
+
+        raise AttributeError(f"{name!r} not found")
 
     def __bytes__(self) -> bytes:
         """
