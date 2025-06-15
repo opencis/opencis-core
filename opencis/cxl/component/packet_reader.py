@@ -11,7 +11,7 @@ import traceback
 from typing import Optional, Tuple
 
 from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
-from new_packet.transaction import (
+from opencis.cxl.transport.transaction import (
     BasePacket,
     BaseSidebandPacket,
     SidebandConnectionRequestPacket,
@@ -49,7 +49,7 @@ from new_packet.transaction import (
 from opencis.util.logger import logger
 from opencis.util.component import LabeledComponent
 
-from new_packet.packet_structs import (
+from opencis.cxl.transport.packet_structs import (
     SystemHeader,
     CciHeader,
 )

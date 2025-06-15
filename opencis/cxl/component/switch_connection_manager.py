@@ -24,7 +24,7 @@ from opencis.cxl.transport.packet_constants import (
     SIDEBAND_TYPES,
 )
 
-from opencis.cxl.transport.packet_reader import PacketReader
+from opencis.cxl.component.packet_reader import PacketReader
 from opencis.cxl.component.cxl_packet_processor import CxlPacketProcessor
 from opencis.cxl.component.cxl_component import (
     PortConfig,

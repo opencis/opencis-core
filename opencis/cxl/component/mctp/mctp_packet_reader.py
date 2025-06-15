@@ -14,7 +14,7 @@ from opencis.cxl.transport.transaction import (
 )
 from opencis.util.logger import logger
 from opencis.util.component import LabeledComponent
-from opencis.cxl.transport.common import BasePacket
+from opencis.cxl.transport.transaction import BasePacket
 
 # pylint: disable=duplicate-code
 

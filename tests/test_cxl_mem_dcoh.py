@@ -18,13 +18,13 @@ from opencis.cxl.component.cxl_memory_device_component import (
     MemoryDeviceIdentity,
 )
 from opencis.cxl.transport.cache_fifo import CacheFifoPair
-from opencis.cxl.transport.common import BasePacket
 from opencis.cxl.transport.transaction import (
     CXL_MEM_M2S_SNP_TYPE,
     CXL_MEM_M2SREQ_OPCODE,
     CXL_MEM_M2SRWD_OPCODE,
     CXL_MEM_META_FIELD,
     CXL_MEM_META_VALUE,
+    BasePacket,
     CxlMemBasePacket,
     CxlMemMemRdPacket,
     CxlMemMemWrPacket,

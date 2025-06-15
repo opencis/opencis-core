@@ -10,7 +10,6 @@ from asyncio import create_task, gather, sleep, Queue
 import asyncio
 from typing import cast
 
-from opencis.cxl.transport.common import BasePacket
 from opencis.util.logger import logger
 from opencis.util.component import RunnableComponent
 from opencis.pci.component.fifo_pair import FifoPair
@@ -29,6 +28,7 @@ from opencis.cxl.transport.cache_fifo import (
     CACHE_RESPONSE_STATUS,
 )
 from opencis.cxl.transport.transaction import (
+    BasePacket,
     CxlMemBasePacket,
     CxlMemMemDataPacket,
     CxlMemMemRdPacket,

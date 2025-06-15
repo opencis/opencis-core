@@ -20,7 +20,7 @@ from opencis.pci.component.pci import EEUM_VID, SW_MLD_DID
 from opencis.util.number_const import MB
 from opencis.util.logger import logger
 from opencis.util.pci import create_bdf
-from opencis.cxl.transport.packet_reader import PacketReader
+from opencis.cxl.component.packet_reader import PacketReader
 from opencis.cxl.transport.transaction import (
     CxlIoCfgRdPacket,
     CxlIoMemRdPacket,
