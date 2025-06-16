@@ -10,7 +10,7 @@ import pytest
 
 from opencis.pci.component.mmio_manager import MmioManager, BarEntry
 from opencis.pci.component.fifo_pair import FifoPair
-from opencis.cxl.transport.transaction import CxlIoMemRdPacket, CxlIoMemWrPacket
+from opencis.cxl.transport.cxl_io_packets import CxlIoMemRdPacket, CxlIoMemWrPacket
 
 
 def test_mmio_manager():

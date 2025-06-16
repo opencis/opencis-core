@@ -15,12 +15,12 @@ from opencis.util.async_gatherer import AsyncGatherer
 
 from opencis.cxl.component.cxl_connection import CxlConnection
 from opencis.cxl.transport.transaction import (
-    CxlIoBasePacket,
     CxlMemBasePacket,
     CxlMemS2MNDRPacket,
     CxlMemS2MDRSPacket,
     CxlMemS2MBISnpPacket,
 )
+from opencis.cxl.transport.cxl_io_packets import CxlIoBasePacket
 
 
 @dataclass

@@ -23,13 +23,6 @@ from opencis.cxl.transport.transaction import (
     CxlCacheCacheH2DDataPacket,
     CxlCacheCacheH2DReqPacket,
     CxlCacheCacheH2DRspPacket,
-    CxlIoBasePacket,
-    CxlIoCfgRdPacket,
-    CxlIoCfgWrPacket,
-    CxlIoMemRdPacket,
-    CxlIoMemWrPacket,
-    CxlIoCompletionPacket,
-    CxlIoCompletionWithDataPacket,
     CxlMemBasePacket,
     CxlMemM2SReqPacket,
     CxlMemM2SRwDPacket,
@@ -38,6 +31,16 @@ from opencis.cxl.transport.transaction import (
     CxlMemS2MNDRPacket,
     CxlMemS2MDRSPacket,
 )
+from opencis.cxl.transport.cxl_io_packets import (
+    CxlIoBasePacket,
+    CxlIoCfgRdPacket,
+    CxlIoCfgWrPacket,
+    CxlIoMemRdPacket,
+    CxlIoMemWrPacket,
+    CxlIoCompletionPacket,
+    CxlIoCompletionWithDataPacket,
+)
+
 from opencis.cxl.transport.cci_packets import (
     CciBasePacket,
     CciRequestPacket,

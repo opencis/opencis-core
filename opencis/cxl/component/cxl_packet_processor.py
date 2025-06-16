@@ -25,13 +25,15 @@ from opencis.cxl.component.packet_reader import PacketReader
 from opencis.cxl.transport.transaction import (
     BasePacket,
     BaseSidebandPacket,
-    CxlIoBasePacket,
     CxlMemBasePacket,
     CxlCacheBasePacket,
     SIDEBAND_TYPES,
+)
+from opencis.cxl.transport.packet_constants import (
     SYSTEM_PAYLOAD_TYPE,
     CXL_IO_FMT_TYPE,
 )
+from opencis.cxl.transport.cxl_io_packets import CxlIoBasePacket
 from opencis.cxl.transport.cci_packets import (
     CciRequestPacket,
     CciResponsePacket,
@@ -39,7 +41,6 @@ from opencis.cxl.transport.cci_packets import (
     GetLdAllocationsResponsePacket,
     SetLdAllocationsResponsePacket,
 )
-
 from opencis.cxl.device.cxl_type3_device import CXL_T3_DEV_TYPE
 from opencis.cxl.component.fmld import FMLD
 

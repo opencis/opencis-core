@@ -23,21 +23,25 @@ from opencis.cxl.component.cxl_component import (
 )
 from opencis.cxl.component.common import CXL_COMPONENT_TYPE
 from opencis.util.pci import create_bdf
+from opencis.cxl.transport.packet_constants import (
+    CXL_IO_CPL_STATUS,
+    CXL_MEM_M2SBIRSP_OPCODE,
+    CXL_MEM_S2MBISNP_OPCODE,
+)
 from opencis.cxl.transport.transaction import (
-    CxlIoCfgRdPacket,
-    CxlIoCfgWrPacket,
-    CxlIoMemRdPacket,
-    CxlIoMemWrPacket,
-    CxlIoCompletionWithDataPacket,
     CxlMemMemRdPacket,
     CxlMemMemWrPacket,
     CxlMemMemDataPacket,
     CxlMemBIRspPacket,
     CxlMemBISnpPacket,
     CxlMemCmpPacket,
-    CXL_IO_CPL_STATUS,
-    CXL_MEM_M2SBIRSP_OPCODE,
-    CXL_MEM_S2MBISNP_OPCODE,
+)
+from opencis.cxl.transport.cxl_io_packets import (
+    CxlIoCfgRdPacket,
+    CxlIoCfgWrPacket,
+    CxlIoMemRdPacket,
+    CxlIoMemWrPacket,
+    CxlIoCompletionWithDataPacket,
 )
 
 

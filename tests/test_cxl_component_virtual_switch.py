@@ -30,6 +30,8 @@ from opencis.util.unaligned_bit_structure import UnalignedBitStructure
 from opencis.cxl.transport.transaction import (
     CXL_MEM_M2SBIRSP_OPCODE,
     BasePacket,
+)
+from opencis.cxl.transport.cxl_io_packets import (
     CxlIoBasePacket,
     CxlIoCompletionWithDataPacket,
     is_cxl_io_completion_status_ur,

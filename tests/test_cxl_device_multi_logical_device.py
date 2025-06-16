@@ -21,12 +21,14 @@ from opencis.util.logger import logger
 from opencis.util.pci import create_bdf
 from opencis.cxl.component.packet_reader import PacketReader
 from opencis.cxl.transport.transaction import (
+    CxlMemMemRdPacket,
+    CxlMemMemWrPacket,
+)
+from opencis.cxl.transport.cxl_io_packets import (
     CxlIoCfgRdPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
     CxlIoCfgWrPacket,
-    CxlMemMemRdPacket,
-    CxlMemMemWrPacket,
     CxlIoCompletionWithDataPacket,
     is_cxl_io_completion_status_sc,
     is_cxl_io_completion_status_ur,

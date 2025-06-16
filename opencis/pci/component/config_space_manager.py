@@ -12,16 +12,19 @@ from opencis.pci.component.fifo_pair import FifoPair
 from opencis.pci.config_space.pci import REG_ADDR
 from opencis.util.unaligned_bit_structure import BitMaskedBitStructure
 from opencis.util.number import tlptoh16
-from opencis.cxl.transport.transaction import (
+from opencis.cxl.transport.cxl_io_packets import (
     CxlIoBasePacket,
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
     CxlIoCfgReqPacket,
     CxlIoCompletionPacket,
     CxlIoCompletionWithDataPacket,
+)
+from opencis.cxl.transport.packet_constants import (
     CXL_IO_FMT_TYPE,
     CXL_IO_CPL_STATUS,
 )
+
 from opencis.util.component import RunnableComponent
 from opencis.util.pci import bdf_to_string
 from opencis.util.logger import logger

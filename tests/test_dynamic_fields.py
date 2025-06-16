@@ -12,10 +12,7 @@ from opencis.util.unaligned_bit_structure import (
     ByteField,
     DynamicByteField,
 )
-
-from opencis.cxl.transport.transaction import (
-    CxlIoMemWrPacket,
-)
+from opencis.cxl.transport.cxl_io_packets import CxlIoMemWrPacket
 
 
 class DynamicByteStructure(UnalignedBitStructure):

@@ -14,8 +14,8 @@ from opencis.cxl.transport.transaction import (
     SIDEBAND_TYPES,
     SidebandConnectionRequestPacket,
     BaseSidebandPacket,
-    CxlIoCfgRdPacket,
 )
+from opencis.cxl.transport.cxl_io_packets import CxlIoCfgRdPacket
 from opencis.cxl.component.common import CXL_COMPONENT_TYPE
 from opencis.cxl.component.packet_reader import PacketReader
 from opencis.cxl.component.cxl_connection import CxlConnection
