@@ -1,13 +1,11 @@
+"""
+Copyright (c) 2024-2025, Eeum, Inc.
+
+This software is licensed under the terms of the Revised BSD License.
+See LICENSE for details.
+"""
+
 from enum import IntEnum
-
-
-class SYSTEM_PAYLOAD_TYPE(IntEnum):
-    CXL = 0  # packet based on CPI
-    CXL_IO = 1  # Custom packet for CXL.io
-    CXL_MEM = 2  # Custom packet for CXL.mem
-    CXL_CACHE = 3  # Custom packet for CXL.cache
-    CCI_MCTP = 4  # Custom packet for CCI MCTP
-    SIDEBAND = 15
 
 
 # TODO: DELETE ME later

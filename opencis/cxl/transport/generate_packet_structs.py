@@ -184,13 +184,15 @@ def main():
             f.write("\n")
 
         py_shim = base / "packet_structs.pyi"
-        if not py_shim.exists():
-            with py_shim.open("w") as s:
-                s.write("# Auto-generated shim. Do NOT edit.\n\n")
-                for pkt in packets.PACKETS:
-                    s.write(f"class Raw{pkt}: ...\n")
-                for hdr in field_sizes:
-                    s.write(f"class {hdr}: ...\n")
+        with py_shim.open("w") as s:
+            s.write(
+                "# Auto-generated shim. Do NOT edit.\n\n"
+                "# pylint: disable=missing-module-docstring\n\n"
+            )
+            for pkt in packets.PACKETS:
+                s.write(f"class Raw{pkt}: ...\n")
+            for hdr in field_sizes:
+                s.write(f"class {hdr}: ...\n")
 
 
 if __name__ == "__main__":

@@ -5,8 +5,6 @@ This software is licensed under the terms of the Revised BSD License.
 See LICENSE for details.
 """
 
-import ctypes
-
 from opencis.cxl.transport.packet_constants import (
     SYSTEM_PAYLOAD_TYPE,
     CXL_IO_FMT_TYPE,
@@ -17,13 +15,6 @@ from opencis.cxl.transport.packet_constants import (
 )
 
 
-class PacketFieldMixin:
-    def get_byte_offset(parent, child):
-        parent_ptr = ctypes.addressof(ctypes.c_char.from_buffer(parent.buf))
-        child_ptr = ctypes.addressof(ctypes.c_char.from_buffer(child.buf))
-        return child_ptr - parent_ptr
-
-
 class PacketDataMixin:
     def get_data(self) -> bytes:
         return bytes(super().get_data())
@@ -32,6 +23,7 @@ class PacketDataMixin:
         return int.from_bytes(self.get_data(), "little")
 
     def set_data(self, data: bytes):
+        # pylint: disable=useless-parent-delegation
         super().set_data(data)
 
     def set_data_as_int(self, data: int, length: int = None):
