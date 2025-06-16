@@ -1,7 +1,9 @@
-from pathlib import Path
-import importlib.util
-import sys
+"""
+Copyright (c) 2024-2025, Eeum, Inc.
 
+This software is licensed under the terms of the Revised BSD License.
+See LICENSE for details.
+"""
 
 from pathlib import Path
 import importlib.util
@@ -111,7 +113,8 @@ def emit_composite(packet_name, layout, field_sizes):
             continue
         offset_start, size_bytes = offset_map[struct]
         lines.append(
-            f"        self.{varname}_ = {struct}(self._buf[{offset_start}:{offset_start + size_bytes}])"
+            f"        self.{varname}_ = "
+            f"{struct}(self._buf[{offset_start}:{offset_start + size_bytes}])"
         )
 
     lines.append("")
@@ -122,7 +125,8 @@ def emit_composite(packet_name, layout, field_sizes):
     if has_data_field:
         lines.append("    cpdef bytes get_data(self):")
         lines.append(
-            f"        return (<const unsigned char*> &self._buf[{total_header_bytes}])[:self._data_length]"
+            "        return (<const unsigned char*> "
+            f"&self._buf[{total_header_bytes}])[:self._data_length]"
         )
         lines.append("")
         lines.append("    def set_data(self, data):")

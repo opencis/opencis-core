@@ -5,10 +5,10 @@ This software is licensed under the terms of the Revised BSD License.
 See LICENSE for details.
 """
 
-from typing import Optional, List, Dict, cast
-from opencis.util.logger import logger
+from typing import Optional, Dict, cast
 import platform
 
+from opencis.util.logger import logger
 from opencis.cxl.transport.packet_structs import (
     RawBasePacket,
     RawBaseSidebandPacket,
@@ -924,9 +924,6 @@ class CciPayload:
             width = self._get_width(payload, name)
             offset = self._offset
 
-            print(
-                f"SET: name:{name}, payload._base={payload._base}, offset={offset}, width={width}, value={value}"
-            )
             arch_bits = int(platform.architecture()[0].rstrip("bit"))
             if width <= arch_bits:
                 # field fits in a single word. Read it directly and return int
@@ -935,7 +932,8 @@ class CciPayload:
 
             if not isinstance(value, bytes):
                 raise AttributeError(
-                    f"value width: {width}. value is {type(value)}, but must be 'bytes' if it does not fit in a single word"
+                    f"value width: {width}. value is {type(value)}, but must be 'bytes' "
+                    "if it does not fit in a single word"
                 )
 
             byte_start = (payload._base + offset) // 8
@@ -1050,22 +1048,16 @@ class CciPayloadPacket(BasePacketMixin, CciBasePacketMixin, RawCciPayloadPacket,
         return CciMessagePacket(self.get_data())
 
     @classmethod
-    def create(cls, data, port_index: int = 0) -> "CciPayloadPacket":
+    def create(cls, cci_message: CciMessagePacket, port_index: int = 0) -> "CciPayloadPacket":
         packet = cls()
         packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CCI_MCTP
         packet.cci_header.port_index = port_index
 
-        if isinstance(data, CciMessagePacket):
-            cci_message = cast(CciMessagePacket, data)
-            if cci_message.cci_msg_header.message_category == CCI_MCTP_MESSAGE_CATEGORY.REQUEST:
-                packet.cci_header.msg_class = CCI_MSG_CLASS.REQ
-            else:
-                packet.cci_header.msg_class = CCI_MSG_CLASS.RSP
-            packet.set_data(bytes(cci_message))
+        if cci_message.cci_msg_header.message_category == CCI_MCTP_MESSAGE_CATEGORY.REQUEST:
+            packet.cci_header.msg_class = CCI_MSG_CLASS.REQ
         else:
-            packet.set_data(
-                bytes(data.system_header) + bytes(data.cci_header) + data.get_data(), "little"
-            )
+            packet.cci_header.msg_class = CCI_MSG_CLASS.RSP
+        packet.set_data(bytes(cci_message))
 
         packet.system_header.payload_length = len(packet)
         return packet
@@ -1156,9 +1148,6 @@ class GetLdAllocationsRequestPacket(CciRequestPacket):
 
         packet.payload.start_ld_id = start_ld_id
         packet.payload.ld_allocation_list_limit = ld_allocation_list_limit
-        print(
-            f"create GetLdAllocationsRequestPacket, start_ld_id:{packet.payload.start_ld_id}, ld_allocation_list_limit:{packet.payload.ld_allocation_list_limit}"
-        )
         print(f"PACKET: {bytes(packet)}")
         packet.set_data(bytes(packet.payload))
         packet.system_header.payload_length = len(packet)
@@ -1172,18 +1161,12 @@ class GetLdAllocationsRequestPacket(CciRequestPacket):
         packet.init_cci_payload()
 
         cci_msg_header_offset = packet.get_byte_offset(packet.cci_msg_header)
-        print(
-            f"create_from_cci_message, cci_msg_header_offset:{cci_msg_header_offset}, {len(cci_message)}"
-        )
         packet.set_bytes(cci_msg_header_offset, bytes(cci_message))
 
         data = cci_message.get_data()
         packet.payload.start_ld_id = int.from_bytes(data[:1], "little")
         packet.payload.ld_allocation_list_limit = int.from_bytes(data[1:3], "little")
         packet.set_data(data)
-        print(
-            f"create_from_cci_message, after all start_ld_id:{packet.payload.start_ld_id}, ld_allocation_list_limit:{packet.payload.ld_allocation_list_limit}"
-        )
         print(f"PACKET: {bytes(packet)}")
         packet.system_header.payload_length = len(packet)
         return packet
@@ -1217,9 +1200,6 @@ class SetLdAllocationsRequestPacket(CciRequestPacket):
             raise ValueError("Number of LDs must be greater than 0")
 
         packet = super().create_packet(CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS)
-        print(
-            f"create SetLdAllocationsRequestPacket, number_of_lds:{number_of_lds}, start_ld_id:{start_ld_id}, ld_allocations:{ld_allocations}"
-        )
         allocated_ld_list_bytes = bytes()
         allocated_ld_length = 0
         print(ld_allocations)
@@ -1327,16 +1307,11 @@ class GetLdInfoResponsePacket(CciResponsePacket):
         packet.set_data(bytes(packet.payload))
 
         packet.system_header.payload_length = len(packet)
-        # print(f"create GetLdInfoResponsePacket, packet.payload.ld_count:{packet.payload.ld_count}")
-        # print(f"create GetLdInfoResponsePacket, after bytes:{bytes(packet)}")
         return packet
 
     def get_cci_message(self) -> "CciMessagePacket":
         offset = self.get_byte_offset(self.cci_msg_header)
         length = len(self.cci_msg_header) + self.get_cci_payload_length()
-        print(
-            f"????GetLdInfoResponsePacket, offset:{offset}, len:{length}, d:{bytes(self.get_bytes(offset, length))}"
-        )
         return CciMessagePacket(self.get_bytes(offset, length))
 
     def get_memory_size(self) -> int:
@@ -1403,16 +1378,6 @@ class GetLdAllocationsResponsePacket(CciResponsePacket):
         packet.payload.ld_allocation_list_length = allocated_ld_length
         packet.payload.ld_allocation_list = allocated_ld_list_bytes
 
-        # exit(1)
-        # offset1 = packet.get_byte_offset(packet.system_header)
-        # offset2 = packet.get_byte_offset(packet.cci_header)
-        # offset3 = packet.get_byte_offset(packet.cci_msg_header)
-        # print(f"offset1:{offset1}")
-        # print(f"offset2:{offset2}")
-        # print(f"offset3:{offset3}")
-        # print(
-        #     f"payload_offset():{packet.get_payload_offset()} payload:{bytes(packet.payload)} payload:{len(bytes(packet.payload))}"
-        # )
         packet.set_data(bytes(packet.payload))
 
         packet.system_header.payload_length = len(packet)

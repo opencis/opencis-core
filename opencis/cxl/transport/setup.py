@@ -1,6 +1,13 @@
+"""
+Copyright (c) 2024-2025, Eeum, Inc.
+
+This software is licensed under the terms of the Revised BSD License.
+See LICENSE for details.
+"""
+
+import os
 from setuptools import setup, Extension
 from Cython.Build import cythonize
-import os
 
 # Simple setup.py that always builds inside this directory
 here = os.path.abspath(os.path.dirname(__file__))
