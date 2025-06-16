@@ -20,7 +20,7 @@ def emit_struct(name, layout):
     field_defs = ""
     for n, s, w in layout:
         field_defs += (
-            f"    @property\n"
+            "    @property\n"
             f"    def {n}(self):\n"
             f"        return self.read_bits({s}, {w})\n\n"
             f"    @{n}.setter\n"
@@ -33,17 +33,17 @@ def emit_struct(name, layout):
 
     return (
         f"cdef class {name}(PacketBuffer):\n"
-        f"    cdef unsigned char[::1] __buf\n\n"
+        "    cdef unsigned char[::1] __buf\n\n"
         f"{field_defs}"
-        f"    @classmethod\n"
-        f"    def get_size(cls):\n"
+        "    @classmethod\n"
+        "    def get_size(cls):\n"
         f"        return {total_bytes}\n\n"
-        f"    def __len__(self):\n"
-        f"        return self.get_size()\n\n"
-        f"    def __bytes__(self):\n"
-        f"        return self.to_bytes()\n\n"
-        f"    def __cinit__(self, unsigned char[::1] buf):\n"
-        f"        self.__buf = buf\n\n"
+        "    def __len__(self):\n"
+        "        return self.get_size()\n\n"
+        "    def __bytes__(self):\n"
+        "        return self.to_bytes()\n\n"
+        "    def __cinit__(self, unsigned char[::1] buf):\n"
+        "        self.__buf = buf\n\n"
     )
 
 
@@ -91,21 +91,21 @@ def emit_composite(packet_name, layout, field_sizes):
 
     for struct, varname in field_entries:
         if struct != "DataField":
-            lines.append(f"    @property")
+            lines.append("    @property")
             lines.append(f"    def {varname}(self):")
             lines.append(f"        return self.{varname}_")
             lines.append("")
 
-    lines.append(f"    def __cinit__(self, buf = None):")
-    lines.append(f"        self._buf = bytearray(200)")
+    lines.append("    def __cinit__(self, buf = None):")
+    lines.append("        self._buf = bytearray(200)")
     lines.append(f"        self.HEADER_SIZE = {total_header_bytes}")
-    lines.append(f"        if buf is not None:")
-    lines.append(f"            self._buf = buf[:]")
-    lines.append(f"            self._data_length = len(buf) - self.HEADER_SIZE")
-    lines.append(f"        else:")
-    lines.append(f"            self._data_length = 0")
+    lines.append("        if buf is not None:")
+    lines.append("            self._buf = buf[:]")
+    lines.append("            self._data_length = len(buf) - self.HEADER_SIZE")
+    lines.append("        else:")
+    lines.append("            self._data_length = 0")
     lines.append("")
-    lines.append(f"        cdef unsigned char[::1] mv = self._buf")
+    lines.append("        cdef unsigned char[::1] mv = self._buf")
     for struct, varname in field_entries:
         if struct == "DataField":
             continue
