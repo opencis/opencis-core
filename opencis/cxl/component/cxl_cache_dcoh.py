@@ -378,7 +378,7 @@ class CxlCacheDcoh(PacketProcessor):
 
             elif h2drsp_packet.h2drsp_header.rsp_data == CXL_CACHE_H2DRSP_CACHE_STATE.SHARED:
                 packet = await self._cxl_channel.h2d_data.get()
-                cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_S, packet.data)
+                cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_S, packet.get_data_as_int())
                 await self._cache_to_coh_agent_fifo.response.put(cache_packet)
 
             elif h2drsp_packet.h2drsp_header.rsp_data == CXL_CACHE_H2DRSP_CACHE_STATE.INVALID:
