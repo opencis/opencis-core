@@ -1,2 +1,3 @@
 #!/bin/bash
+make packets
 uv run opencis/bin/cli.py "$@"
