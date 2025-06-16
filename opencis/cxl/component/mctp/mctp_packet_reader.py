@@ -8,10 +8,7 @@ See LICENSE for details.
 from asyncio import StreamReader, create_task
 from typing import Optional
 
-from opencis.cxl.transport.transaction import (
-    CciMessagePacket,
-    CciPayloadPacket,
-)
+from opencis.cxl.transport.cci_packets import CciMessagePacket, CciPayloadPacket
 from opencis.util.logger import logger
 from opencis.util.component import LabeledComponent
 from opencis.cxl.transport.transaction import BasePacket

@@ -26,17 +26,20 @@ from opencis.cxl.transport.transaction import (
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
     CxlIoCfgWrPacket,
-    CciMessagePacket,
     CxlIoCompletionWithDataPacket,
+    is_cxl_io_completion_status_sc,
+    is_cxl_io_completion_status_ur,
+)
+from opencis.cxl.transport.cci_packets import (
+    CciMessagePacket,
     GetLdInfoRequestPacket,
     GetLdInfoResponsePacket,
     GetLdAllocationsRequestPacket,
     GetLdAllocationsResponsePacket,
     SetLdAllocationsRequestPacket,
     SetLdAllocationsResponsePacket,
-    is_cxl_io_completion_status_sc,
-    is_cxl_io_completion_status_ur,
 )
+
 from opencis.cxl.transport.packet_constants import (
     CCI_MCTP_MESSAGE_CATEGORY,
 )

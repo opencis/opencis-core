@@ -22,7 +22,6 @@ from opencis.cxl.component.mctp.mctp_cci_api_client import (
     IdentifySwitchDeviceResponsePayload,
     BindVppbRequestPayload,
     UnbindVppbRequestPayload,
-    CciMessagePacket,
     GetLdAllocationsRequestPayload,
     SetLdAllocationsRequestPayload,
     FreezeVppbRequestPayload,
@@ -32,6 +31,7 @@ from opencis.cxl.cci.common import (
     CCI_VENDOR_SPECIFIC_OPCODE,
     get_opcode_string,
 )
+from opencis.cxl.transport.cci_packets import CciMessagePacket
 
 
 class CommandResponse(TypedDict):

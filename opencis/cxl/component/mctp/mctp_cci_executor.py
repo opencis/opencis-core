@@ -22,7 +22,7 @@ from opencis.cxl.component.cxl_component import (
     PORT_TYPE,
     PortConfig,
 )
-from opencis.cxl.transport.transaction import (
+from opencis.cxl.transport.cci_packets import (
     CciMessagePacket,
     CciPayloadPacket,
     GetLdInfoRequestPacket,

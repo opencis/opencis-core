@@ -16,7 +16,7 @@ from opencis.cxl.component.cci_executor import (
     CciForegroundCommand,
 )
 from opencis.cxl.device.cxl_type3_device import CxlType3Device
-from opencis.cxl.transport.transaction import CciMessagePacket
+from opencis.cxl.transport.cci_packets import CciMessagePacket
 from opencis.cxl.cci.common import TunnelManagementRequestPayload, TunnelManagementResponsePayload
 
 

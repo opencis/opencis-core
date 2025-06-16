@@ -31,12 +31,15 @@ from opencis.cxl.transport.transaction import (
     SIDEBAND_TYPES,
     SYSTEM_PAYLOAD_TYPE,
     CXL_IO_FMT_TYPE,
+)
+from opencis.cxl.transport.cci_packets import (
     CciRequestPacket,
     CciResponsePacket,
     GetLdInfoResponsePacket,
     GetLdAllocationsResponsePacket,
     SetLdAllocationsResponsePacket,
 )
+
 from opencis.cxl.device.cxl_type3_device import CXL_T3_DEV_TYPE
 from opencis.cxl.component.fmld import FMLD
 

@@ -183,9 +183,6 @@ class CciBasePacketMixin:
     def is_rsp(self) -> bool:
         return self.cci_header.msg_class == CCI_MSG_CLASS.RSP
 
-    def get_total_size(self) -> int:
-        return self.system_header.payload_length
-
     def get_cci_payload_length(self) -> int:
         max_bit = 0
         for _, offset, width in self._fields:

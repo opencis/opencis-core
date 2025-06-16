@@ -37,6 +37,8 @@ from opencis.cxl.transport.transaction import (
     CxlMemS2MBISnpPacket,
     CxlMemS2MNDRPacket,
     CxlMemS2MDRSPacket,
+)
+from opencis.cxl.transport.cci_packets import (
     CciBasePacket,
     CciRequestPacket,
     CciResponsePacket,
