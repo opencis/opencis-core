@@ -18,7 +18,7 @@ from opencis.cxl.component.cxl_memory_device_component import (
     MemoryDeviceIdentity,
 )
 from opencis.cxl.transport.cache_fifo import CacheFifoPair
-from opencis.cxl.transport.transaction import BasePacket
+from opencis.cxl.transport.common import BasePacket
 from opencis.cxl.transport.cxl_mem_packets import (
     CxlMemBasePacket,
     CxlMemMemRdPacket,

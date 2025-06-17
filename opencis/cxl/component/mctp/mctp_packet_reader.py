@@ -12,7 +12,7 @@ from opencis.cxl.transport.cci_packets import CciMessagePacket, CciPayloadPacket
 from opencis.util.logger import logger
 from opencis.util.component import LabeledComponent
 from opencis.cxl.transport.packet_structs import SystemHeader
-from opencis.cxl.transport.transaction import BasePacket
+from opencis.cxl.transport.common import BasePacket
 
 # pylint: disable=duplicate-code
 

@@ -32,7 +32,7 @@ from opencis.util.pci import (
     bdf_to_string,
     generate_bdfs_for_bus,
 )
-from opencis.cxl.transport.transaction import BasePacket
+from opencis.cxl.transport.common import BasePacket
 from opencis.cxl.transport.cxl_io_packets import (
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,

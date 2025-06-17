@@ -12,7 +12,7 @@ from typing import Optional, Tuple
 
 from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
 from opencis.cxl.transport.packet_structs import SystemHeader
-from opencis.cxl.transport.transaction import BasePacket
+from opencis.cxl.transport.common import BasePacket
 from opencis.cxl.transport.sideband_packets import (
     BaseSidebandPacket,
     SidebandConnectionRequestPacket,

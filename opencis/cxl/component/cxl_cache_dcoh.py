@@ -41,7 +41,7 @@ from opencis.cxl.transport.packet_constants import (
     CXL_CACHE_D2HREQ_OPCODE,
     CXL_CACHE_D2HRSP_OPCODE,
 )
-from opencis.cxl.transport.transaction import BasePacket
+from opencis.cxl.transport.common import BasePacket
 from opencis.cxl.transport.cache_fifo import (
     CacheFifoPair,
     CacheRequest,

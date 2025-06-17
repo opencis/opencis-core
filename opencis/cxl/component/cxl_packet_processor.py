@@ -22,7 +22,7 @@ from opencis.util.component import RunnableComponent
 from opencis.cxl.component.common import CXL_COMPONENT_TYPE
 from opencis.cxl.component.cxl_connection import CxlConnection
 from opencis.cxl.component.packet_reader import PacketReader
-from opencis.cxl.transport.transaction import BasePacket
+from opencis.cxl.transport.common import BasePacket
 from opencis.cxl.transport.sideband_packets import BaseSidebandPacket
 from opencis.cxl.transport.cxl_io_packets import CxlIoBasePacket
 from opencis.cxl.transport.cxl_cache_packets import CxlCacheBasePacket
