@@ -20,16 +20,19 @@ from opencis.cxl.component.virtual_switch.port_binder import PortBinder, BindSlo
 from opencis.cxl.component.virtual_switch.upstream_vppb import UpstreamVppb
 from opencis.cxl.transport.transaction import (
     BasePacket,
-    CxlCacheD2HReqPacket,
-    CxlCacheH2DDataPacket,
     CxlMemBasePacket,
     CxlMemM2SReqPacket,
     CxlMemM2SRwDPacket,
     CxlMemM2SBIRspPacket,
     CxlMemS2MBISnpPacket,
+)
+from opencis.cxl.transport.cxl_cache_packets import (
+    CxlCacheBasePacket,
+    CxlCacheD2HReqPacket,
     CxlCacheBasePacket,
     CxlCacheH2DRspPacket,
     CxlCacheH2DReqPacket,
+    CxlCacheH2DDataPacket
 )
 from opencis.cxl.transport.packet_constants import CXL_IO_CPL_STATUS
 from opencis.cxl.transport.cxl_io_packets import (

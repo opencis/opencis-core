@@ -26,9 +26,9 @@ from opencis.cxl.transport.transaction import (
     BasePacket,
     BaseSidebandPacket,
     CxlMemBasePacket,
-    CxlCacheBasePacket,
     SIDEBAND_TYPES,
 )
+from opencis.cxl.transport.cxl_cache_packets import CxlCacheBasePacket
 from opencis.cxl.transport.packet_constants import (
     SYSTEM_PAYLOAD_TYPE,
     CXL_IO_FMT_TYPE,
