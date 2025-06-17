@@ -8,13 +8,13 @@ See LICENSE for details.
 # from opencis.util.logger import logger
 from opencis.cxl.transport.common import TagCounter
 from opencis.cxl.transport.packet_structs import (
-    RawCxlMemBasePacket,
-    RawCxlMemM2SReqPacket,
-    RawCxlMemM2SRwDPacket,
-    RawCxlMemM2SBIRspPacket,
-    RawCxlMemS2MBISnpPacket,
-    RawCxlMemS2MDRSPacket,
-    RawCxlMemS2MNDRPacket,
+    _GenCxlMemBasePacket,
+    _GenCxlMemM2SReqPacket,
+    _GenCxlMemM2SRwDPacket,
+    _GenCxlMemM2SBIRspPacket,
+    _GenCxlMemS2MBISnpPacket,
+    _GenCxlMemS2MDRSPacket,
+    _GenCxlMemS2MNDRPacket,
 )
 from opencis.cxl.transport.packet_constants import (
     SYSTEM_PAYLOAD_TYPE,
@@ -42,7 +42,7 @@ _bisnp_tags = TagCounter(4096)
 class CxlMemBasePacket(
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    RawCxlMemBasePacket,
+    _GenCxlMemBasePacket,
 ):
     pass
 
@@ -50,7 +50,7 @@ class CxlMemBasePacket(
 class CxlMemM2SReqPacket(
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    RawCxlMemM2SReqPacket,
+    _GenCxlMemM2SReqPacket,
 ):
     def is_mem_rd(self) -> bool:
         return self.m2sreq_header.mem_opcode == CXL_MEM_M2SREQ_OPCODE.MEM_RD
@@ -65,7 +65,7 @@ class CxlMemM2SReqPacket(
 class CxlMemM2SRwDPacket(
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    RawCxlMemM2SRwDPacket,
+    _GenCxlMemM2SRwDPacket,
     PacketDataMixin,
 ):
     def is_mem_wr(self) -> bool:
@@ -78,7 +78,7 @@ class CxlMemM2SRwDPacket(
 class CxlMemM2SBIRspPacket(
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    RawCxlMemM2SBIRspPacket,
+    _GenCxlMemM2SBIRspPacket,
 ):
     pass
 
@@ -86,7 +86,7 @@ class CxlMemM2SBIRspPacket(
 class CxlMemS2MBISnpPacket(
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    RawCxlMemS2MBISnpPacket,
+    _GenCxlMemS2MBISnpPacket,
 ):
     def get_address(self) -> int:
         return self.s2mbisnp_header.addr << 6
@@ -95,7 +95,7 @@ class CxlMemS2MBISnpPacket(
 class CxlMemS2MNDRPacket(
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    RawCxlMemS2MNDRPacket,
+    _GenCxlMemS2MNDRPacket,
 ):
     pass
 
@@ -103,7 +103,7 @@ class CxlMemS2MNDRPacket(
 class CxlMemS2MDRSPacket(
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    RawCxlMemS2MDRSPacket,
+    _GenCxlMemS2MDRSPacket,
     PacketDataMixin,
 ):
     pass
@@ -183,7 +183,7 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
 class CxlMemBIRspPacket(
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    RawCxlMemM2SBIRspPacket,
+    _GenCxlMemM2SBIRspPacket,
 ):
     @classmethod
     def create(
@@ -207,7 +207,7 @@ class CxlMemBIRspPacket(
 class CxlMemBISnpPacket(
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    RawCxlMemS2MBISnpPacket,
+    _GenCxlMemS2MBISnpPacket,
 ):
     @classmethod
     def get_tag(cls, tag) -> int:
@@ -238,7 +238,7 @@ class CxlMemBISnpPacket(
 class CxlMemMemDataPacket(
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    RawCxlMemS2MDRSPacket,
+    _GenCxlMemS2MDRSPacket,
     PacketDataMixin,
 ):
     @classmethod
@@ -272,7 +272,7 @@ class CxlMemMemDataPacket(
 class CxlMemCmpPacket(
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    RawCxlMemS2MNDRPacket,
+    _GenCxlMemS2MNDRPacket,
 ):
     @classmethod
     def create(

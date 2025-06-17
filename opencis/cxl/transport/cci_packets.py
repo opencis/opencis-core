@@ -15,11 +15,11 @@ from opencis.cxl.transport.mixin import (
     CciBasePacketMixin,
 )
 from opencis.cxl.transport.packet_structs import (
-    RawCciBasePacket,
-    RawCciMessagePacket,
-    RawCciPayloadPacket,
-    RawCciRequestPacket,
-    RawCciResponsePacket,
+    _GenCciBasePacket,
+    _GenCciMessagePacket,
+    _GenCciPayloadPacket,
+    _GenCciRequestPacket,
+    _GenCciResponsePacket,
 )
 from opencis.cxl.transport.packet_constants import (
     SYSTEM_PAYLOAD_TYPE,
@@ -30,7 +30,7 @@ from opencis.cxl.transport.packet_constants import (
 # pylint: disable=attribute-defined-outside-init
 
 
-class CciBasePacket(BasePacketMixin, CciBasePacketMixin, RawCciBasePacket):
+class CciBasePacket(BasePacketMixin, CciBasePacketMixin, _GenCciBasePacket):
     pass
 
 
@@ -153,7 +153,7 @@ class CciPayload:
         self._dynamic_widths[name] = width_bits
 
 
-class CciMessagePacket(BasePacketMixin, CciBasePacketMixin, RawCciMessagePacket, PacketDataMixin):
+class CciMessagePacket(BasePacketMixin, CciBasePacketMixin, _GenCciMessagePacket, PacketDataMixin):
     @classmethod
     def create(
         cls,
@@ -196,7 +196,7 @@ class CciMessagePacket(BasePacketMixin, CciBasePacketMixin, RawCciMessagePacket,
 class CciPayloadPacket(
     BasePacketMixin,
     CciBasePacketMixin,
-    RawCciPayloadPacket,
+    _GenCciPayloadPacket,
     PacketDataMixin,
 ):
     def get_cci_message(self):
@@ -221,7 +221,7 @@ class CciPayloadPacket(
 class CciRequestPacket(
     BasePacketMixin,
     CciBasePacketMixin,
-    RawCciRequestPacket,
+    _GenCciRequestPacket,
     PacketDataMixin,
 ):
     def __init__(self, buf=None):
@@ -380,7 +380,7 @@ class SetLdAllocationsRequestPacket(CciRequestPacket):
 class CciResponsePacket(
     BasePacketMixin,
     CciBasePacketMixin,
-    RawCciResponsePacket,
+    _GenCciResponsePacket,
     PacketDataMixin,
 ):
     def __init__(self, buf=None):

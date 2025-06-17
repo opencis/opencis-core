@@ -7,8 +7,8 @@ See LICENSE for details.
 
 # from opencis.util.logger import logger
 from opencis.cxl.transport.packet_structs import (
-    RawBaseSidebandPacket,
-    RawSidebandConnectionRequestPacket,
+    _GenBaseSidebandPacket,
+    _GenSidebandConnectionRequestPacket,
 )
 from opencis.cxl.transport.packet_constants import (
     SYSTEM_PAYLOAD_TYPE,
@@ -24,7 +24,7 @@ from opencis.cxl.transport.mixin import (
 class BaseSidebandPacket(
     BasePacketMixin,
     SidebandPacketMixin,
-    RawBaseSidebandPacket,
+    _GenBaseSidebandPacket,
 ):
     @classmethod
     def create(cls, type: SIDEBAND_TYPES) -> "BaseSidebandPacket":
@@ -38,7 +38,7 @@ class BaseSidebandPacket(
 class SidebandConnectionRequestPacket(
     BasePacketMixin,
     SidebandPacketMixin,
-    RawSidebandConnectionRequestPacket,
+    _GenSidebandConnectionRequestPacket,
     PacketDataMixin,
 ):
     @classmethod

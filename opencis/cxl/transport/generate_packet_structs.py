@@ -50,7 +50,7 @@ def emit_struct(name, layout):
 
 
 def emit_composite(packet_name, layout, field_sizes):
-    packet_name = f"Raw{packet_name}"
+    packet_name = f"_Gen{packet_name}"
     lines = [f"\ncdef class {packet_name}(PacketBuffer):"]
 
     has_data_field = False
@@ -190,7 +190,7 @@ def main():
                 "# pylint: disable=missing-module-docstring\n\n"
             )
             for pkt in packets.PACKETS:
-                s.write(f"class Raw{pkt}: ...\n")
+                s.write(f"class _Gen{pkt}: ...\n")
             for hdr in field_sizes:
                 s.write(f"class {hdr}: ...\n")
 

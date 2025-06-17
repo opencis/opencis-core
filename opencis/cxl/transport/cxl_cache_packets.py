@@ -6,13 +6,13 @@ See LICENSE for details.
 """
 
 from opencis.cxl.transport.packet_structs import (
-    RawCxlCacheBasePacket,
-    RawCxlCacheD2HReqPacket,
-    RawCxlCacheD2HRspPacket,
-    RawCxlCacheD2HDataPacket,
-    RawCxlCacheH2DReqPacket,
-    RawCxlCacheH2DRspPacket,
-    RawCxlCacheH2DDataPacket,
+    _GenCxlCacheBasePacket,
+    _GenCxlCacheD2HReqPacket,
+    _GenCxlCacheD2HRspPacket,
+    _GenCxlCacheD2HDataPacket,
+    _GenCxlCacheH2DReqPacket,
+    _GenCxlCacheH2DRspPacket,
+    _GenCxlCacheH2DDataPacket,
 )
 from opencis.cxl.transport.packet_constants import (
     SYSTEM_PAYLOAD_TYPE,
@@ -33,7 +33,7 @@ from opencis.cxl.transport.mixin import (
 class CxlCacheBasePacket(
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    RawCxlCacheBasePacket,
+    _GenCxlCacheBasePacket,
 ):
     pass
 
@@ -41,7 +41,7 @@ class CxlCacheBasePacket(
 class CxlCacheD2HReqPacket(
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    RawCxlCacheD2HReqPacket,
+    _GenCxlCacheD2HReqPacket,
 ):
     pass
 
@@ -49,7 +49,7 @@ class CxlCacheD2HReqPacket(
 class CxlCacheCacheD2HReqPacket(
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    RawCxlCacheD2HReqPacket,
+    _GenCxlCacheD2HReqPacket,
 ):
     @classmethod
     def create(
@@ -82,7 +82,7 @@ class CxlCacheCacheD2HReqPacket(
 class CxlCacheD2HRspPacket(
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    RawCxlCacheD2HRspPacket,
+    _GenCxlCacheD2HRspPacket,
 ):
     pass
 
@@ -90,7 +90,7 @@ class CxlCacheD2HRspPacket(
 class CxlCacheCacheD2HRspPacket(
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    RawCxlCacheD2HRspPacket,
+    _GenCxlCacheD2HRspPacket,
 ):
     @classmethod
     def create(
@@ -111,7 +111,7 @@ class CxlCacheCacheD2HRspPacket(
 class CxlCacheD2HDataPacket(
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    RawCxlCacheD2HDataPacket,
+    _GenCxlCacheD2HDataPacket,
     PacketDataMixin,
 ):
     pass
@@ -120,7 +120,7 @@ class CxlCacheD2HDataPacket(
 class CxlCacheCacheD2HDataPacket(
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    RawCxlCacheD2HDataPacket,
+    _GenCxlCacheD2HDataPacket,
     PacketDataMixin,
 ):
     @classmethod
@@ -149,7 +149,7 @@ class CxlCacheCacheD2HDataPacket(
 class CxlCacheH2DReqPacket(
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    RawCxlCacheH2DReqPacket,
+    _GenCxlCacheH2DReqPacket,
 ):
     pass
 
@@ -157,7 +157,7 @@ class CxlCacheH2DReqPacket(
 class CxlCacheCacheH2DReqPacket(
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    RawCxlCacheH2DReqPacket,
+    _GenCxlCacheH2DReqPacket,
 ):
     @classmethod
     def create(
@@ -188,7 +188,7 @@ class CxlCacheCacheH2DReqPacket(
 class CxlCacheH2DRspPacket(
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    RawCxlCacheH2DRspPacket,
+    _GenCxlCacheH2DRspPacket,
 ):
     pass
 
@@ -196,7 +196,7 @@ class CxlCacheH2DRspPacket(
 class CxlCacheCacheH2DRspPacket(
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    RawCxlCacheH2DRspPacket,
+    _GenCxlCacheH2DRspPacket,
 ):
     @classmethod
     def create(
@@ -224,7 +224,7 @@ class CxlCacheCacheH2DRspPacket(
 class CxlCacheH2DDataPacket(
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    RawCxlCacheH2DDataPacket,
+    _GenCxlCacheH2DDataPacket,
     PacketDataMixin,
 ):
     pass
@@ -233,7 +233,7 @@ class CxlCacheH2DDataPacket(
 class CxlCacheCacheH2DDataPacket(
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    RawCxlCacheH2DDataPacket,
+    _GenCxlCacheH2DDataPacket,
     PacketDataMixin,
 ):
     @classmethod

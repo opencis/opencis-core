@@ -9,11 +9,11 @@ from typing import Optional
 
 from opencis.cxl.transport.common import TagCounter
 from opencis.cxl.transport.packet_structs import (
-    RawCxlIoBasePacket,
-    RawCxlIoMemReqPacket,
-    RawCxlIoCfgReqPacket,
-    RawCxlIoCompletionPacket,
-    RawCxlIoCompletionWithDataPacket,
+    _GenCxlIoBasePacket,
+    _GenCxlIoMemReqPacket,
+    _GenCxlIoCfgReqPacket,
+    _GenCxlIoCompletionPacket,
+    _GenCxlIoCompletionWithDataPacket,
 )
 from opencis.util.pci import (
     extract_function_from_bdf,
@@ -42,14 +42,14 @@ _io_mem_tags = TagCounter(256)
 _io_cfg_tags = TagCounter(256)
 
 
-class CxlIoBasePacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoBasePacket):
+class CxlIoBasePacket(BasePacketMixin, CxlIoBasePacketMixin, _GenCxlIoBasePacket):
     pass
 
 
 class CxlIoMemReqPacket(
     BasePacketMixin,
     CxlIoBasePacketMixin,
-    RawCxlIoMemReqPacket,
+    _GenCxlIoMemReqPacket,
     PacketDataMixin,
 ):
     @classmethod
@@ -129,7 +129,7 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
 class CxlIoCfgReqPacket(
     BasePacketMixin,
     CxlIoBasePacketMixin,
-    RawCxlIoCfgReqPacket,
+    _GenCxlIoCfgReqPacket,
     PacketDataMixin,
 ):
     @classmethod
@@ -258,7 +258,7 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
 class CxlIoCompletionPacket(
     BasePacketMixin,
     CxlIoBasePacketMixin,
-    RawCxlIoCompletionPacket,
+    _GenCxlIoCompletionPacket,
 ):
     @classmethod
     def create(
@@ -293,7 +293,7 @@ class CxlIoCompletionPacket(
 class CxlIoCompletionWithDataPacket(
     BasePacketMixin,
     CxlIoBasePacketMixin,
-    RawCxlIoCompletionWithDataPacket,
+    _GenCxlIoCompletionWithDataPacket,
     PacketDataMixin,
 ):
     @classmethod
