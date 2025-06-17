@@ -11,14 +11,21 @@ from typing import Optional
 from opencis.cxl.transport.cci_packets import CciMessagePacket, CciPayloadPacket
 from opencis.util.logger import logger
 from opencis.util.component import LabeledComponent
+from opencis.cxl.transport.packet_structs import SystemHeader
 from opencis.cxl.transport.transaction import BasePacket
 
 # pylint: disable=duplicate-code
 
 
 class MctpPacketReader(LabeledComponent):
-    def __init__(self, reader: StreamReader, label: Optional[str] = None):
-        super().__init__(label)
+    def __init__(
+        self,
+        reader: StreamReader,
+        label: Optional[str] = None,
+        parent_name: Optional[str] = None,
+    ):
+        label_prefix = parent_name + ":" if parent_name else ""
+        super().__init__(lambda class_name: f"{label_prefix}{class_name}")
         self._reader = reader
         self._aborted = False
         self._task = None
@@ -45,26 +52,30 @@ class MctpPacketReader(LabeledComponent):
             self._task.cancel()
 
     async def _get_packet_in_task(self):
+        base_packet, payload = await self._get_payload()
+        payload = bytearray(payload)
+        if base_packet.is_cci() is not True:
+            raise ValueError(f"Must be CCI packet {type(base_packet)}")
+
+        # Wrap the payload with CciPayloadPacket
+        packet = CciPayloadPacket(payload)
+        return packet
+
+    async def _get_payload(self):
         logger.debug(self._create_message("Waiting Packet"))
-        header_load = await self._read_payload(BasePacket.get_size())
-        base_packet = BasePacket()
-        base_packet.reset(header_load)
+        header_bytes = await self._read_payload(SystemHeader.get_size())
+        base_packet = BasePacket(bytearray(header_bytes))
         remaining_length = base_packet.system_header.payload_length - len(base_packet)
         if remaining_length < 0:
             raise Exception("remaining length is less than 0")
-        payload = bytes(base_packet) + await self._read_payload(remaining_length)
+        payload = header_bytes + await self._read_payload(remaining_length)
         logger.debug(self._create_message("Received Packet"))
-
-        # Wrap the payload with CciPayloadPacket
-        packet = CciPayloadPacket()
-        packet.reset(payload)
-        return packet
+        return base_packet, payload
 
     async def _get_cci_message_header(self) -> CciMessagePacket:
         logger.debug(self._create_message("Waiting for CCI Message Header"))
         payload = await self._read_payload(CciMessagePacket.get_size())
-        message_header = CciMessagePacket()
-        message_header.reset(payload)
+        message_header = CciMessagePacket(payload)
         logger.debug(self._create_message("Received CCI Message Header"))
         return message_header
 

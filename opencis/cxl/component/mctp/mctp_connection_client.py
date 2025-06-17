@@ -51,6 +51,8 @@ class MctpConnectionClient(RunnableComponent):
                     writer,
                     self._mctp_connection,
                     MCTP_PACKET_PROCESSOR_TYPE.ENDPOINT,
+                    label=self._label,
+                    parent_name=self.get_message_label(),
                 )
                 await self._change_status_to_running()
                 await self._packet_processor.run()

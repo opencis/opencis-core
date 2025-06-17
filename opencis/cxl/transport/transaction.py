@@ -60,6 +60,8 @@ class BasePacket(BasePacketMixin, RawBasePacket):
     pass
 
 
+# pylint: disable=duplicate-code
+# TODO: Move to a common place
 class _TagCounter:
     __slots__ = ("_value", "_mod")
 

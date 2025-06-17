@@ -11,9 +11,7 @@ from typing import Optional
 
 from opencis.util.logger import logger
 from opencis.cxl.component.mctp.mctp_connection import MctpConnection
-from opencis.cxl.component.mctp.mctp_packet_reader import (
-    MctpPacketReader,
-)
+from opencis.cxl.component.mctp.mctp_packet_reader import MctpPacketReader
 from opencis.util.component import RunnableComponent
 
 
@@ -30,9 +28,11 @@ class MctpPacketProcessor(RunnableComponent):
         mctp_connection: MctpConnection,
         processor_type: MCTP_PACKET_PROCESSOR_TYPE,
         label: Optional[str] = None,
+        parent_name: Optional[str] = None,
     ):
-        super().__init__(label)
-        self._reader = MctpPacketReader(reader, label=label)
+        label_prefix = parent_name + ":" if parent_name else ""
+        super().__init__(lambda class_name: f"{label_prefix}{class_name}")
+        self._reader = MctpPacketReader(reader, label=label, parent_name=self.get_message_label())
         self._writer = writer
         self._mctp_connection = mctp_connection
         if processor_type == MCTP_PACKET_PROCESSOR_TYPE.CONTROLLER:

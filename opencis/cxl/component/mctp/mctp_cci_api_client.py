@@ -75,18 +75,21 @@ class MctpCciApiClient(RunnableComponent):
                 break
 
             response_tmc1 = cast(CciPayloadPacket, raw_response)
-            response = response_tmc1.get_packet()
-            if response.header.message_category == CCI_MCTP_MESSAGE_CATEGORY.REQUEST:
-                opcode_str = get_opcode_string(response.header.command_opcode)
+            cci_message = response_tmc1.get_cci_message()
+            if cci_message.cci_msg_header.message_category == CCI_MCTP_MESSAGE_CATEGORY.REQUEST:
+                opcode_str = get_opcode_string(cci_message.cci_msg_header.command_opcode)
                 logger.debug(
                     self._create_message(f"Received request (notification) packet {opcode_str}")
                 )
                 if self._notification_handler is not None:
-                    await self._notification_handler(response)
+                    logger.debug(
+                        self._create_message(f"Calling handler for {opcode_str} notification")
+                    )
+                    await self._notification_handler(cci_message)
             else:
                 logger.debug(self._create_message("Received response packet"))
                 await self._condition.acquire()
-                self._responses[response.header.message_tag] = response
+                self._responses[cci_message.cci_msg_header.message_tag] = cci_message
                 self._condition.notify_all()
                 self._condition.release()
 
@@ -108,27 +111,27 @@ class MctpCciApiClient(RunnableComponent):
         return response
 
     async def _send_request(self, request: CciMessagePacket, port_index=0, _=0) -> CciMessagePacket:
-        request.header.message_tag = self._get_next_tag()
-        opcode_name = get_opcode_string(request.header.command_opcode)
-        req_tag = request.header.message_tag
+        request.cci_msg_header.message_tag = self._get_next_tag()
+        opcode_name = get_opcode_string(request.cci_msg_header.command_opcode)
+        req_tag = request.cci_msg_header.message_tag
         logger.debug(self._create_message(f"Sending {opcode_name} (Tag: {req_tag})"))
         # wrapping
         request_tmc = CciPayloadPacket.create(request, port_index)
 
         await self._mctp_connection.controller_to_ep.put(request_tmc)
         response = await self._get_response(req_tag)
-        res_tag = response.header.message_tag
+        res_tag = response.cci_msg_header.message_tag
         logger.debug(self._create_message(f"Received Response (Tag: {res_tag})"))
 
         if (
-            response.header.background_operation
-            and response.header.return_code == CCI_RETURN_CODE.BACKGROUND_COMMAND_STARTED
+            response.cci_msg_header.background_operation
+            and response.cci_msg_header.return_code == CCI_RETURN_CODE.BACKGROUND_COMMAND_STARTED
         ):
             logger.debug(self._create_message("Background Command Started"))
             return response
 
-        if response.header.return_code != CCI_RETURN_CODE.SUCCESS:
-            return_code_str = CCI_RETURN_CODE(response.header.return_code).name
+        if response.cci_msg_header.return_code != CCI_RETURN_CODE.SUCCESS:
+            return_code_str = CCI_RETURN_CODE(response.cci_msg_header.return_code).name
             message = f"Command failed with status: {return_code_str}"
             logger.debug(self._create_message(message))
 
@@ -141,7 +144,9 @@ class MctpCciApiClient(RunnableComponent):
 
     def _create_request_packet(self, request: CciRequest) -> CciMessagePacket:
         message_packet = CciMessagePacket.create(
-            CCI_MCTP_MESSAGE_CATEGORY.REQUEST, request.opcode, request.payload
+            data=request.payload,
+            message_category=CCI_MCTP_MESSAGE_CATEGORY.REQUEST,
+            opcode=request.opcode,
         )
         return message_packet
 
@@ -173,7 +178,7 @@ class MctpCciApiClient(RunnableComponent):
             BackgroundOperationStatusCommand.create_cci_request
         )
 
-        return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
         if return_code != CCI_RETURN_CODE.SUCCESS:
             return (return_code, None)
         response = BackgroundOperationStatusCommand.parse_response_payload(
@@ -189,7 +194,7 @@ class MctpCciApiClient(RunnableComponent):
             IdentifySwitchDeviceCommand.create_cci_request
         )
 
-        return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
         if return_code != CCI_RETURN_CODE.SUCCESS:
             return (return_code, None)
         response = IdentifySwitchDeviceCommand.parse_response_payload(
@@ -205,7 +210,7 @@ class MctpCciApiClient(RunnableComponent):
             GetPhysicalPortStateCommand.create_cci_request, request
         )
 
-        return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
         if return_code != CCI_RETURN_CODE.SUCCESS:
             return (return_code, None)
         response = GetPhysicalPortStateCommand.parse_response_payload(
@@ -221,7 +226,7 @@ class MctpCciApiClient(RunnableComponent):
             GetVirtualCxlSwitchInfoCommand.create_cci_request, request
         )
 
-        return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
         if return_code != CCI_RETURN_CODE.SUCCESS:
             return (return_code, None)
         response = GetVirtualCxlSwitchInfoCommand.parse_response_payload(
@@ -239,7 +244,7 @@ class MctpCciApiClient(RunnableComponent):
             BindVppbCommand.create_cci_request, request
         )
 
-        return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
         if wait_for_completion:
             return_code = await self._wait_for_background_operation()
         if return_code not in (
@@ -256,7 +261,7 @@ class MctpCciApiClient(RunnableComponent):
             UnbindVppbCommand.create_cci_request, request
         )
 
-        return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
         if wait_for_completion:
             return_code = await self._wait_for_background_operation()
         if return_code not in (
@@ -273,13 +278,12 @@ class MctpCciApiClient(RunnableComponent):
             GetConnectedDevicesCommand.create_cci_request
         )
 
-        return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
         if return_code != CCI_RETURN_CODE.SUCCESS:
             return (return_code, None)
         response = GetConnectedDevicesCommand.parse_response_payload(
             response_message_packet.get_payload()
         )
-        # logger.debug(self._create_message(response.get_pretty_print()))
         return (return_code, response)
 
     async def get_ld_info(
@@ -289,7 +293,7 @@ class MctpCciApiClient(RunnableComponent):
             GetLdInfoCommand.create_cci_request, port_index=port_index
         )
 
-        return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
         if return_code != CCI_RETURN_CODE.SUCCESS:
             return (return_code, None)
         response = GetLdInfoCommand.parse_response_payload(response_message_packet.get_payload())
@@ -302,7 +306,7 @@ class MctpCciApiClient(RunnableComponent):
             GetLdAllocationsCommand.create_cci_request, request, port_index=port_index
         )
 
-        return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
         if return_code != CCI_RETURN_CODE.SUCCESS:
             return (return_code, None)
         response = GetLdAllocationsCommand.parse_response_payload(
@@ -317,7 +321,7 @@ class MctpCciApiClient(RunnableComponent):
             SetLdAllocationsCommand.create_cci_request, request, port_index=port_index
         )
 
-        return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
         if return_code != CCI_RETURN_CODE.SUCCESS:
             return (return_code, None)
         response = SetLdAllocationsCommand.parse_response_payload(
@@ -332,7 +336,7 @@ class MctpCciApiClient(RunnableComponent):
             FreezeVppbCommand.create_cci_request, request
         )
 
-        return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
         if wait_for_completion:
             return_code = await self._wait_for_background_operation()
         if return_code not in (
@@ -349,7 +353,7 @@ class MctpCciApiClient(RunnableComponent):
             UnfreezeVppbCommand.create_cci_request, request
         )
 
-        return_code = CCI_RETURN_CODE(response_message_packet.header.return_code)
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
         if wait_for_completion:
             return_code = await self._wait_for_background_operation()
         if return_code not in (

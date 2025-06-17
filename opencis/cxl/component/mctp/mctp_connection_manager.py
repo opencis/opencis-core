@@ -90,6 +90,8 @@ class MctpConnectionManager(RunnableComponent):
             writer,
             self._switch_port.mctp_connection,
             MCTP_PACKET_PROCESSOR_TYPE.CONTROLLER,
+            self._label,
+            parent_name=self.get_message_label(),
         )
         self._switch_port.packet_processor = packet_processor
         await packet_processor.run()

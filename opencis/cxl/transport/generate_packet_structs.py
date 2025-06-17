@@ -51,13 +51,7 @@ def emit_struct(name, layout):
 
 def emit_composite(packet_name, layout, field_sizes):
     packet_name = f"Raw{packet_name}"
-    lines = [
-        "# Generated file",
-        "from opencis.cxl.transport.packet_base cimport PacketBuffer",
-        "from libc.string cimport memcpy",
-        "",
-        f"cdef class {packet_name}(PacketBuffer):",
-    ]
+    lines = [f"\ncdef class {packet_name}(PacketBuffer):"]
 
     has_data_field = False
     field_entries = []
@@ -124,6 +118,8 @@ def emit_composite(packet_name, layout, field_sizes):
 
     if has_data_field:
         lines.append("    cpdef bytes get_data(self):")
+        lines.append("        if self._data_length <= 0:")
+        lines.append("            return b''")
         lines.append(
             "        return (<const unsigned char*> "
             f"&self._buf[{total_header_bytes}])[:self._data_length]"
@@ -146,7 +142,6 @@ def emit_composite(packet_name, layout, field_sizes):
         lines.append("")
         lines.append("    cpdef void set_data_raw(self, const unsigned char* data, Py_ssize_t n):")
         lines.append("        pass")
-
     lines.append("")
     lines.append("    cpdef int get_size(self):")
     lines.append("        return self.HEADER_SIZE + self._data_length")
@@ -179,6 +174,11 @@ def main():
             f.write(emit_struct(name, layout))
             f.write("\n")
 
+        f.write(
+            "# Generated file\n\n"
+            "from opencis.cxl.transport.packet_base cimport PacketBuffer\n"
+            "from libc.string cimport memcpy\n\n"
+        )
         for packet_name, layout in packets.PACKETS.items():
             f.write(emit_composite(packet_name, layout, field_sizes))
             f.write("\n")

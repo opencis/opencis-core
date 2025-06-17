@@ -7,6 +7,7 @@ See LICENSE for details.
 
 import platform
 
+# from opencis.util.logger import logger
 from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
 from opencis.cxl.transport.mixin import (
     BasePacketMixin,
@@ -180,7 +181,10 @@ class CciMessagePacket(BasePacketMixin, CciBasePacketMixin, RawCciMessagePacket,
         return packet
 
     def get_message_payload_length(self) -> int:
-        return self.message_payload_length_high << 16 | self.message_payload_length_low
+        return (
+            self.cci_msg_header.message_payload_length_high << 16
+            | self.cci_msg_header.message_payload_length_low
+        )
 
     def get_payload_size(self) -> int:
         return self.cci_msg_header.get_message_payload_length()
@@ -196,7 +200,7 @@ class CciPayloadPacket(
     PacketDataMixin,
 ):
     def get_cci_message(self):
-        return CciMessagePacket(self.get_data())
+        return CciMessagePacket(bytearray(self.get_data()))
 
     @classmethod
     def create(cls, cci_message: CciMessagePacket, port_index: int = 0) -> "CciPayloadPacket":
@@ -421,6 +425,11 @@ class CciResponsePacket(
         self.cci_msg_header.message_payload_length_high = (cci_payload_length >> 16) & 0x1F
         return cci_payload_length
 
+    def get_cci_message(self) -> "CciMessagePacket":
+        offset = self.get_byte_offset(self.cci_msg_header)
+        length = len(self.cci_msg_header) + self.get_cci_payload_length()
+        return CciMessagePacket(self.get_bytes(offset, length))
+
 
 class GetLdInfoResponsePacket(CciResponsePacket):
     _fields = [
@@ -443,11 +452,6 @@ class GetLdInfoResponsePacket(CciResponsePacket):
 
         packet.system_header.payload_length = len(packet)
         return packet
-
-    def get_cci_message(self) -> "CciMessagePacket":
-        offset = self.get_byte_offset(self.cci_msg_header)
-        length = len(self.cci_msg_header) + self.get_cci_payload_length()
-        return CciMessagePacket(self.get_bytes(offset, length))
 
     def get_memory_size(self) -> int:
         return self.payload.memory_size
@@ -503,8 +507,6 @@ class GetLdAllocationsResponsePacket(CciResponsePacket):
             elif ld_allocations.get(start_ld_id + i) == 0:
                 break
 
-        # print(f"GetLdAllocationsResponsePacket, list:{allocated_ld_list_bytes}")
-
         dynamic_widths = {"ld_allocation_list": len(allocated_ld_list_bytes) * 8}
         packet.init_cci_payload(dynamic_widths)
         packet.payload.number_of_lds = number_of_lds
@@ -535,16 +537,6 @@ class SetLdAllocationsResponsePacket(CciResponsePacket):
         # LD Allocations List: 16 bytes each
         length = self.payload.number_of_lds * LD_ALLOCATIONS_SIZE
         self.payload.set_dynamic_field_width("ld_allocation_list", length * 8)
-
-    # NEED TO REMOVE
-    def payload_to_bytes(self) -> bytes:
-        payload = self.set_ld_allocations_response_payload
-        return (
-            payload.number_of_lds.to_bytes(1, "little")
-            + payload.start_ld_id.to_bytes(1, "little")
-            + payload.reserved.to_bytes(2, "little")
-            + self.ld_allocation_list
-        )
 
     @classmethod
     def create(

@@ -61,7 +61,7 @@ class MctpCciExecutor(RunnableComponent):
             self._cci_executor.register_command(command.get_opcode(), command)
 
     def _packet_to_request(self, packet: CciMessagePacket) -> CciRequest:
-        return CciRequest(opcode=packet.header.command_opcode, payload=packet.get_payload())
+        return CciRequest(opcode=packet.cci_msg_header.command_opcode, payload=packet.get_payload())
 
     async def _send_response(self, response: CciResponse, message_tag: int):
         response_packet = CciMessagePacket.create(
@@ -69,7 +69,7 @@ class MctpCciExecutor(RunnableComponent):
             opcode=0,
             data=response.payload,
             message_tag=message_tag,
-            vendor_specific_extended_status=response.vendor_specific_extended_status,
+            vendor_specific_extended_status=response.vendor_specific_status,
             return_code=response.return_code,
             background_operation=int(response.bo_flag),
         )
@@ -88,43 +88,40 @@ class MctpCciExecutor(RunnableComponent):
 
             # Unpack
             cci_packet_tmc = cast(CciPayloadPacket, packet)
-            cci_packet = cci_packet_tmc.get_packet()
-
-            opcode = cci_packet.header.command_opcode
             port_index = cci_packet_tmc.cci_header.port_index
 
+            cci_message = cci_packet_tmc.get_cci_message()
+            command_opcode = cci_message.cci_msg_header.command_opcode
             opcodes_for_ld = [
                 CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO,
                 CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS,
                 CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS,
             ]
-            if opcode in opcodes_for_ld:
+            if command_opcode in opcodes_for_ld:
                 # Pass down to MLD
                 # ld_index = cci_packet_tmc.cci_header.port_index
-                message_tag = cci_packet.header.message_tag
+                message_tag = cci_message.cci_msg_header.message_tag
                 self._message_tag_list[message_tag] = port_index
 
-                downstream_packet = None
-                if opcode == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
-                    downstream_packet = GetLdInfoRequestPacket.create_from_cci_message(cci_packet)
-                if opcode == CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:
-                    downstream_packet = GetLdAllocationsRequestPacket.create_from_cci_message(
-                        cci_packet
-                    )
-
-                if opcode == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
-                    downstream_packet = SetLdAllocationsRequestPacket.create_from_cci_message(
-                        cci_packet
-                    )
+                packet = None
+                match command_opcode:
+                    case CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
+                        packet = GetLdInfoRequestPacket.create_from_cci_message(cci_message)
+                    case CCI_FM_API_COMMAND_OPCODE.GET_LD_ALLOCATIONS:
+                        packet = GetLdAllocationsRequestPacket.create_from_cci_message(cci_message)
+                    case CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
+                        packet = SetLdAllocationsRequestPacket.create_from_cci_message(cci_message)
+                    case _:
+                        break
 
                 await self._downstream_port_connections[port_index].cci_fifo.host_to_target.put(
-                    downstream_packet
+                    packet
                 )
             else:
                 # Convert packet to CciRequest and send it to CciExecutor
-                request = self._packet_to_request(cci_packet)
+                request = self._packet_to_request(cci_message)
                 response = await self._cci_executor.execute_command(request)
-                await self._send_response(response, cci_packet.header.message_tag)
+                await self._send_response(response, cci_message.cci_msg_header.message_tag)
 
     async def _process_outcoming_responses(self, downstream_connection: CxlConnection):
         logger.debug(self._create_message("Started processing outcoming request"))
@@ -145,7 +142,7 @@ class MctpCciExecutor(RunnableComponent):
 
             self._message_tag_list.pop(packet.cci_msg_header.message_tag)
 
-            cci_packet = packet.create_cci_message()
+            cci_packet = packet.get_cci_message()
             cci_packet_tmc = CciPayloadPacket.create(cci_packet)
 
             await self._mctp_connection.ep_to_controller.put(cci_packet_tmc)
@@ -173,7 +170,7 @@ class MctpCciExecutor(RunnableComponent):
 
     async def send_notification(self, request: CciRequest):
         message_packet = CciMessagePacket.create(
-            request.payload,
+            data=request.payload,
             message_category=CCI_MCTP_MESSAGE_CATEGORY.REQUEST,
             opcode=request.opcode,
         )

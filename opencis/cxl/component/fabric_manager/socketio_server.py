@@ -181,8 +181,8 @@ class FabricManagerSocketIoServer(RunnableComponent):
         self._sio.on(event, partial(self._handle_event, event))
 
     async def _handle_notifications(self, packet: CciMessagePacket):
-        logger.debug(self._create_message("Handling Notification"))
-        opcode = packet.header.command_opcode
+        opcode = packet.cci_msg_header.command_opcode
+        logger.debug(self._create_message(f"Handling Notification for 0x{opcode:x}"))
         opcode_str = get_opcode_string(opcode)
         if opcode == CCI_VENDOR_SPECIFIC_OPCODE.NOTIFY_PORT_UPDATE:
             await self._send_update_physical_ports_notification()
