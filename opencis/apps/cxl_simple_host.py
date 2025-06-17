@@ -7,7 +7,7 @@ See LICENSE for details.
 
 import asyncio
 
-from opencis.cxl.transport.transaction import CXL_MEM_M2SBIRSP_OPCODE
+from opencis.cxl.transport.packet_constants import CXL_MEM_M2SBIRSP_OPCODE
 from opencis.util.logger import logger
 from opencis.util.component import RunnableComponent
 from opencis.cxl.device.root_port_device import CxlRootPortDevice

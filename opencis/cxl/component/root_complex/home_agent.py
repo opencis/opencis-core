@@ -27,8 +27,8 @@ from opencis.cxl.transport.cache_fifo import (
     CacheResponse,
     CACHE_RESPONSE_STATUS,
 )
-from opencis.cxl.transport.transaction import (
-    BasePacket,
+from opencis.cxl.transport.transaction import BasePacket
+from opencis.cxl.transport.cxl_mem_packets import (
     CxlMemBasePacket,
     CxlMemMemDataPacket,
     CxlMemMemRdPacket,

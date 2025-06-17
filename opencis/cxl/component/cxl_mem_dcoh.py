@@ -12,8 +12,8 @@ from enum import Enum, auto
 
 from opencis.util.logger import logger
 from opencis.pci.component.fifo_pair import FifoPair
-from opencis.cxl.transport.transaction import (
-    BasePacket,
+from opencis.cxl.transport.transaction import BasePacket
+from opencis.cxl.transport.cxl_mem_packets import (
     CxlMemBasePacket,
     CxlMemM2SReqPacket,
     CxlMemM2SRwDPacket,
@@ -21,6 +21,8 @@ from opencis.cxl.transport.transaction import (
     CxlMemMemDataPacket,
     CxlMemCmpPacket,
     CxlMemBISnpPacket,
+)
+from opencis.cxl.transport.packet_constants import (
     CXL_MEM_META_FIELD,
     CXL_MEM_META_VALUE,
     CXL_MEM_M2S_SNP_TYPE,

@@ -28,7 +28,7 @@ from opencis.cxl.transport.packet_constants import (
     CXL_MEM_M2SBIRSP_OPCODE,
     CXL_MEM_S2MBISNP_OPCODE,
 )
-from opencis.cxl.transport.transaction import (
+from opencis.cxl.transport.cxl_mem_packets import (
     CxlMemMemRdPacket,
     CxlMemMemWrPacket,
     CxlMemMemDataPacket,

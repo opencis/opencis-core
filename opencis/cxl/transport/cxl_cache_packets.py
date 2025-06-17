@@ -30,7 +30,6 @@ from opencis.cxl.transport.mixin import (
 )
 
 
-
 ######################################## CACHE
 class CxlCacheBasePacket(
     BasePacketMixin,
@@ -277,4 +276,3 @@ def is_cxl_cache_d2h_data(packet) -> bool:
     if not packet.is_cxl_cache():
         return False
     return packet.is_d2hdata() and packet.d2hdata_header.valid == 1
-

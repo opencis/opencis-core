@@ -25,13 +25,13 @@ from opencis.cxl.component.packet_reader import PacketReader
 from opencis.cxl.transport.transaction import (
     BasePacket,
     BaseSidebandPacket,
-    CxlMemBasePacket,
-    SIDEBAND_TYPES,
 )
+from opencis.cxl.transport.cxl_mem_packets import CxlMemBasePacket
 from opencis.cxl.transport.cxl_cache_packets import CxlCacheBasePacket
 from opencis.cxl.transport.packet_constants import (
     SYSTEM_PAYLOAD_TYPE,
     CXL_IO_FMT_TYPE,
+    SIDEBAND_TYPES,
 )
 from opencis.cxl.transport.cxl_io_packets import CxlIoBasePacket
 from opencis.cxl.transport.cci_packets import (

@@ -16,13 +16,15 @@ from opencis.cxl.transport.transaction import (
     BasePacket,
     BaseSidebandPacket,
     SidebandConnectionRequestPacket,
-    CxlMemBasePacket,
-    CxlMemM2SReqPacket,
-    CxlMemM2SRwDPacket,
-    CxlMemM2SBIRspPacket,
-    CxlMemS2MBISnpPacket,
-    CxlMemS2MNDRPacket,
-    CxlMemS2MDRSPacket,
+)
+from opencis.cxl.transport.cxl_io_packets import (
+    CxlIoBasePacket,
+    CxlIoCfgRdPacket,
+    CxlIoCfgWrPacket,
+    CxlIoMemRdPacket,
+    CxlIoMemWrPacket,
+    CxlIoCompletionPacket,
+    CxlIoCompletionWithDataPacket,
 )
 from opencis.cxl.transport.cxl_cache_packets import (
     CxlCacheBasePacket,
@@ -33,17 +35,15 @@ from opencis.cxl.transport.cxl_cache_packets import (
     CxlCacheCacheH2DReqPacket,
     CxlCacheCacheH2DRspPacket,
 )
-
-from opencis.cxl.transport.cxl_io_packets import (
-    CxlIoBasePacket,
-    CxlIoCfgRdPacket,
-    CxlIoCfgWrPacket,
-    CxlIoMemRdPacket,
-    CxlIoMemWrPacket,
-    CxlIoCompletionPacket,
-    CxlIoCompletionWithDataPacket,
+from opencis.cxl.transport.cxl_mem_packets import (
+    CxlMemBasePacket,
+    CxlMemM2SReqPacket,
+    CxlMemM2SRwDPacket,
+    CxlMemM2SBIRspPacket,
+    CxlMemS2MBISnpPacket,
+    CxlMemS2MNDRPacket,
+    CxlMemS2MDRSPacket,
 )
-
 from opencis.cxl.transport.cci_packets import (
     CciBasePacket,
     CciRequestPacket,

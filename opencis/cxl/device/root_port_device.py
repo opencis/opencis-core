@@ -32,16 +32,7 @@ from opencis.util.pci import (
     bdf_to_string,
     generate_bdfs_for_bus,
 )
-from opencis.cxl.transport.transaction import (
-    CXL_MEM_M2SBIRSP_OPCODE,
-    BasePacket,
-    CxlMemBIRspPacket,
-    CxlMemMemWrPacket,
-    CxlMemMemRdPacket,
-    CxlMemMemDataPacket,
-    is_cxl_mem_data,
-    is_cxl_mem_completion,
-)
+from opencis.cxl.transport.transaction import BasePacket
 from opencis.cxl.transport.cxl_io_packets import (
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
@@ -52,6 +43,15 @@ from opencis.cxl.transport.cxl_io_packets import (
     is_cxl_io_completion_status_sc,
     is_cxl_io_completion_status_ur,
 )
+from opencis.cxl.transport.cxl_mem_packets import (
+    CxlMemBIRspPacket,
+    CxlMemMemWrPacket,
+    CxlMemMemRdPacket,
+    CxlMemMemDataPacket,
+    is_cxl_mem_data,
+    is_cxl_mem_completion,
+)
+from opencis.cxl.transport.packet_constants import CXL_MEM_M2SBIRSP_OPCODE
 
 BRIDGE_CLASS = PCI_CLASS.BRIDGE << 8 | PCI_BRIDGE_SUBCLASS.PCI_BRIDGE
 

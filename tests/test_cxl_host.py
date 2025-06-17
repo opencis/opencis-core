@@ -17,9 +17,7 @@ from jsonrpcclient import request_json
 import websockets
 import pytest
 
-from opencis.cxl.transport.transaction import (
-    CXL_MEM_M2SBIRSP_OPCODE,
-)
+from opencis.cxl.transport.packet_constants import CXL_MEM_M2SBIRSP_OPCODE
 from opencis.apps.fabric_manager import CxlFabricManager
 from opencis.apps.memory_pooling import my_sys_sw_app, sample_app
 from opencis.cxl.component.cxl_host import CxlHost, CxlHostConfig
