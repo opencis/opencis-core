@@ -312,7 +312,7 @@ class CxlMemCmpPacket(
         return packet
 
 
-######### MEM helper ##################
+# ------------------------------ Helper Functions ------------------------------#
 def is_cxl_mem_data(packet) -> bool:
     return (
         packet.is_cxl_mem()

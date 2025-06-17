@@ -21,7 +21,6 @@ from opencis.cxl.transport.mixin import (
 )
 
 
-############ SIDEBAND
 class BaseSidebandPacket(
     BasePacketMixin,
     SidebandPacketMixin,

@@ -30,7 +30,6 @@ from opencis.cxl.transport.mixin import (
 )
 
 
-######################################## CACHE
 class CxlCacheBasePacket(
     BasePacketMixin,
     CxlCacheBasePacketMixin,
@@ -265,7 +264,7 @@ class CxlCacheCacheH2DDataPacket(
         return self.h2ddata_header.cache_id
 
 
-######### CACHE helper ##################
+# ------------------------------ Helper Functions ------------------------------#
 def is_cxl_cache_h2d_data(packet) -> bool:
     if not packet.is_cxl_cache():
         return False

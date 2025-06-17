@@ -328,9 +328,6 @@ class GetLdAllocationsRequestPacket(CciRequestPacket):
         return packet
 
 
-LD_ALLOCATIONS_SIZE = 16
-
-
 class SetLdAllocationsRequestPacket(CciRequestPacket):
     _fields = [
         ("number_of_lds", 0, 8),
@@ -345,7 +342,7 @@ class SetLdAllocationsRequestPacket(CciRequestPacket):
             return
 
         # LD Allocations List: 16 bytes each
-        length = self.payload.number_of_lds * LD_ALLOCATIONS_SIZE
+        length = self.payload.number_of_lds * 16
         self.payload.set_dynamic_field_width("ld_allocation_list", length * 8)
 
     @classmethod
@@ -481,7 +478,7 @@ class GetLdAllocationsResponsePacket(CciResponsePacket):
             return
 
         # LD Allocations List: 16 bytes each
-        length = self.payload.ld_allocation_list_length * LD_ALLOCATIONS_SIZE
+        length = self.payload.ld_allocation_list_length * 16
         self.payload.set_dynamic_field_width("ld_allocation_list", length * 8)
 
     @classmethod
@@ -535,7 +532,7 @@ class SetLdAllocationsResponsePacket(CciResponsePacket):
             return
 
         # LD Allocations List: 16 bytes each
-        length = self.payload.number_of_lds * LD_ALLOCATIONS_SIZE
+        length = self.payload.number_of_lds * 16
         self.payload.set_dynamic_field_width("ld_allocation_list", length * 8)
 
     @classmethod

@@ -351,8 +351,6 @@ class CxlIoCompletionWithDataPacket(
 
 
 # ------------------------------ Helper Functions ------------------------------#
-
-
 def is_cxl_io_completion_status_sc(packet) -> bool:
     if not packet.is_cxl_io():
         return False
