@@ -129,6 +129,7 @@ class CxlCacheCacheD2HDataPacket(
         uqid: int,
         data: int,
     ) -> "CxlCacheCacheD2HDataPacket":
+        # pylint: disable=duplicate-code
         packet = cls()
         packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_DATA
@@ -242,6 +243,7 @@ class CxlCacheCacheH2DDataPacket(
         data: int,
         cqid: int = 0,
     ) -> "CxlCacheCacheH2DDataPacket":
+        # pylint: disable=duplicate-code
         packet = cls()
         packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
         packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_DATA

@@ -260,11 +260,6 @@ class CxlDeviceInfo:
         dpa_skip_high_offset = 0x20 * decoder_index + 0x28 + register_base_address
         dpa_skip_low = dpa_skip & 0xFFFFFFFF
         dpa_skip_high = (dpa_skip >> 32) & 0xFFFFFFFF
-        # logger.info(f"dpa_skip:{dpa_skip:x}, hpa_base:{hpa_base:x}, hpa_size:{hpa_size:x}")
-        # logger.info(f"decoder_index:{decoder_index:x}")
-        # logger.info(f"register_base_address:{register_base_address:x}")
-        # logger.info(f"dpa_skip_low_offset:{dpa_skip_low_offset:x}")
-        # logger.info(f"dpa_skip_high_offset:{dpa_skip_high_offset:x}")
         await self.root_complex.write_mmio(dpa_skip_low_offset, 4, dpa_skip_low)
         await self.root_complex.write_mmio(dpa_skip_high_offset, 4, dpa_skip_high)
 

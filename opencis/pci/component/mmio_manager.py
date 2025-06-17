@@ -186,8 +186,6 @@ class MmioManager(PacketProcessor):
         start_offset = offset
         end_offset = offset + size - 1
         if mem_req_packet.is_mem_write():
-
-            # TODO: HACK: Convert ALL data to bytes only and convert "register"
             data = mem_req_packet.get_data_as_int()
 
             logger.debug(self._create_message(f"WR: 0x{address:x}[{size}]=0x{data:08x}"))

@@ -176,7 +176,6 @@ class IoBridge(RunnableComponent):
             logger.error(self._create_message("CXL.io mmio RD: Timed-out"))
             return None
 
-        # print(f"?????????????{packet}, {packet.get_data_as_int()}, {bytes(packet)}")
         cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
         return cpld_packet.get_data_as_int()
 

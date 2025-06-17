@@ -396,7 +396,7 @@ class CxlMemRouter(CxlRouter):
 
             if target_port is None:
                 logger.warning(self._create_message("Received unroutable CXL.mem packet"))
-                # logger.warning(self._create_message(cxl_mem_packet.get_pretty_string()))
+                logger.warning(self._create_message(cxl_mem_packet.get_pretty_string()))
                 continue
             if target_port >= len(self._downstream_connections):
                 raise Exception("target_port is out of bound")

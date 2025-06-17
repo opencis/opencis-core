@@ -9,7 +9,6 @@ import os
 from setuptools import setup, Extension
 from Cython.Build import cythonize
 
-# Simple setup.py that always builds inside this directory
 here = os.path.abspath(os.path.dirname(__file__))
 
 setup(

@@ -8,7 +8,6 @@ See LICENSE for details.
 from enum import IntEnum
 
 
-# TODO: DELETE ME later
 class SYSTEM_PAYLOAD_TYPE(IntEnum):
     CXL = 0  # packet based on CPI
     CXL_IO = 1  # Custom packet for CXL.io

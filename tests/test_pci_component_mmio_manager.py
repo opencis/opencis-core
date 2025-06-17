@@ -161,7 +161,6 @@ async def test_mmio_manager_read():
     # Test when address is valid
     bar_entry.base_address = 0x1000
     bar_entry.register = BytesLikeMock()
-    bar_entry.register.__int__.return_value = 123
     bar_entry.register.__len__.return_value = 0x10
     packet = CxlIoMemRdPacket.create(addr=0x1000, length=4)
     await upstream_fifo.host_to_target.put(packet)

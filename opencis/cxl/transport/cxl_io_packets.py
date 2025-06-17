@@ -7,6 +7,7 @@ See LICENSE for details.
 
 from typing import Optional
 
+from opencis.cxl.transport.common import TagCounter
 from opencis.cxl.transport.packet_structs import (
     RawCxlIoBasePacket,
     RawCxlIoMemReqPacket,
@@ -37,23 +38,8 @@ from opencis.cxl.transport.mixin import (
 )
 
 
-class _TagCounter:
-    __slots__ = ("_value", "_mod")
-
-    def __init__(self, modulus: int) -> None:
-        self._value = 0
-        self._mod = modulus
-
-    def next(self, explicit: Optional[int] = None) -> int:
-        if explicit is not None:
-            return explicit & (self._mod - 1)
-        tag = self._value
-        self._value = (self._value + 1) % self._mod
-        return tag
-
-
-_io_mem_tags = _TagCounter(256)
-_io_cfg_tags = _TagCounter(256)
+_io_mem_tags = TagCounter(256)
+_io_cfg_tags = TagCounter(256)
 
 
 class CxlIoBasePacket(BasePacketMixin, CxlIoBasePacketMixin, RawCxlIoBasePacket):

@@ -127,7 +127,7 @@ class PacketReader(LabeledComponent):
     async def _get_payload(self) -> Tuple[BasePacket, bytes]:
         logger.debug(self._create_message("Waiting Packet"))
         header_bytes = await self._read_payload(SystemHeader.get_size())
-        # logger.debug(f"header_load: {header_load}")
+        # logger.debug(f"header_bytes: {header_bytes}")
         base_packet = BasePacket(bytearray(header_bytes))
         remaining_length = base_packet.system_header.payload_length - len(base_packet)
         if remaining_length < 0:
@@ -208,7 +208,6 @@ class PacketReader(LabeledComponent):
     def _get_cci_packet(self, payload: bytes) -> CciBasePacket:
         payload = bytearray(payload)
         cci_base_packet = CciBasePacket(payload)
-        logger.info("HERE 0")
 
         if cci_base_packet.is_req():
             cci_packet = CciRequestPacket(payload)
@@ -219,10 +218,8 @@ class PacketReader(LabeledComponent):
             elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
                 cci_packet = SetLdAllocationsRequestPacket(payload)
             else:
-                logger.info("HERE 1")
                 raise Exception("Unsupported CCI packet")
         elif cci_base_packet.is_rsp():
-            print(f"cci_base_packet: {bytes(cci_base_packet)}")
             cci_packet = CciResponsePacket(payload)
             if cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
                 cci_packet = GetLdInfoResponsePacket(payload)
@@ -231,12 +228,9 @@ class PacketReader(LabeledComponent):
             elif cci_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
                 cci_packet = SetLdAllocationsResponsePacket(payload)
             else:
-                logger.info("HERE 2")
                 raise Exception("Unsupported CCI packet")
         else:
-            logger.info("HERE 3")
             raise Exception("Unsupported CCI packet")
-        logger.info(f"HERE 5 {cci_packet}")
 
         return cci_packet
 

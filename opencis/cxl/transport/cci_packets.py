@@ -440,7 +440,6 @@ class GetLdInfoResponsePacket(CciResponsePacket):
         packet = cls.create_packet(CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO)
         packet.init_cci_payload()
 
-        # print(f"create GetLdInfoResponsePacket, before bytes{bytes(packet)}")
         packet.cci_msg_header.message_tag = message_tag
         packet.payload.memory_size = memory_size
         packet.payload.ld_count = ld_count

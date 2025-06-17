@@ -63,11 +63,6 @@ class GetLdAllocationsResponsePayloadDict(TypedDict):
     ldAllocationList: List[int]
 
 
-class LdAllocations(TypedDict):
-    range1AllocationMultiplier: int
-    range2AllocationMultiplier: int
-
-
 @dataclass
 class GetLdAllocationsResponsePayload:
     number_of_lds: int = field(default=0)  # 1byte

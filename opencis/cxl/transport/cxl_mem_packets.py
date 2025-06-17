@@ -5,9 +5,8 @@ This software is licensed under the terms of the Revised BSD License.
 See LICENSE for details.
 """
 
-from typing import Optional
-
 # from opencis.util.logger import logger
+from opencis.cxl.transport.common import TagCounter
 from opencis.cxl.transport.packet_structs import (
     RawCxlMemBasePacket,
     RawCxlMemM2SReqPacket,
@@ -37,26 +36,7 @@ from opencis.cxl.transport.mixin import (
 )
 
 
-# pylint: disable=duplicate-code
-# TODO: Move to a common place MOVE MOVE
-class _TagCounter:
-    __slots__ = ("_value", "_mod")
-
-    def __init__(self, modulus: int) -> None:
-        self._value = 0
-        self._mod = modulus
-
-    def next(self, explicit: Optional[int] = None) -> int:
-        if explicit is not None:
-            return explicit & (self._mod - 1)
-        tag = self._value
-        self._value = (self._value + 1) % self._mod
-        return tag
-
-
-########################### CXL.mem
-
-_bisnp_tags = _TagCounter(4096)
+_bisnp_tags = TagCounter(4096)
 
 
 class CxlMemBasePacket(
@@ -177,6 +157,7 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
         snp_type: CXL_MEM_M2S_SNP_TYPE = CXL_MEM_M2S_SNP_TYPE.NO_OP,
         ld_id: int = 0,
     ) -> "CxlMemMemWrPacket":
+        # pylint: disable=duplicate-code
         packet = cls()
         packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_RWD
@@ -269,6 +250,7 @@ class CxlMemMemDataPacket(
         meta_value: CXL_MEM_META_VALUE = CXL_MEM_META_VALUE.ANY,
         ld_id: int = 0,
     ) -> "CxlMemMemDataPacket":
+        # pylint: disable=duplicate-code
         packet = cls()
         packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_DRS

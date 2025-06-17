@@ -178,7 +178,6 @@ class HdmDecoderManagerBase(LabeledComponent):
                 f"decoder.index:{decoder.index}, decoder.base:{decoder.base:x} "
                 f"decoder.size:{decoder.size:x}, decoder.ig/iw:{decoder.ig:x}/{decoder.iw:x}"
             )
-            logger.debug(f"hpa:{hpa:x}")
             if decoder.is_hpa_in_range(hpa):
                 return decoder
         return None

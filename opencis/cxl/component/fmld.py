@@ -116,7 +116,6 @@ class FMLD(RunnableComponent):
         ld_allocation_list_bytes = request_packet.payload.ld_allocation_list
 
         # Update LD allocations
-        print(f"ABOUT TO PROCESS: {ld_allocation_list_bytes}")
         number_of_lds = min(number_of_lds, len(self._ld_allocations) - start_ld_id)
         for i in range(number_of_lds):
             ld_id = start_ld_id + i

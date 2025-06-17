@@ -183,9 +183,6 @@ class ShortMsgConn(RunnableComponent):
         info = f"host sending to device {device}"
         if not self._server:
             info = f"device {self._device_id} sending to host"
-        if device not in self._connections:
-            logger.info(f"Device {device} is not connected")
-            return
         logger.debug(self._create_message(info))
         _, writer = self._connections[device]
         val_w_dev_id = request.real_val << 8 | self._device_id
