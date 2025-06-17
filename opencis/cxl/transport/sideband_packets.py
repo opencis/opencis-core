@@ -1,0 +1,52 @@
+"""
+Copyright (c) 2024-2025, Eeum, Inc.
+
+This software is licensed under the terms of the Revised BSD License.
+See LICENSE for details.
+"""
+
+# from opencis.util.logger import logger
+from opencis.cxl.transport.packet_structs import (
+    RawBaseSidebandPacket,
+    RawSidebandConnectionRequestPacket,
+)
+from opencis.cxl.transport.packet_constants import (
+    SYSTEM_PAYLOAD_TYPE,
+    SIDEBAND_TYPES,
+)
+from opencis.cxl.transport.mixin import (
+    BasePacketMixin,
+    PacketDataMixin,
+    SidebandPacketMixin,
+)
+
+
+############ SIDEBAND
+class BaseSidebandPacket(
+    BasePacketMixin,
+    SidebandPacketMixin,
+    RawBaseSidebandPacket,
+):
+    @classmethod
+    def create(cls, type: SIDEBAND_TYPES) -> "BaseSidebandPacket":
+        packet = cls()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.SIDEBAND
+        packet.sideband_header.type = type
+        packet.system_header.payload_length = len(packet)
+        return packet
+
+
+class SidebandConnectionRequestPacket(
+    BasePacketMixin,
+    SidebandPacketMixin,
+    RawSidebandConnectionRequestPacket,
+    PacketDataMixin,
+):
+    @classmethod
+    def create(cls, port_index: int) -> "SidebandConnectionRequestPacket":
+        packet = cls()
+        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.SIDEBAND
+        packet.sideband_header.type = SIDEBAND_TYPES.CONNECTION_REQUEST
+        packet.set_data_as_int(port_index)
+        packet.system_header.payload_length = len(packet)
+        return packet

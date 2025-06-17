@@ -13,13 +13,11 @@ from typing import Optional, List, Callable, Coroutine, Any, cast
 import traceback
 
 from opencis.cxl.component.cxl_connection import CxlConnection
-
-from opencis.cxl.transport.transaction import BaseSidebandPacket
 from opencis.cxl.transport.packet_constants import (
     SYSTEM_PAYLOAD_TYPE,
     SIDEBAND_TYPES,
 )
-
+from opencis.cxl.transport.sideband_packets import BaseSidebandPacket
 from opencis.cxl.component.packet_reader import PacketReader
 from opencis.cxl.component.cxl_packet_processor import CxlPacketProcessor
 from opencis.cxl.component.cxl_component import (
