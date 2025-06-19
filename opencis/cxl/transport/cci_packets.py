@@ -283,7 +283,6 @@ class GetLdInfoRequestPacket(CciRequestPacket):
         packet.initialize_common_headers()
         packet.populate_header_from_ccimessage(cci_message)
         cci_msg_header_offset = packet.get_byte_offset(packet.cci_msg_header)
-        print(f"cci_msg_header_offset:{cci_msg_header_offset}, {len(cci_message)}")
         packet.set_bytes(cci_msg_header_offset, bytes(cci_message))
         packet.cci_msg_header.command_opcode = CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
         return packet
@@ -304,7 +303,6 @@ class GetLdAllocationsRequestPacket(CciRequestPacket):
 
         packet.payload.start_ld_id = start_ld_id
         packet.payload.ld_allocation_list_limit = ld_allocation_list_limit
-        print(f"PACKET: {bytes(packet)}")
         packet.set_data(bytes(packet.payload))
         packet.system_header.payload_length = len(packet)
         return packet
@@ -323,7 +321,6 @@ class GetLdAllocationsRequestPacket(CciRequestPacket):
         packet.payload.start_ld_id = int.from_bytes(data[:1], "little")
         packet.payload.ld_allocation_list_limit = int.from_bytes(data[1:3], "little")
         packet.set_data(data)
-        print(f"PACKET: {bytes(packet)}")
         packet.system_header.payload_length = len(packet)
         return packet
 
@@ -355,7 +352,6 @@ class SetLdAllocationsRequestPacket(CciRequestPacket):
         packet = super().create_packet(CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS)
         allocated_ld_list_bytes = bytes()
         allocated_ld_length = 0
-        print(ld_allocations)
         for i in range(number_of_lds):
             if ld_allocations.get(start_ld_id + i) == 1:
                 # hardcoding it to 256MB (i.e. 1)
@@ -410,8 +406,6 @@ class CciResponsePacket(
         packet.initialize_common_headers()
         packet.cci_msg_header.command_opcode = command_opcode
         packet.cci_msg_header.message_tag = message_tag
-
-        print(f"resp create_packet: {packet.cci_msg_header.command_opcode:x}")
         return packet
 
     def init_cci_payload(self, dynamic_widths: dict[str, int] = None) -> int:
@@ -543,7 +537,6 @@ class SetLdAllocationsResponsePacket(CciResponsePacket):
 
         allocated_ld_list_bytes = bytearray()
         allocated_ld_length = 0
-        print(ld_allocations)
         for i, _ in enumerate(ld_allocations):
             if ld_allocations.get(start_ld_id + i) == 1:
                 # hardcoding it to 256MB (i.e. 1)
@@ -558,7 +551,6 @@ class SetLdAllocationsResponsePacket(CciResponsePacket):
         packet.payload.number_of_lds = number_of_lds
         packet.payload.start_ld_id = start_ld_id
         packet.payload.reserved = 0
-        print(f"{allocated_ld_list_bytes}, {len(allocated_ld_list_bytes)}")
         packet.payload.ld_allocation_list = bytes(allocated_ld_list_bytes)
         packet.set_data(bytes(packet.payload))
 

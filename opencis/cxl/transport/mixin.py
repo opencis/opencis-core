@@ -5,6 +5,8 @@ This software is licensed under the terms of the Revised BSD License.
 See LICENSE for details.
 """
 
+from opencis.util.logger import logger
+from opencis.cxl.transport.packet_base import PacketBuffer
 from opencis.cxl.transport.packet_constants import (
     SYSTEM_PAYLOAD_TYPE,
     CXL_IO_FMT_TYPE,
@@ -33,9 +35,6 @@ class PacketDataMixin:
         data = data.to_bytes(length, byteorder="little")
         self.set_data(data)
 
-    def get_pretty_string(self):
-        return ""
-
 
 class BasePacketMixin:
     def is_cxl_io(self) -> bool:
@@ -55,6 +54,57 @@ class BasePacketMixin:
 
     def get_type(self) -> str:
         return self.__class__.__name__
+
+    def get_pretty_string(self) -> str:
+        out, hdrs = [], []
+        out.append(f"\n{type(self).__name__}")
+        for name in dir(self):
+            if not name.startswith("_"):
+                v = getattr(self, name, None)
+                if isinstance(v, PacketBuffer):
+                    try:
+                        off = int(self.get_byte_offset(v))
+                    except:
+                        off = 0
+                    hdrs.append((off, name, v))
+
+        # Print headers
+        for _, name, hdr in sorted(hdrs, key=lambda x: x[0]):
+            out.append(name)
+            fld = getattr(type(hdr), "_fields", None)
+            if fld:
+                names = [f[0] for f in sorted(fld, key=lambda f: f[1])]
+            else:
+                names = [
+                    a
+                    for a in dir(hdr)
+                    if not a.startswith("_")
+                    and isinstance(getattr(hdr, a, None), (int, bytes, str, float))
+                ]
+            for fn in names:
+                try:
+                    val = getattr(hdr, fn)
+                except:
+                    val = "<err>"
+                out.append(f"    {fn}: 0x{val:x}")
+
+        # Print payload
+        start = self.get_payload_offset()
+        end = self.get_size()
+        if end > start:
+            data = bytes(self)[start:end]
+            out.append("DataField")
+            out.append(f"    offset: {start}")
+            out.append(f"    length: {len(data)}")
+            for i in range(0, len(data), 16):
+                chunk = data[i : i + 16]
+                hp = [f"{b:02x}" for b in chunk]
+                left, right = hp[:8], hp[8:]
+                hex_str = " ".join(left) + ("  " if right else "") + " ".join(right)
+                pad = " " * (48 - len(hex_str))
+                ascii_str = "".join(chr(b) if 32 <= b < 127 else "." for b in chunk)
+                out.append(f"        {i:08x}|  {hex_str}{pad} |{ascii_str}|")
+        return "\n".join(out)
 
 
 class SidebandPacketMixin:

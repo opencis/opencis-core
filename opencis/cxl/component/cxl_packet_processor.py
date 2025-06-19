@@ -16,8 +16,8 @@ from dataclasses import dataclass
 from enum import StrEnum, IntEnum
 from typing import cast, Optional, Dict, Union, List
 
-from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
 from opencis.util.logger import logger
+from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
 from opencis.util.component import RunnableComponent
 from opencis.cxl.component.common import CXL_COMPONENT_TYPE
 from opencis.cxl.component.cxl_connection import CxlConnection
@@ -210,6 +210,7 @@ class CxlPacketProcessor(RunnableComponent):
         while True:  # pylint: disable=too-many-nested-blocks
             try:
                 packet = await self._reader.get_packet()
+                logger.info(self._create_message(packet.get_pretty_string()))
                 if packet.is_cxl_io():
                     cxl_io_packet = cast(CxlIoBasePacket, packet)
                     if cxl_io_packet.is_cpl() or cxl_io_packet.is_cpld():

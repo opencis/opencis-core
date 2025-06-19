@@ -43,8 +43,8 @@ cdef class PacketBuffer:
         cdef const unsigned char[::1] view = data
         cdef int i
         for i in range(view.shape[0]):
-            print("self._buf[offset + i]", self._buf[offset + i])
-            print("view[i]", view[i])
+            #print("self._buf[offset + i]", self._buf[offset + i])
+            #print("view[i]", view[i])
             self._buf[offset + i] = view[i]
 
     cpdef bytes to_bytes(self):
