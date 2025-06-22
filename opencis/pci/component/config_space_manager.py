@@ -49,7 +49,6 @@ class ConfigSpaceManager(RunnableComponent):
         self._downstream_fifo = downstream_fifo
         self._device_type = device_type
         self._register = None
-        self._req_id = 0
 
     def set_register(self, register: BitMaskedBitStructure):
         self._register = register
@@ -61,9 +60,9 @@ class ConfigSpaceManager(RunnableComponent):
         logger.debug(self._create_message("Forwarding request to the next child device"))
         await self._downstream_fifo.host_to_target.put(packet)
 
-    async def _send_unsupported_request(self, req_id, tag, ld_id):
+    async def _send_unsupported_request(self, req_id, tag, cpl_id, ld_id):
         packet = CxlIoCompletionPacket.create(
-            req_id=req_id, tag=tag, status=CXL_IO_CPL_STATUS.UR, ld_id=ld_id
+            req_id=req_id, tag=tag, cpl_id=cpl_id, status=CXL_IO_CPL_STATUS.UR, ld_id=ld_id
         )
         await self._upstream_fifo.target_to_host.put(packet)
 
@@ -87,7 +86,7 @@ class ConfigSpaceManager(RunnableComponent):
                     f"Received request for {bdf_str}, however, this device supports function 0 only"
                 )
             )
-            await self._send_unsupported_request(req_id, tag, ld_id)
+            await self._send_unsupported_request(req_id, tag, dest_id, ld_id)
             return
 
         if (
@@ -99,7 +98,7 @@ class ConfigSpaceManager(RunnableComponent):
                     f"Received request for {bdf_str}, however, this device supports device 0 only"
                 )
             )
-            await self._send_unsupported_request(req_id, tag, ld_id)
+            await self._send_unsupported_request(req_id, tag, dest_id, ld_id)
             return
 
         cfg_addr, size = cfg_rd_packet.get_cfg_addr_read_info()
@@ -114,9 +113,8 @@ class ConfigSpaceManager(RunnableComponent):
         value = self._register.read_bytes(cfg_addr, cfg_addr + size - 1)
 
         cpl_packet = CxlIoCompletionWithDataPacket.create(
-            req_id, tag, value, cpl_id=dest_id, ld_id=ld_id
+            req_id=req_id, tag=tag, cpl_id=dest_id, data=value, ld_id=ld_id
         )
-        cpl_packet.cpl_header.req_id = self._req_id
         await self._upstream_fifo.target_to_host.put(cpl_packet)
 
     async def _process_cxl_io_cfg_wr(self, cfg_wr_packet: CxlIoCfgWrPacket):
@@ -134,7 +132,7 @@ class ConfigSpaceManager(RunnableComponent):
                     f"Received request for {bdf_str}, however, this device supports function 0 only"
                 )
             )
-            await self._send_unsupported_request(req_id, tag, ld_id)
+            await self._send_unsupported_request(req_id, tag, dest_id, ld_id)
             return
 
         cfg_addr, size = cfg_wr_packet.get_cfg_addr_write_info()
@@ -166,7 +164,6 @@ class ConfigSpaceManager(RunnableComponent):
                 logger.debug(self._create_message("Stop processing host to target fifo"))
                 break
             base_packet = cast(CxlIoBasePacket, packet)
-            # self._req_id = base_packet.cfg_req_header.req_id
             logger.debug(self._create_message("Received host to target packet"))
             if base_packet.is_cfg_type0():
                 if base_packet.is_cfg_read():
@@ -184,8 +181,9 @@ class ConfigSpaceManager(RunnableComponent):
                     cfg_req_packet = cast(CxlIoCfgReqPacket, base_packet)
                     req_id = tlptoh16(cfg_req_packet.cfg_req_header.req_id)
                     tag = cfg_req_packet.cfg_req_header.tag
+                    cpl_id = tlptoh16(cfg_req_packet.cfg_req_header.dest_id)
                     ld_id = cfg_req_packet.tlp_prefix.ld_id
-                    await self._send_unsupported_request(req_id, tag, ld_id=ld_id)
+                    await self._send_unsupported_request(req_id, tag, cpl_id, ld_id=ld_id)
             else:
                 raise Exception("Unexpected packet received from ConfigSpaceManager")
 

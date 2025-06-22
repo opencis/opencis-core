@@ -462,7 +462,11 @@ async def test_switch_connection_manager_handle_cfg_completion():
         req2 = CxlIoCfgRdPacket.create(0, 0x10, 4, req_id=req_id, tag=tag)
         await client_connection.cfg_fifo.host_to_target.put(req2)
         cpl2 = CxlIoCompletionWithDataPacket.create(
-            req_id=req_id, tag=tag, status=CXL_IO_CPL_STATUS.SC, data=0xDEADBEEF, cpl_id=cpl_id
+            req_id=req_id,
+            tag=tag,
+            cpl_id=cpl_id,
+            status=CXL_IO_CPL_STATUS.SC,
+            data=0xDEADBEEF,
         )
         await server_connection.cfg_fifo.target_to_host.put(cpl2)
 
@@ -530,7 +534,7 @@ async def test_switch_connection_manager_handle_mmio_completion():
         req2 = CxlIoMemRdPacket.create(0x10, 4, req_id=req_id, tag=tag)
         await client_connection.mmio_fifo.host_to_target.put(req2)
         cpl2 = CxlIoCompletionWithDataPacket.create(
-            req_id=req_id, tag=tag, data=0xA5A5, cpl_id=cpl_id
+            req_id=req_id, tag=tag, cpl_id=cpl_id, data=0xA5A5
         )
         await server_connection.mmio_fifo.target_to_host.put(cpl2)
 

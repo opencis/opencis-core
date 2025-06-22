@@ -152,7 +152,6 @@ class MmioRouter(CxlRouter):
             packet = await self._upstream_connection_fifo.host_to_target.get()
             if packet is None:
                 break
-            packet.mreq_header.req_id = self._vcs_id
             logger.debug(self._create_message("Received an incoming request"))
             base_packet = cast(BasePacket, packet)
             cxl_io_base_packet = cast(CxlIoBasePacket, packet)
@@ -168,7 +167,8 @@ class MmioRouter(CxlRouter):
             if target_port is None:
                 if mmio_packet.is_mem_read():
                     logger.debug(self._create_message(f"RD: 0x{address:x}[{size}] OOB"))
-                    await self._send_completion(req_id, tag, data=0, data_len=size)
+                    # TODO: NEEDS TO BE UR with no data
+                    await self._send_completion(req_id, tag, cpl_id=0, data=0, data_len=size)
                 elif mmio_packet.is_mem_write():
                     logger.debug(self._create_message(f"WR: 0x{address:x}[{size}] OOB"))
                 continue
@@ -197,20 +197,20 @@ class MmioRouter(CxlRouter):
             packet = await downstream_connection_fifo.target_to_host.get()
             if packet is None:
                 break
-            packet.cpl_header.req_id = 0
             await self._upstream_connection_fifo.target_to_host.put(packet)
 
-    async def _send_completion(self, req_id, tag, data: int = None, data_len: int = 0):
+    async def _send_completion(
+        self, req_id: int, tag: int, cpl_id: int, data: int = None, data_len: int = 0
+    ):
         """
         Note that data_len should be in bytes.
         """
         if data is not None:
             packet = CxlIoCompletionWithDataPacket.create(
-                req_id=req_id, tag=tag, data=data, pload_len=data_len
+                req_id=req_id, tag=tag, cpl_id=cpl_id, data=data, pload_len=data_len
             )
         else:
-            packet = CxlIoCompletionPacket.create(req_id=req_id, tag=tag)
-        packet.cpl_header.req_id = 0
+            packet = CxlIoCompletionPacket.create(req_id=req_id, tag=tag, cpl_id=cpl_id)
         await self._upstream_connection_fifo.target_to_host.put(packet)
 
     async def update_router(self, vppb_index: int):
@@ -255,7 +255,6 @@ class ConfigSpaceRouter(CxlRouter):
             packet = await self._upstream_connection_fifo.host_to_target.get()
             if packet is None:
                 break
-            packet.cfg_req_header.req_id = self._vcs_id
             logger.debug(self._create_message("Received an incoming request"))
             base_packet = cast(BasePacket, packet)
             if not base_packet.is_cxl_io():
@@ -307,7 +306,6 @@ class ConfigSpaceRouter(CxlRouter):
             packet = await downstream_connection_fifo.target_to_host.get()
             if packet is None:
                 break
-            packet.cpl_header.req_id = 0
             await self._upstream_connection_fifo.target_to_host.put(packet)
 
     async def _send_unsupported_request(self, req_id, tag):

@@ -713,8 +713,8 @@ class CxlIoCompletionWithDataPacket(CxlIoBasePacket):
     def create(
         req_id: int,
         tag: int,
+        cpl_id: int,
         data: int,
-        cpl_id: int = 0,
         status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
         pload_len=0x04,
         ld_id: int = 0,

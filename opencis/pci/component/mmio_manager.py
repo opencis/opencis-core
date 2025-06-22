@@ -60,7 +60,6 @@ class MmioManager(PacketProcessor):
         self._prefetchable_memory_base = 0
         self._prefetchable_memory_limit = 0
         self._bar_entries: List[BarEntry] = []
-        self._req_id = 0
 
     # NOTE: Setting memory ranges is only used for bridge devices
 
@@ -134,19 +133,26 @@ class MmioManager(PacketProcessor):
         return None, None
 
     async def _send_completion(
-        self, req_id: int, tag: int, data: int = None, data_len: int = 0, ld_id: int = 0
+        self,
+        req_id: int,
+        tag: int,
+        cpl_id: int,
+        data: int = None,
+        data_len: int = 0,
+        ld_id: int = 0,
     ):
         if data is not None:
             if isinstance(data, int) and data >= (1 << (data_len * 8)):
                 # if isinstance(data, MagicMock), then just assume it'll fit in the given size
                 raise Exception(f"'Data: {data} could not possibly fit within length: {data_len}")
             packet = CxlIoCompletionWithDataPacket.create(
-                req_id, tag, data, pload_len=data_len, ld_id=ld_id
+                req_id, tag, cpl_id=cpl_id, data=data, pload_len=data_len, ld_id=ld_id
             )
         else:
-            packet = CxlIoCompletionPacket.create(req_id=req_id, tag=tag, ld_id=ld_id)
+            packet = CxlIoCompletionPacket.create(
+                req_id=req_id, tag=tag, cpl_id=cpl_id, ld_id=ld_id
+            )
 
-        packet.cpl_header.req_id = self._req_id
         await self._upstream_fifo.target_to_host.put(packet)
 
     async def _forward_request(self, packet: CxlIoBasePacket):
@@ -177,7 +183,10 @@ class MmioManager(PacketProcessor):
             else:
                 if mem_req_packet.is_mem_read():
                     logger.debug(self._create_message(f"RD: 0x{address:x}[{size}] OOB"))
-                    await self._send_completion(req_id, tag, data=0, data_len=size, ld_id=ld_id)
+                    # TODO: NEEDS TO BE UR with no data
+                    await self._send_completion(
+                        req_id=req_id, tag=tag, cpl_id=0, data=0, data_len=size, ld_id=ld_id
+                    )
                 elif mem_req_packet.is_mem_write():
                     logger.debug(self._create_message(f"WR: 0x{address:x}[{size}] OOB"))
                 else:
@@ -193,7 +202,9 @@ class MmioManager(PacketProcessor):
         elif mem_req_packet.is_mem_read():
             logger.debug(self._create_message(f"RD: 0x{address:x}[{size}]"))
             data = register.read_bytes(start_offset, end_offset)
-            await self._send_completion(req_id, tag, data, size, ld_id=ld_id)
+            await self._send_completion(
+                req_id=req_id, tag=tag, cpl_id=0, data=data, data_len=size, ld_id=ld_id
+            )
         else:
             raise Exception("Unsupported MMIO packet")
 
@@ -233,7 +244,6 @@ class MmioManager(PacketProcessor):
                 cxl_io_packet.is_mem_read() or cxl_io_packet.is_mem_write()
             ):
                 raise Exception(f"Received unexpected packet: {base_packet.get_type()}")
-            self._req_id = packet.mreq_header.req_id
             logger.debug(self._create_message("Received host to target packet"))
             await self._process_mmio_packet(cast(CxlIoMemReqPacket, packet))
 
