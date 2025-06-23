@@ -210,7 +210,6 @@ class CxlPacketProcessor(RunnableComponent):
         while True:  # pylint: disable=too-many-nested-blocks
             try:
                 packet = await self._reader.get_packet()
-                logger.info(self._create_message(packet.get_pretty_string()))
                 if packet.is_cxl_io():
                     cxl_io_packet = cast(CxlIoBasePacket, packet)
                     if cxl_io_packet.is_cpl() or cxl_io_packet.is_cpld():

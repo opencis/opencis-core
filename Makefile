@@ -10,13 +10,13 @@ MAKEFLAGS += --no-print-directory
 STAMP  := .generated
 
 packets:
-	$(MAKE) -C $(PACKET_DIR) packets
+	@$(MAKE) -C $(PACKET_DIR) -q $(STAMP) || $(MAKE) -C $(PACKET_DIR) packets
 
 test:
 	@$(MAKE) -C $(PACKET_DIR) -q $(STAMP) || $(MAKE) -C $(PACKET_DIR) packets
 	uv run python -O -m compileall -q opencis tests
 	uv run pytest --cov --cov-report=term-missing -n $(NPROC)
-	@rm -f *.bin
+	rm -f *.bin
 
 lint:
 	@$(MAKE) -C $(PACKET_DIR) -q $(STAMP) || $(MAKE) -C $(PACKET_DIR) packets

@@ -24,7 +24,6 @@ from opencis.cxl.transport.packet_constants import (
     CXL_IO_FMT_TYPE,
     CXL_IO_CPL_STATUS,
 )
-
 from opencis.util.component import RunnableComponent
 from opencis.util.pci import bdf_to_string
 from opencis.util.logger import logger
@@ -113,7 +112,7 @@ class ConfigSpaceManager(RunnableComponent):
             )
         )
         value = self._register.read_bytes(cfg_addr, cfg_addr + size - 1)
-        logger.debug(self._create_message(f"value: 0x{value:x}"))
+        logger.debug(self._create_message(f"[RD] value: 0x{value:x}"))
         cpl_packet = CxlIoCompletionWithDataPacket.create(
             req_id=req_id, tag=tag, cpl_id=dest_id, data=value, ld_id=ld_id
         )

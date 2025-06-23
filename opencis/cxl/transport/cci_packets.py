@@ -54,9 +54,6 @@ class CciPayload:
             width = self._get_width(payload, name)
             offset = self._offset
 
-            print(
-                f"GET: name:{name}, payload._base={payload._base}, offset={offset}, width={width}"
-            )
             arch_bits = int(platform.architecture()[0].rstrip("bit"))
             if width <= arch_bits:
                 # field fits in a single word. Read it directly and return int
@@ -245,7 +242,7 @@ class CciRequestPacket(
         self.cci_msg_header.background_operation = 0
         self.system_header.payload_length = len(self)
 
-    def populate_header_from_ccimessage(self, cci_message: CciMessagePacket):
+    def populate_header_from_cci_message(self, cci_message: CciMessagePacket):
         header = cci_message.cci_msg_header
         self.cci_msg_header.message_category = header.message_category
         self.cci_msg_header.message_tag = header.message_tag
@@ -281,7 +278,7 @@ class GetLdInfoRequestPacket(CciRequestPacket):
     def create_from_cci_message(cls, cci_message: CciMessagePacket) -> "GetLdInfoRequestPacket":
         packet = cls()
         packet.initialize_common_headers()
-        packet.populate_header_from_ccimessage(cci_message)
+        packet.populate_header_from_cci_message(cci_message)
         cci_msg_header_offset = packet.get_byte_offset(packet.cci_msg_header)
         packet.set_bytes(cci_msg_header_offset, bytes(cci_message))
         packet.cci_msg_header.command_opcode = CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO

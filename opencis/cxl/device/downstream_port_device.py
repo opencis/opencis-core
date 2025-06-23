@@ -156,7 +156,6 @@ class DownstreamPortDevice(CxlPortDevice):
         return message
 
     def get_reg_vals(self, ld_id: int = 0):
-        print(f"len: {len(self._cxl_io_manager)}")
         return self._cxl_io_manager[ld_id].get_cfg_reg_vals()
 
     def set_vppb_index(self, vppb_index: int):

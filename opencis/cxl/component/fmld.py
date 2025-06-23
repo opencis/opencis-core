@@ -59,9 +59,6 @@ class FMLD(RunnableComponent):
             ld_count=self._ld_count,
             message_tag=get_ld_info_request_packet.cci_msg_header.message_tag,
         )
-        logger.info(
-            f"Get LD Info Response?: {get_ld_info_response_packet.cci_msg_header.command_opcode}"
-        )
         await self.upstream_fifo.target_to_host.put(get_ld_info_response_packet)
         logger.info("Get LD Info Response sent done")
 
@@ -79,7 +76,6 @@ class FMLD(RunnableComponent):
 
         # Number of keys for self._ld_allocations
         max_len_ld_list = len(self._ld_allocations) - start_ld_id
-        print(f"max_len_ld_list:{max_len_ld_list}, ld_alloc_list_limit:{ld_alloc_list_limit}")
         if ld_alloc_list_limit < max_len_ld_list:
             ld_length = ld_alloc_list_limit
         else:

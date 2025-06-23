@@ -461,7 +461,6 @@ async def test_multi_logical_device_ld_id():
         packet = await packet_reader.get_packet()
         response_packet = cast(GetLdInfoResponsePacket, packet)
         assert response_packet.get_command_opcode() == CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO
-        print(f"test_tunnel GetLdInfoResponsePacket: {bytes(response_packet)}")
         ld_count = response_packet.payload.ld_count
         memory_size = response_packet.payload.memory_size
         assert ld_count == 4
