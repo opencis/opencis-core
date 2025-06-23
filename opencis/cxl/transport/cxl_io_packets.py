@@ -137,7 +137,7 @@ class CxlIoCfgReqPacket(
         return _io_cfg_tags.next(tag)
 
     def _fill_common(
-        self, id: int, cfg_addr: int, size: int, req_id: int, tag: int
+        self, dest_id: int, cfg_addr: int, size: int, req_id: int, tag: int
     ) -> "CxlIoCfgReqPacket":
         self.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_IO
 
@@ -146,7 +146,6 @@ class CxlIoCfgReqPacket(
         self.cxl_io_header.at = 0b00
         self.cxl_io_header.length_upper = 0b00
         self.cxl_io_header.length_lower = 0b00000001
-        # NOTE: Request ID for CfgRd and CfgWr is always 0
         self.cfg_req_header.req_id = htotlp16(req_id)
         self.cfg_req_header.tag = tag
 
@@ -163,7 +162,7 @@ class CxlIoCfgReqPacket(
         self.cfg_req_header.first_dw_be = first_dw_be
         self.cfg_req_header.last_dw_be = 0
 
-        self.cfg_req_header.dest_id = htotlp16(id)
+        self.cfg_req_header.dest_id = htotlp16(dest_id)
         self.cfg_req_header.ext_reg_num = (cfg_addr >> 8) & 0x0F
         self.cfg_req_header.reg_num = (cfg_addr >> 2) & 0x3F
         return self
@@ -206,7 +205,7 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
     @classmethod
     def create(
         cls,
-        id: int,
+        dest_id: int,
         cfg_addr: int,
         size: int,
         is_type0: bool = True,
@@ -215,7 +214,7 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
         ld_id: int = 0,
     ) -> "CxlIoCfgRdPacket":
         packet = cls()
-        packet._fill_common(id, cfg_addr, size, req_id, super().get_tag(tag))
+        packet._fill_common(dest_id, cfg_addr, size, req_id, super().get_tag(tag))
         packet.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_RD0 if is_type0 else CXL_IO_FMT_TYPE.CFG_RD1
         )
@@ -228,7 +227,7 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
     @classmethod
     def create(
         cls,
-        id: int,
+        dest_id: int,
         cfg_addr: int,
         size: int,
         value: int,
@@ -239,7 +238,7 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
     ) -> "CxlIoCfgWrPacket":
         packet = cls()
         packet.set_data_as_int(value << ((cfg_addr & 0x3) * 8))
-        packet._fill_common(id, cfg_addr, size, req_id, super().get_tag(tag))
+        packet._fill_common(dest_id, cfg_addr, size, req_id, super().get_tag(tag))
         packet.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_WR0 if is_type0 else CXL_IO_FMT_TYPE.CFG_WR1
         )
