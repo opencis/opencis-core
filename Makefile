@@ -1,18 +1,25 @@
+
 ifeq ($(shell uname), Darwin)
 	NPROC = $(shell sysctl -n hw.logicalcpu)
 else
-	NPROC = $$(nproc)
+	NPROC = $(shell nproc)
 endif
 
-packets:
-	make -C opencis/cxl/transport packets
+PACKET_DIR := opencis/cxl/transport
+MAKEFLAGS += --no-print-directory
+STAMP  := .generated
 
-test: packets
+packets:
+	$(MAKE) -C $(PACKET_DIR) packets
+
+test:
+	@$(MAKE) -C $(PACKET_DIR) -q $(STAMP) || $(MAKE) -C $(PACKET_DIR) packets
 	uv run python -O -m compileall -q opencis tests
 	uv run pytest --cov --cov-report=term-missing -n $(NPROC)
-	rm -f *.bin
+	@rm -f *.bin
 
-lint: packets
+lint:
+	@$(MAKE) -C $(PACKET_DIR) -q $(STAMP) || $(MAKE) -C $(PACKET_DIR) packets
 	uv run pylint opencis
 	uv run pylint demos
 	uv run pylint tests

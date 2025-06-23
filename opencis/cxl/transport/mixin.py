@@ -5,7 +5,7 @@ This software is licensed under the terms of the Revised BSD License.
 See LICENSE for details.
 """
 
-from opencis.util.logger import logger
+# from opencis.util.logger import logger
 from opencis.cxl.transport.packet_base import PacketBuffer
 from opencis.cxl.transport.packet_constants import (
     SYSTEM_PAYLOAD_TYPE,
@@ -64,7 +64,7 @@ class BasePacketMixin:
                 if isinstance(v, PacketBuffer):
                     try:
                         off = int(self.get_byte_offset(v))
-                    except:
+                    except (TypeError, ValueError):
                         off = 0
                     hdrs.append((off, name, v))
 
@@ -84,7 +84,7 @@ class BasePacketMixin:
             for fn in names:
                 try:
                     val = getattr(hdr, fn)
-                except:
+                except (TypeError, ValueError):
                     val = "<err>"
                 out.append(f"    {fn}: 0x{val:x}")
 
