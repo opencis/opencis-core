@@ -6,6 +6,7 @@ See LICENSE for details.
 """
 
 from libc.stdint cimport uintptr_t
+from libc.string cimport memcpy
 
 cdef class PacketBuffer:
     def __cinit__(self, input_buf=None):
@@ -16,25 +17,100 @@ cdef class PacketBuffer:
 
 
     cpdef unsigned long long read_bits(self, int start_bit, int width):
-        cdef int i, byte_index, bit_offset
-        cdef unsigned long long result = 0
-        for i in range(width):
-            byte_index = (start_bit + i) // 8
-            bit_offset = (start_bit + i) % 8
-            #print("byte:",byte_index, "bits:",bit_offset )
-            bit = (self._buf[byte_index] >> bit_offset) & 1
-            result |= (bit << i)
-        return result
+        cdef unsigned char *buf = &self._buf[0]
+        cdef unsigned long long res = 0
+        cdef int byte = start_bit >> 3, bit = start_bit & 7, bits = 0
+        cdef int n, i
 
-    cpdef void write_bits(self, int start_bit, int width, unsigned long long value):
-        cdef int i, byte_index, bit_offset
+        # head (unaligned start)
+        if bit:
+            n = min(8 - bit, width)
+            for i in range(n):
+                res |= ((buf[byte] >> (bit + i)) & 1) << bits
+                bits += 1
+            byte += 1
+            width -= n
+            bit = 0
+
+        # middle (full bytes)
+        n = width >> 3
+        for i in range(n):
+            res |= (<unsigned long long>buf[byte]) << bits
+            byte += 1
+            bits += 8
+        width -= n << 3
+
+        # tail (remaining bits)
         for i in range(width):
-            byte_index = (start_bit + i) // 8
-            bit_offset = (start_bit + i) % 8
-            if (value >> i) & 1:
-                self._buf[byte_index] |= (1 << bit_offset)
+            res |= ((buf[byte] >> i) & 1) << bits
+            bits += 1
+
+        return res
+
+
+    cpdef void write_bits(self, int start_bit, int width, unsigned long long v):
+        cdef unsigned char *buf = &self._buf[0]
+        cdef int byte = start_bit >> 3, bit = start_bit & 7, bits = 0
+        cdef int n, i
+        cdef unsigned char m, inv
+
+        # head (unaligned start)
+        if bit:
+            n = min(8 - bit, width)
+            for i in range(n):
+                m   = 1 << (bit + i)
+                inv = <unsigned char>(0xFF ^ m)
+                if (v >> bits) & 1:
+                    buf[byte] |= m
+                else:
+                    buf[byte] &= inv
+                bits += 1
+            byte += 1
+            width -= n
+            bit = 0
+
+        # middle (full bytes)
+        n = width >> 3
+        for i in range(n):
+            buf[byte] = <unsigned char>((v >> bits) & 0xFF)
+            byte += 1
+            bits += 8
+        width -= n << 3
+
+        # tail (remaining bits)
+        for i in range(width):
+            m   = 1 << i
+            inv = <unsigned char>(0xFF ^ m)
+            if (v >> bits) & 1:
+                buf[byte] |= m
             else:
-                self._buf[byte_index] &= ~(1 << bit_offset)
+                buf[byte] &= inv
+            bits += 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     cpdef unsigned char[::1] get_bytes(self, int offset, int length):
         return self._buf[offset:offset + length]
