@@ -34,8 +34,7 @@ def emit_struct(name, layout):
     total_bytes = (total_bits + 7) // 8
 
     return (
-        f"cdef class {name}(PacketBuffer):\n"
-        "    cdef unsigned char[::1] __buf\n\n"
+        f"cdef class {name}(HeaderBuffer):\n"
         f"{field_defs}"
         "    @classmethod\n"
         "    def get_size(cls):\n"
@@ -45,7 +44,7 @@ def emit_struct(name, layout):
         "    def __bytes__(self):\n"
         "        return self.to_bytes()\n\n"
         "    def __cinit__(self, unsigned char[::1] buf):\n"
-        "        self.__buf = buf\n\n"
+        "        self._buf = buf\n\n"
     )
 
 
@@ -92,11 +91,9 @@ def emit_composite(packet_name, layout, field_sizes):
             lines.append(f"        return self.{varname}_")
             lines.append("")
 
-    lines.append("    def __cinit__(self, buf = None):")
-    lines.append("        self._buf = bytearray(200)")
+    lines.append("    def __cinit__(self, buf=None):")
     lines.append(f"        self.HEADER_SIZE = {total_header_bytes}")
     lines.append("        if buf is not None:")
-    lines.append("            self._buf = buf[:]")
     lines.append("            self._data_length = len(buf) - self.HEADER_SIZE")
     lines.append("        else:")
     lines.append("            self._data_length = 0")
@@ -108,7 +105,7 @@ def emit_composite(packet_name, layout, field_sizes):
         offset_start, size_bytes = offset_map[struct]
         lines.append(
             f"        self.{varname}_ = "
-            f"{struct}(self._buf[{offset_start}:{offset_start + size_bytes}])"
+            f"{struct}(mv[{offset_start}:{offset_start + size_bytes}])"
         )
 
     lines.append("")
@@ -162,7 +159,7 @@ def main():
 
     out_file = base / "packet_structs.pyx"
     with open(out_file, "w") as f:
-        f.write("from opencis.cxl.transport.packet_base cimport PacketBuffer\n\n")
+        f.write("from opencis.cxl.transport.packet_base cimport PacketBuffer, HeaderBuffer\n\n")
 
         field_sizes = {
             name: value
