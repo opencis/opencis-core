@@ -18,15 +18,8 @@ from opencis.cxl.transport.packet_constants import (
 
 
 class PacketDataMixin:
-    def get_data(self) -> bytes:
-        return bytes(super().get_data())
-
     def get_data_as_int(self) -> int:
         return int.from_bytes(self.get_data(), "little")
-
-    def set_data(self, data: bytes):
-        # pylint: disable=useless-parent-delegation
-        super().set_data(data)
 
     def set_data_as_int(self, data: int, length: int = None):
         if length is None:

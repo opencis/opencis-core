@@ -13,7 +13,6 @@ from collections import deque
 _pool = deque([bytearray(200) for _ in range(50000)], maxlen=50000)
 
 
-
 cdef class PacketBuffer:
     def __cinit__(self, buf=None):
         #print("WHO IS CALLING ME")
@@ -31,7 +30,6 @@ cdef class PacketBuffer:
         #print("Finished self._buf ", bytearray(self._buf))
         #print("Finished b ", bytearray(b))
 
-    # __dealloc__ to return buffer to pool
     def __dealloc__(self):
         # return buffer to pool
         try:
@@ -40,76 +38,47 @@ cdef class PacketBuffer:
             pass
 
     cpdef unsigned long long read_bits(self, int start_bit, int width):
-        cdef unsigned char *buf = &self._buf[0]
-        cdef unsigned long long res = 0
-        cdef int byte = start_bit >> 3, bit = start_bit & 7, bits = 0
-        cdef int n, i
+        cdef unsigned char* buf = &self._buf[0]
+        cdef int byte_off = start_bit >> 3
+        cdef int bit_off  = start_bit & 7
 
-        # head (unaligned start)
-        if bit:
-            n = min(8 - bit, width)
-            for i in range(n):
-                res |= ((buf[byte] >> (bit + i)) & 1) << bits
-                bits += 1
-            byte += 1
-            width -= n
-            bit = 0
+        # fast-path: field fits in one byte
+        if width <= 8 and bit_off + width <= 8:
+            return (buf[byte_off] >> bit_off) & ((1 << width) - 1)
 
-        # middle (full bytes)
-        n = width >> 3
-        for i in range(n):
-            res |= (<unsigned long long>buf[byte]) << bits
-            byte += 1
-            bits += 8
-        width -= n << 3
-
-        # tail (remaining bits)
+        # generic path
+        cdef unsigned long long result = 0
+        cdef int i, byte_index, bit_offset
         for i in range(width):
-            res |= ((buf[byte] >> i) & 1) << bits
-            bits += 1
+            byte_index = (start_bit + i) >> 3
+            bit_offset = (start_bit + i) & 7
+            if (buf[byte_index] >> bit_offset) & 1:
+                result |= 1ULL << i
+        return result
 
-        return res
+    cpdef void write_bits(self, int start_bit, int width,
+                        unsigned long long value):
+        cdef unsigned char* buf = &self._buf[0]
+        cdef int byte_off = start_bit >> 3
+        cdef int bit_off  = start_bit & 7
+        cdef unsigned char mask          # ← declare before any code that runs
 
+        # fast-path: field fits in one byte
+        if width <= 8 and bit_off + width <= 8:
+            mask = ((1 << width) - 1) << bit_off
+            buf[byte_off] = (buf[byte_off] & ~mask) | \
+                            (((<unsigned char>value) << bit_off) & mask)
+            return
 
-    cpdef void write_bits(self, int start_bit, int width, unsigned long long v):
-        cdef unsigned char *buf = &self._buf[0]
-        cdef int byte = start_bit >> 3, bit = start_bit & 7, bits = 0
-        cdef int n, i
-        cdef unsigned char m, inv
-
-        # head (unaligned start)
-        if bit:
-            n = min(8 - bit, width)
-            for i in range(n):
-                m   = 1 << (bit + i)
-                inv = <unsigned char>(0xFF ^ m)
-                if (v >> bits) & 1:
-                    buf[byte] |= m
-                else:
-                    buf[byte] &= inv
-                bits += 1
-            byte += 1
-            width -= n
-            bit = 0
-
-        # middle (full bytes)
-        n = width >> 3
-        for i in range(n):
-            buf[byte] = <unsigned char>((v >> bits) & 0xFF)
-            byte += 1
-            bits += 8
-        width -= n << 3
-
-        # tail (remaining bits)
+        # generic path
+        cdef int i, byte_index, bit_offset
         for i in range(width):
-            m   = 1 << i
-            inv = <unsigned char>(0xFF ^ m)
-            if (v >> bits) & 1:
-                buf[byte] |= m
+            byte_index = (start_bit + i) >> 3
+            bit_offset = (start_bit + i) & 7
+            if (value >> i) & 1:
+                buf[byte_index] |= 1 << bit_offset
             else:
-                buf[byte] &= inv
-            bits += 1
-
+                buf[byte_index] &= ~(1 << bit_offset)
 
     cpdef unsigned char[::1] get_bytes(self, int offset, int length):
         return self._buf[offset:offset + length]
@@ -127,7 +96,6 @@ cdef class PacketBuffer:
 
     def __len__(self):
         return self.get_size()
-
 
     cpdef int get_byte_offset(self, object other):
         # bind our own buffer to a C memoryview
@@ -149,78 +117,53 @@ cdef class PacketBuffer:
 
 
 
-
 cdef class HeaderBuffer:
     cpdef unsigned long long read_bits(self, int start_bit, int width):
-        cdef unsigned char *buf = &self._buf[0]
-        cdef unsigned long long res = 0
-        cdef int byte = start_bit >> 3, bit = start_bit & 7, bits = 0
-        cdef int n, i
+        cdef unsigned char* buf = &self._buf[0]
+        cdef int byte_off = start_bit >> 3
+        cdef int bit_off  = start_bit & 7
 
-        # head (unaligned start)
-        if bit:
-            n = min(8 - bit, width)
-            for i in range(n):
-                res |= ((buf[byte] >> (bit + i)) & 1) << bits
-                bits += 1
-            byte += 1
-            width -= n
-            bit = 0
+        # fast-path: field fits in one byte
+        if width <= 8 and bit_off + width <= 8:
+            return (buf[byte_off] >> bit_off) & ((1 << width) - 1)
 
-        # middle (full bytes)
-        n = width >> 3
-        for i in range(n):
-            res |= (<unsigned long long>buf[byte]) << bits
-            byte += 1
-            bits += 8
-        width -= n << 3
-
-        # tail (remaining bits)
+        # generic path
+        cdef unsigned long long result = 0
+        cdef int i, byte_index, bit_offset
         for i in range(width):
-            res |= ((buf[byte] >> i) & 1) << bits
-            bits += 1
+            byte_index = (start_bit + i) >> 3
+            bit_offset = (start_bit + i) & 7
+            if (buf[byte_index] >> bit_offset) & 1:
+                result |= 1ULL << i
+        return result
 
-        return res
 
+    # ---------------------------------------------------------------------------
+    cpdef void write_bits(self, int start_bit, int width,
+                        unsigned long long value):
+        cdef unsigned char* buf = &self._buf[0]
+        cdef int byte_off = start_bit >> 3
+        cdef int bit_off  = start_bit & 7
+        cdef unsigned char mask          # ← declare before any code that runs
 
-    cpdef void write_bits(self, int start_bit, int width, unsigned long long v):
-        cdef unsigned char *buf = &self._buf[0]
-        cdef int byte = start_bit >> 3, bit = start_bit & 7, bits = 0
-        cdef int n, i
-        cdef unsigned char m, inv
+        # fast-path: field fits in one byte
+        if width <= 8 and bit_off + width <= 8:
+            mask = ((1 << width) - 1) << bit_off
+            buf[byte_off] = (buf[byte_off] & ~mask) | \
+                            (((<unsigned char>value) << bit_off) & mask)
+            return
 
-        # head (unaligned start)
-        if bit:
-            n = min(8 - bit, width)
-            for i in range(n):
-                m   = 1 << (bit + i)
-                inv = <unsigned char>(0xFF ^ m)
-                if (v >> bits) & 1:
-                    buf[byte] |= m
-                else:
-                    buf[byte] &= inv
-                bits += 1
-            byte += 1
-            width -= n
-            bit = 0
-
-        # middle (full bytes)
-        n = width >> 3
-        for i in range(n):
-            buf[byte] = <unsigned char>((v >> bits) & 0xFF)
-            byte += 1
-            bits += 8
-        width -= n << 3
-
-        # tail (remaining bits)
+        # generic path
+        cdef int i, byte_index, bit_offset
         for i in range(width):
-            m   = 1 << i
-            inv = <unsigned char>(0xFF ^ m)
-            if (v >> bits) & 1:
-                buf[byte] |= m
+            byte_index = (start_bit + i) >> 3
+            bit_offset = (start_bit + i) & 7
+            if (value >> i) & 1:
+                buf[byte_index] |= 1 << bit_offset
             else:
-                buf[byte] &= inv
-            bits += 1
+                buf[byte_index] &= ~(1 << bit_offset)
+
+
 
     cpdef unsigned char[::1] get_bytes(self, int offset, int length):
         return self._buf[offset:offset + length]

@@ -122,7 +122,7 @@ def emit_composite(packet_name, layout, field_sizes):
             f"&self._buf[{total_header_bytes}])[:self._data_length]"
         )
         lines.append("")
-        lines.append("    def set_data(self, data):")
+        lines.append("    cpdef void set_data(self, data):")
         lines.append("        cdef const unsigned char* ptr = data")
         lines.append("        cdef Py_ssize_t n = len(data)")
         lines.append("        self.set_data_raw(ptr, n)")
@@ -134,7 +134,7 @@ def emit_composite(packet_name, layout, field_sizes):
         lines.append("    cpdef bytes get_data(self):")
         lines.append('        return b""')
         lines.append("")
-        lines.append("    def set_data(self, data):")
+        lines.append("    cpdef void set_data(self, data):")
         lines.append("        pass")
         lines.append("")
         lines.append("    cpdef void set_data_raw(self, const unsigned char* data, Py_ssize_t n):")
