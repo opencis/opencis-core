@@ -10,7 +10,7 @@ from libc.string cimport memcpy
 from collections import deque
 
 
-_pool = deque([bytearray(200) for _ in range(50000)], maxlen=50000)
+_pool = deque([bytearray(200) for _ in range(500000)], maxlen=500000)
 
 
 cdef class PacketBuffer:
