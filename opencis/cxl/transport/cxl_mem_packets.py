@@ -130,8 +130,6 @@ class CxlMemMemRdPacket(CxlMemM2SReqPacket):
         packet.m2sreq_header.meta_value = meta_value
         packet.m2sreq_header.snp_type = snp_type
         packet.m2sreq_header.ld_id = ld_id
-        if addr & 0x3F:
-            raise Exception("Address must be a multiple of 0x40")
         packet.m2sreq_header.addr = addr >> 6
         return packet
 
@@ -167,8 +165,6 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
         packet.m2srwd_header.meta_value = meta_value
         packet.m2srwd_header.snp_type = snp_type
         packet.m2srwd_header.ld_id = ld_id
-        if addr & 0x3F:
-            raise Exception("Address must be a multiple of 0x40")
         packet.m2srwd_header.addr = addr >> 6
 
         if isinstance(data, int):
@@ -229,8 +225,6 @@ class CxlMemBISnpPacket(
         packet.s2mbisnp_header.opcode = opcode
         packet.s2mbisnp_header.bi_id = bi_id
         packet.s2mbisnp_header.bi_tag = cls.get_tag(bi_tag)
-        if addr & 0x3F:
-            raise Exception("Address must be a multiple of 0x40")
         packet.s2mbisnp_header.addr = addr >> 6
         return packet
 
