@@ -33,12 +33,18 @@ ext_modules = cythonize(
             extra_compile_args=common_cflags,
             extra_link_args=["-g"],
         ),
+        Extension(
+            "packet_pooled",
+            [os.path.join(here, "packet_pooled.pyx")],
+            extra_compile_args=common_cflags,
+            extra_link_args=["-g"],
+        ),
     ],
+    gdb_debug=True,
     compiler_directives={
-        "boundscheck": False,
-        "wraparound": False,
-        "initializedcheck": False,
-        "cdivision": True,
+        "boundscheck": True,
+        "wraparound": True,
+        "nonecheck": True,        
     },
 )
 

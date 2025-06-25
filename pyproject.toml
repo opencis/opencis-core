@@ -14,6 +14,7 @@ asyncio_default_fixture_loop_scope = "session"
 extension-pkg-whitelist = [
   "opencis.cxl.transport.packet_structs",
   "opencis.cxl.transport.packet_base",
+  "opencis.cxl.transport.packet_pooled",
 ]
 disable = [
   "broad-exception-caught",
