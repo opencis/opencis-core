@@ -333,7 +333,7 @@ cdef class _PoolMixin:
     _POOL_MAX = 4
 
     # ---------- borrow / allocate --------------------------------------
-    cpdef _acquire(type cls):
+    cpdef _acquire(cls):
         # C-level declarations *first*
         cdef object pool = cls._pool
         cdef object pkt, hook
