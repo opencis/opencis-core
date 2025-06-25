@@ -15,6 +15,7 @@ cdef class PacketBuffer:
     cpdef bytes to_bytes(self)
     cpdef int get_byte_offset(self, object other)
 
+
 cdef class HeaderBuffer:
     cdef unsigned char[::1] _buf
     cpdef unsigned long long read_bits(self, int start_bit, int width)

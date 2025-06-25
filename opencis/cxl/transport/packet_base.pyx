@@ -15,23 +15,16 @@ _pool = deque([bytearray(200) for _ in range(500000)], maxlen=500000)
 
 cdef class PacketBuffer:
     def __cinit__(self, buf=None):
-        #print("WHO IS CALLING ME")
-        #print("buf: ", buf)
         if buf is None:
             try:
                 b = _pool.popleft()
-                #print("pop good ", bytearray(b))
             except IndexError:
                 b = bytearray(200)
-                #print("pop bad ", bytearray(b))
         else:
             b = bytearray(buf)
         self._buf = b
-        #print("Finished self._buf ", bytearray(self._buf))
-        #print("Finished b ", bytearray(b))
 
     def __dealloc__(self):
-        # return buffer to pool
         try:
             _pool.append(self._buf.base)
         except Exception:
@@ -46,7 +39,6 @@ cdef class PacketBuffer:
         if width <= 8 and bit_off + width <= 8:
             return (buf[byte_off] >> bit_off) & ((1 << width) - 1)
 
-        # generic path
         cdef unsigned long long result = 0
         cdef int i, byte_index, bit_offset
         for i in range(width):
@@ -61,7 +53,7 @@ cdef class PacketBuffer:
         cdef unsigned char* buf = &self._buf[0]
         cdef int byte_off = start_bit >> 3
         cdef int bit_off  = start_bit & 7
-        cdef unsigned char mask          # ← declare before any code that runs
+        cdef unsigned char mask
 
         # fast-path: field fits in one byte
         if width <= 8 and bit_off + width <= 8:
@@ -70,7 +62,6 @@ cdef class PacketBuffer:
                             (((<unsigned char>value) << bit_off) & mask)
             return
 
-        # generic path
         cdef int i, byte_index, bit_offset
         for i in range(width):
             byte_index = (start_bit + i) >> 3
@@ -87,8 +78,6 @@ cdef class PacketBuffer:
         cdef const unsigned char[::1] view = data
         cdef int i
         for i in range(view.shape[0]):
-            #print("self._buf[offset + i]", self._buf[offset + i])
-            #print("view[i]", view[i])
             self._buf[offset + i] = view[i]
 
     cpdef bytes to_bytes(self):
@@ -98,7 +87,6 @@ cdef class PacketBuffer:
         return self.get_size()
 
     cpdef int get_byte_offset(self, object other):
-        # bind our own buffer to a C memoryview
         cdef unsigned char[::1] self_buf = self._buf
         cdef unsigned char[::1] other_buf
         try:
@@ -106,7 +94,6 @@ cdef class PacketBuffer:
         except AttributeError:
             raise TypeError("other must have a .buf property returning a memoryview")
 
-        # now we can take the addresses
         cdef uintptr_t base_ptr  = <uintptr_t>&self_buf[0]
         cdef uintptr_t other_ptr = <uintptr_t>&other_buf[0]
         return <int>(other_ptr - base_ptr)
@@ -114,7 +101,6 @@ cdef class PacketBuffer:
     @property
     def buf(self):
         return self._buf
-
 
 
 cdef class HeaderBuffer:
@@ -127,7 +113,6 @@ cdef class HeaderBuffer:
         if width <= 8 and bit_off + width <= 8:
             return (buf[byte_off] >> bit_off) & ((1 << width) - 1)
 
-        # generic path
         cdef unsigned long long result = 0
         cdef int i, byte_index, bit_offset
         for i in range(width):
@@ -137,8 +122,6 @@ cdef class HeaderBuffer:
                 result |= 1ULL << i
         return result
 
-
-    # ---------------------------------------------------------------------------
     cpdef void write_bits(self, int start_bit, int width,
                         unsigned long long value):
         cdef unsigned char* buf = &self._buf[0]
@@ -153,7 +136,6 @@ cdef class HeaderBuffer:
                             (((<unsigned char>value) << bit_off) & mask)
             return
 
-        # generic path
         cdef int i, byte_index, bit_offset
         for i in range(width):
             byte_index = (start_bit + i) >> 3
@@ -162,8 +144,6 @@ cdef class HeaderBuffer:
                 buf[byte_index] |= 1 << bit_offset
             else:
                 buf[byte_index] &= ~(1 << bit_offset)
-
-
 
     cpdef unsigned char[::1] get_bytes(self, int offset, int length):
         return self._buf[offset:offset + length]
@@ -174,10 +154,7 @@ cdef class HeaderBuffer:
     def __len__(self):
         return self.get_size()
 
-
-
     cpdef int get_byte_offset(self, object other):
-        # bind our own buffer to a C memoryview
         cdef unsigned char[::1] self_buf = self._buf
         cdef unsigned char[::1] other_buf
         try:
@@ -185,7 +162,6 @@ cdef class HeaderBuffer:
         except AttributeError:
             raise TypeError("other must have a .buf property returning a memoryview")
 
-        # now we can take the addresses
         cdef uintptr_t base_ptr  = <uintptr_t>&self_buf[0]
         cdef uintptr_t other_ptr = <uintptr_t>&other_buf[0]
         return <int>(other_ptr - base_ptr)
