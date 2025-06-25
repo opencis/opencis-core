@@ -23,7 +23,7 @@ def bench(iters: int = 100_000):
             snp_type=0x2,
             ld_id=0x1
         )
-        del pkt
+
     dt = time.perf_counter() - t0
     #gc.enable()
     processed_mb = iters * 17 / 1024 / 1024

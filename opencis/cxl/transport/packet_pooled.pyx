@@ -16,9 +16,10 @@ cdef class HeaderBuffer:
     cdef unsigned char* p
     cdef unsigned char[::1] _buf
 
-    cdef inline void relocate(self, unsigned char* q) nogil:
-        self.p = q
-
+    cdef inline void relocate(self, unsigned char[::1] buf):
+        self.p = &buf[0]
+        self._buf = buf
+        
     cpdef unsigned long long read_bits(self, int start_bit, int width):
         cdef unsigned char* buf = self.p
         cdef int byte_off = start_bit >> 3
@@ -114,7 +115,7 @@ cdef class SystemHeader(HeaderBuffer):
         return self.to_bytes()
 
     def __cinit__(self, unsigned char[::1] buf):
-        self._buf = buf
+        self.relocate(buf)
 
 
 cdef class CxlMemHeader(HeaderBuffer):
@@ -145,7 +146,7 @@ cdef class CxlMemHeader(HeaderBuffer):
         return self.to_bytes()
 
     def __cinit__(self, unsigned char[::1] buf):
-        self._buf = buf
+        self.relocate(buf)
 
 
 
@@ -250,7 +251,7 @@ cdef class CxlMemM2SReqHeader(HeaderBuffer):
         return self.to_bytes()
 
     def __cinit__(self, unsigned char[::1] buf):
-        self._buf = buf
+        self.relocate(buf)
 
 # ------------------------------------------------------------------ #
 #  POOL MIX-IN (cdef for speed, but *Python* classes can inherit it) #
@@ -339,56 +340,59 @@ cdef class _PoolMixin:
         cdef object pool = cls._pool
         cdef object pkt, hook
 
-        #print(f"[DEBUG] _acquire<{cls.__name__}> pool_len={len(pool)}")
+        print(f"[DEBUG] _acquire<{cls.__name__}> pool_len={len(pool)}")
 
         if pool:                               # recycled
-            #print("[DEBUG]   Recycled -> pop")
+            print("[DEBUG]   Recycled -> pop")
             pkt  = pool.pop()
             hook = getattr(pkt, "_relocate", None)
             if hook is not None:
-                #print(f"[DEBUG]   _relocate id={id(pkt)}")
+                print(f"[DEBUG]   _relocate id={id(pkt)}")
                 hook()
             else:
-                #print("[DEBUG]   No _relocate()")
+                print("[DEBUG]   No _relocate()")
                 pass
             return pkt
 
         # fresh
-        #print("[DEBUG]   Fresh allocation")
+        print("[DEBUG]   Fresh allocation")
         pkt  = super(cls, cls).__new__(cls)
         hook = getattr(pkt, "_alloc_once", None)
         if hook is None:
             raise AttributeError(f"{cls.__name__} missing _alloc_once()")
-        #print(f"[DEBUG]   _alloc_once id={id(pkt)}")
+        print(f"[DEBUG]   _alloc_once id={id(pkt)}")
         hook()
         return pkt
 
     # ---------- Python-level wrapper -----------------------------------
     @classmethod
     def acquire(cls, *a, **kw):
-        #print(f"[DEBUG] acquire<{cls.__name__}> (Python caller)")
+        print(f"[DEBUG] acquire<{cls.__name__}> (Python caller)")
         return cls._acquire(cls, *a, **kw)
 
     # ---------- return to freelist -------------------------------------
-    cdef void release(self):
+    cpdef release(self):
         cdef object cls  = self.__class__
         cdef object pool = cls._pool
 
-        #print(f"[DEBUG] release<{cls.__name__}> id={id(self)} pool_len={len(pool)}")
+        print(f"[DEBUG] release<{cls.__name__}> id={id(self)} pool_len={len(pool)}")
         if len(pool) < cls._POOL_MAX:
             pool.append(self)
-            #print(f"[DEBUG]   Recycled (pool now {len(pool)})")
+            print(f"[DEBUG]   Recycled (pool now {len(pool)})")
         else:
-            #print(f"[DEBUG]   Pool full ({cls._POOL_MAX}) -> drop")
+            print(f"[DEBUG]   Pool full ({cls._POOL_MAX}) -> drop")
             pass
 
     # ---------- context-manager hooks ----------------------------------
     def __enter__(self):
-        #print(f"[DEBUG] __enter__ id={id(self)}")
+        print(f"[DEBUG] __enter__ id={id(self)}")
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        #print(f"[DEBUG] __exit__ id={id(self)} exc={exc_type}")
+        print(f"[DEBUG] __exit__ id={id(self)} exc={exc_type}")
+        self.release()
+
+    def __del__(self):
         self.release()
 
     # ---------- helper --------------------------------------------------
@@ -424,10 +428,9 @@ cdef inline void _do_relocate(SystemHeader sh,
                               CxlMemHeader mh,
                               CxlMemM2SReqHeader rh,
                               unsigned char[::1] mv):
-    cdef unsigned char* base = &mv[0]        # raw pointer to byte 0
-    sh.relocate(base + 0)                    # [0:2]
-    mh.relocate(base + 2)                    # [2:4]
-    rh.relocate(base + 4)                    # [4:17]
+    sh.relocate(mv[0:2])                     # [0:2]
+    mh.relocate(mv[2:4])                     # [2:4]
+    rh.relocate(mv[4:17])                    # [4:17]
 
 class CxlMemPooledPacket(_PoolMixin):
     """
@@ -438,6 +441,9 @@ class CxlMemPooledPacket(_PoolMixin):
     # ------------ one-time class initialisation --------------------
     _POOL_MAX: int = 4
     _pool: deque   = deque()
+
+    def __new__(cls, payload: bytes | None = None):
+        return cls._acquire(cls)
 
     # ------------ internal helpers --------------------------------
     def _alloc_once(self):                 # <<-- NOTE: Python-level def (fine)
@@ -483,8 +489,7 @@ class CxlMemPooledPacket(_PoolMixin):
         snp_type: int,
         ld_id: int
     ):
-        cdef object pkt = cls._acquire(cls)  # C-speed call
-        pkt._relocate()
+        cdef object pkt = cls()
         _do_build(
             pkt.system_header_,
             pkt.cxl_mem_header_,
@@ -496,7 +501,8 @@ class CxlMemPooledPacket(_PoolMixin):
             snp_type,
             ld_id,
         )
-        #print("Here 13")
+        pkt._data_len = 0
+        print("Here 13")
         return pkt
 
     def raw_bytes(self) -> bytes:
@@ -547,13 +553,14 @@ def demo():
         222,
         5
     )
-    #print("Here 1")
+    print("Here 1")
     raw  = bytes(pkt1.view)          # send
-    #print("Here 2")
+    print("Here 2")
     del pkt1                         # recycled
-    #print("Here 3")
+    print("Here 3")
     pkt2 = CxlMemPooledPacket(raw)   # receive using same object
-    #print("Here 4")
+    print("Here 4")
     assert bytes(pkt2.view) == raw
-    #print("Here 5")
-    #print("Round-trip OK, freelist length =", len(CxlMemPooledPacket._pool))
+    print("Here 5")
+    pkt2.release()
+    print("Round-trip OK, freelist length =", len(CxlMemPooledPacket._pool))
