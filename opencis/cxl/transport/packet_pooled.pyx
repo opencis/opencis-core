@@ -339,33 +339,34 @@ cdef class _PoolMixin:
         cdef object pool = cls._pool
         cdef object pkt, hook
 
-        print(f"[DEBUG] _acquire<{cls.__name__}> pool_len={len(pool)}")
+        #print(f"[DEBUG] _acquire<{cls.__name__}> pool_len={len(pool)}")
 
         if pool:                               # recycled
-            print("[DEBUG]   Recycled -> pop")
+            #print("[DEBUG]   Recycled -> pop")
             pkt  = pool.pop()
             hook = getattr(pkt, "_relocate", None)
             if hook is not None:
-                print(f"[DEBUG]   _relocate id={id(pkt)}")
+                #print(f"[DEBUG]   _relocate id={id(pkt)}")
                 hook()
             else:
-                print("[DEBUG]   No _relocate()")
+                #print("[DEBUG]   No _relocate()")
+                pass
             return pkt
 
         # fresh
-        print("[DEBUG]   Fresh allocation")
+        #print("[DEBUG]   Fresh allocation")
         pkt  = super(cls, cls).__new__(cls)
         hook = getattr(pkt, "_alloc_once", None)
         if hook is None:
             raise AttributeError(f"{cls.__name__} missing _alloc_once()")
-        print(f"[DEBUG]   _alloc_once id={id(pkt)}")
+        #print(f"[DEBUG]   _alloc_once id={id(pkt)}")
         hook()
         return pkt
 
     # ---------- Python-level wrapper -----------------------------------
     @classmethod
     def acquire(cls, *a, **kw):
-        print(f"[DEBUG] acquire<{cls.__name__}> (Python caller)")
+        #print(f"[DEBUG] acquire<{cls.__name__}> (Python caller)")
         return cls._acquire(cls, *a, **kw)
 
     # ---------- return to freelist -------------------------------------
@@ -373,20 +374,21 @@ cdef class _PoolMixin:
         cdef object cls  = self.__class__
         cdef object pool = cls._pool
 
-        print(f"[DEBUG] release<{cls.__name__}> id={id(self)} pool_len={len(pool)}")
+        #print(f"[DEBUG] release<{cls.__name__}> id={id(self)} pool_len={len(pool)}")
         if len(pool) < cls._POOL_MAX:
             pool.append(self)
-            print(f"[DEBUG]   Recycled (pool now {len(pool)})")
+            #print(f"[DEBUG]   Recycled (pool now {len(pool)})")
         else:
-            print(f"[DEBUG]   Pool full ({cls._POOL_MAX}) -> drop")
+            #print(f"[DEBUG]   Pool full ({cls._POOL_MAX}) -> drop")
+            pass
 
     # ---------- context-manager hooks ----------------------------------
     def __enter__(self):
-        print(f"[DEBUG] __enter__ id={id(self)}")
+        #print(f"[DEBUG] __enter__ id={id(self)}")
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        print(f"[DEBUG] __exit__ id={id(self)} exc={exc_type}")
+        #print(f"[DEBUG] __exit__ id={id(self)} exc={exc_type}")
         self.release()
 
     # ---------- helper --------------------------------------------------
@@ -494,7 +496,7 @@ class CxlMemPooledPacket(_PoolMixin):
             snp_type,
             ld_id,
         )
-        print("Here 13")
+        #print("Here 13")
         return pkt
 
     def raw_bytes(self) -> bytes:
@@ -533,6 +535,9 @@ class CxlMemPooledPacket(_PoolMixin):
     def is_mem_rd(self) -> bool:
         return self.m2sreq_header.mem_opcode == CXL_MEM_M2SREQ_OPCODE.MEM_RD
 
+    def __len__(self):
+        return 17
+
 def demo():
     pkt1 = CxlMemPooledPacket.create(
         0x1000,
@@ -542,13 +547,13 @@ def demo():
         222,
         5
     )
-    print("Here 1")
+    #print("Here 1")
     raw  = bytes(pkt1.view)          # send
-    print("Here 2")
+    #print("Here 2")
     del pkt1                         # recycled
-    print("Here 3")
+    #print("Here 3")
     pkt2 = CxlMemPooledPacket(raw)   # receive using same object
-    print("Here 4")
+    #print("Here 4")
     assert bytes(pkt2.view) == raw
-    print("Here 5")
-    print("Round-trip OK, freelist length =", len(CxlMemPooledPacket._pool))
+    #print("Here 5")
+    #print("Round-trip OK, freelist length =", len(CxlMemPooledPacket._pool))
