@@ -14,6 +14,7 @@ ctypedef enum:
 
 cdef class HeaderBuffer:
     cdef unsigned char* p
+    cdef unsigned char[::1] _buf
 
     cdef inline void relocate(self, unsigned char* q) nogil:
         self.p = q
@@ -480,10 +481,8 @@ class CxlMemPooledPacket(_PoolMixin):
         snp_type: int,
         ld_id: int
     ):
-        cdef object pkt = cls._acquire(cls) # C-speed call
-        print("Here 11")
-        #pkt = cls._acquire()
-        print("Here 12")
+        cdef object pkt = cls._acquire(cls)  # C-speed call
+        pkt._relocate()
         _do_build(
             pkt.system_header_,
             pkt.cxl_mem_header_,
@@ -499,7 +498,7 @@ class CxlMemPooledPacket(_PoolMixin):
         return pkt
 
     def raw_bytes(self) -> bytes:
-        return bytes(self._buffer[:17])
+        return bytes(self._mv[:17])
 
     def _build(self,
                addr: int,
@@ -523,7 +522,7 @@ class CxlMemPooledPacket(_PoolMixin):
                   meta_value,
                   snp_type,
                   ld_id)
-        self._data_length = 0       # no payload in an M2S-REQ
+        self._data_len = 0       # no payload in an M2S-REQ
 
     # ------------ convenience for writer.write() -------------------
     @property

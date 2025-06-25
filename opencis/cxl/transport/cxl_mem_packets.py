@@ -7,7 +7,7 @@ See LICENSE for details.
 
 # from opencis.util.logger import logger
 from opencis.cxl.transport.common import TagCounter
-from opencis.cxl.transport.packet_pooled import CxlMemKPacket
+from opencis.cxl.transport.packet_pooled import CxlMemPooledPacket
 from opencis.cxl.transport.packet_structs import (
     _GenCxlMemBasePacket,
     _GenCxlMemM2SReqPacket,
@@ -290,6 +290,7 @@ class CxlMemCmpPacket(
 
 
 class CxlMemKyeyoonPacket(CxlMemPooledPacket):
+    @classmethod
     def create(
         cls,
         addr: int,
@@ -299,7 +300,7 @@ class CxlMemKyeyoonPacket(CxlMemPooledPacket):
         snp_type: CXL_MEM_M2S_SNP_TYPE = CXL_MEM_M2S_SNP_TYPE.NO_OP,
         ld_id: int = 0,
     ):
-        CxlMemKPacket.create(addr, opcode, meta_field, meta_value, snp_type, ld_id)
+        CxlMemPooledPacket.create(addr, opcode, meta_field, meta_value, snp_type, ld_id)
 
 
 # ------------------------------ Helper Functions ------------------------------#
