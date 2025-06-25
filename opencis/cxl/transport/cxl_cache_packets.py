@@ -75,7 +75,7 @@ class CxlCacheCacheD2HReqPacket(
     def get_address(self) -> int:
         return self.d2hreq_header.addr << 6
 
-    def set_cache_id(self, cache_id: int):
+    def set_cache_id(self, cache_id: int) -> None:
         self.d2hreq_header.cache_id = cache_id
 
 

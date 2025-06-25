@@ -56,7 +56,7 @@ class CxlIoMemReqPacket(
     def get_tag(cls, tag) -> int:
         return _io_mem_tags.next(tag)
 
-    def _fill_common(self, addr: int, length: int, req_id: int, tag: int):
+    def _fill_common(self, addr: int, length: int, req_id: int, tag: int) -> None:
         address_offset = addr % 4
         length_dword = (address_offset + length + 3) // 4
 
@@ -93,7 +93,9 @@ class CxlIoMemReqPacket(
 
 class CxlIoMemRdPacket(CxlIoMemReqPacket):
     @classmethod
-    def create(cls, addr: int, length: int, req_id: int = 0, tag: int = None, ld_id: int = 0):
+    def create(
+        cls, addr: int, length: int, req_id: int = 0, tag: int = None, ld_id: int = 0
+    ) -> "CxlIoMemRdPacket":
         packet = cls()
         packet._fill_common(addr, length, htotlp16(req_id), super().get_tag(tag))
         packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.MRD_64B
@@ -112,7 +114,7 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         req_id: int = 0,
         tag: int = None,
         ld_id: int = 0,
-    ):
+    ) -> "CxlIoMemWrPacket":
         packet = cls()
         if isinstance(data, int):
             packet.set_data_as_int(data, length)
@@ -167,11 +169,11 @@ class CxlIoCfgReqPacket(
         self.cfg_req_header.reg_num = (cfg_addr >> 2) & 0x3F
         return self
 
-    def get_cfg_addr_read_info(self) -> int:
+    def get_cfg_addr_read_info(self) -> tuple[int, int]:
         reg_num = (self.cfg_req_header.ext_reg_num << 6) | self.cfg_req_header.reg_num
         return reg_num << 2, 4
 
-    def get_cfg_addr_write_info(self):
+    def get_cfg_addr_write_info(self) -> tuple[int, int]:
         reg_num = (self.cfg_req_header.ext_reg_num << 6) | self.cfg_req_header.reg_num
         be = self.cfg_req_header.first_dw_be
         b, pos = 1, 0
@@ -185,15 +187,15 @@ class CxlIoCfgReqPacket(
             size += 1
         return cfg_addr, size
 
-    def get_bus(self):
+    def get_bus(self) -> int:
         dest_id = tlptoh16(self.cfg_req_header.dest_id)
         return extract_bus_from_bdf(dest_id)
 
-    def get_device(self):
+    def get_device(self) -> int:
         dest_id = tlptoh16(self.cfg_req_header.dest_id)
         return extract_device_from_bdf(dest_id)
 
-    def get_function(self):
+    def get_function(self) -> int:
         dest_id = tlptoh16(self.cfg_req_header.dest_id)
         return extract_function_from_bdf(dest_id)
 
