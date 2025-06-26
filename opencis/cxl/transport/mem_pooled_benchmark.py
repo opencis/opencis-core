@@ -38,7 +38,7 @@ def bench(iters: int = 100_000):
             meta_value=0x2,
             snp_type=0x2,
             ld_id=0x1,
-            data=data,
+            data=PAYLOAD,
         ):
             pass
 
