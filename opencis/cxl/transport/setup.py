@@ -44,7 +44,7 @@ ext_modules = cythonize(
     compiler_directives={
         "boundscheck": True,
         "wraparound": True,
-        "nonecheck": True,        
+        "nonecheck": True,
     },
 )
 

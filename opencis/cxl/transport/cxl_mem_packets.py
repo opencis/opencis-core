@@ -289,20 +289,6 @@ class CxlMemCmpPacket(
         return packet
 
 
-class CxlMemKyeyoonPacket(CxlMemPooledPacket):
-    @classmethod
-    def create(
-        cls,
-        addr: int,
-        opcode: CXL_MEM_M2SREQ_OPCODE = CXL_MEM_M2SREQ_OPCODE.MEM_RD,
-        meta_field: CXL_MEM_META_FIELD = CXL_MEM_META_FIELD.NO_OP,
-        meta_value: CXL_MEM_META_VALUE = CXL_MEM_META_VALUE.ANY,
-        snp_type: CXL_MEM_M2S_SNP_TYPE = CXL_MEM_M2S_SNP_TYPE.NO_OP,
-        ld_id: int = 0,
-    ):
-        CxlMemPooledPacket.create(addr, opcode, meta_field, meta_value, snp_type, ld_id)
-
-
 # ------------------------------ Helper Functions ------------------------------#
 def is_cxl_mem_data(packet) -> bool:
     return (

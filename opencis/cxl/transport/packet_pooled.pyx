@@ -2,7 +2,7 @@
 from collections import deque
 from libc.string  cimport memcpy
 from packet_constants import *
-from libc.stdint cimport uintptr_t, uint64_t
+from libc.stdint cimport uintptr_t, uint8_t, uint64_t
 from cpython.ref cimport Py_INCREF
 
 
@@ -340,34 +340,34 @@ cdef class _PoolMixin:
         cdef object pool = cls._pool
         cdef object pkt, hook
 
-        print(f"[DEBUG] _acquire<{cls.__name__}> pool_len={len(pool)}")
+        #print(f"[DEBUG] _acquire<{cls.__name__}> pool_len={len(pool)}")
 
         if pool:                               # recycled
-            print("[DEBUG]   Recycled -> pop")
+            #print("[DEBUG]   Recycled -> pop")
             pkt  = pool.pop()
             hook = getattr(pkt, "_relocate", None)
             if hook is not None:
-                print(f"[DEBUG]   _relocate id={id(pkt)}")
+                #print(f"[DEBUG]   _relocate id={id(pkt)}")
                 hook()
             else:
-                print("[DEBUG]   No _relocate()")
+                #print("[DEBUG]   No _relocate()")
                 pass
             return pkt
 
         # fresh
-        print("[DEBUG]   Fresh allocation")
+        #print("[DEBUG]   Fresh allocation")
         pkt  = super(cls, cls).__new__(cls)
         hook = getattr(pkt, "_alloc_once", None)
         if hook is None:
             raise AttributeError(f"{cls.__name__} missing _alloc_once()")
-        print(f"[DEBUG]   _alloc_once id={id(pkt)}")
+        #print(f"[DEBUG]   _alloc_once id={id(pkt)}")
         hook()
         return pkt
 
     # ---------- Python-level wrapper -----------------------------------
     @classmethod
     def acquire(cls, *a, **kw):
-        print(f"[DEBUG] acquire<{cls.__name__}> (Python caller)")
+        #print(f"[DEBUG] acquire<{cls.__name__}> (Python caller)")
         return cls._acquire(cls, *a, **kw)
 
     # ---------- return to freelist -------------------------------------
@@ -375,21 +375,21 @@ cdef class _PoolMixin:
         cdef object cls  = self.__class__
         cdef object pool = cls._pool
 
-        print(f"[DEBUG] release<{cls.__name__}> id={id(self)} pool_len={len(pool)}")
+        #print(f"[DEBUG] release<{cls.__name__}> id={id(self)} pool_len={len(pool)}")
         if len(pool) < cls._POOL_MAX:
             pool.append(self)
-            print(f"[DEBUG]   Recycled (pool now {len(pool)})")
+            #print(f"[DEBUG]   Recycled (pool now {len(pool)})")
         else:
-            print(f"[DEBUG]   Pool full ({cls._POOL_MAX}) -> drop")
+            #print(f"[DEBUG]   Pool full ({cls._POOL_MAX}) -> drop")
             pass
 
     # ---------- context-manager hooks ----------------------------------
     def __enter__(self):
-        print(f"[DEBUG] __enter__ id={id(self)}")
+        #print(f"[DEBUG] __enter__ id={id(self)}")
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        print(f"[DEBUG] __exit__ id={id(self)} exc={exc_type}")
+        #print(f"[DEBUG] __exit__ id={id(self)} exc={exc_type}")
         self.release()
 
     def __del__(self):
@@ -403,6 +403,7 @@ cdef class _PoolMixin:
 
 
 cdef inline void _do_build(
+        object          pkt,
         SystemHeader                sh,
         CxlMemHeader                mh,
         CxlMemM2SReqHeader          rh,
@@ -411,18 +412,25 @@ cdef inline void _do_build(
         int                         meta_field,
         int                         meta_value,
         int                         snp_type,
-        int                         ld_id):
+        int                         ld_id,
+        const uint8_t[:]     data
+    ):
+        cdef Py_ssize_t n = len(data)
+        sh.payload_type  = SYSTEM_PAYLOAD_TYPE.CXL_MEM
+        mh.msg_class     = CXL_MEM_MSG_CLASS.M2S_REQ
+        rh.valid         = 1
+        rh.mem_opcode    = opcode
+        rh.meta_field    = meta_field
+        rh.meta_value    = meta_value
+        rh.snp_type      = snp_type
+        rh.ld_id         = ld_id
+        rh.addr          = addr >> 6
+        if 17 + n > pkt._cap:
+            raise ValueError("data too large")
+        pkt._ba[17:17 + n] = data
+        pkt._data_len = n
+        sh.payload_length = 17 + n
 
-    sh.payload_type  = SYSTEM_PAYLOAD_TYPE.CXL_MEM
-    mh.msg_class     = CXL_MEM_MSG_CLASS.M2S_REQ
-    rh.valid         = 1
-    rh.mem_opcode    = opcode
-    rh.meta_field    = meta_field
-    rh.meta_value    = meta_value
-    rh.snp_type      = snp_type
-    rh.ld_id         = ld_id
-    rh.addr          = addr >> 6
-    sh.payload_length = 17        # 17-byte header, no data
 
 cdef inline void _do_relocate(SystemHeader sh,
                               CxlMemHeader mh,
@@ -487,10 +495,12 @@ class CxlMemPooledPacket(_PoolMixin):
         meta_field: int,
         meta_value: int,
         snp_type: int,
-        ld_id: int
+        ld_id: int,
+        data: bytes
     ):
         cdef object pkt = cls()
         _do_build(
+            pkt,
             pkt.system_header_,
             pkt.cxl_mem_header_,
             pkt.m2sreq_header_,
@@ -500,13 +510,20 @@ class CxlMemPooledPacket(_PoolMixin):
             meta_value,
             snp_type,
             ld_id,
+            data,
         )
-        pkt._data_len = 0
-        print("Here 13")
         return pkt
 
+    def set_data(self, bytes payload):
+        cdef Py_ssize_t n = len(payload)
+        if 17 + n > self._cap:
+            raise ValueError("payload too large")
+        self._ba[17:17 + n] = payload
+        self._data_len = n
+        self.system_header_.payload_length = 17 + n
+
     def raw_bytes(self) -> bytes:
-        return bytes(self._mv[:17])
+        return bytes(self._mv[:17 + self._data_len])
 
     def _build(self,
                addr: int,
@@ -521,16 +538,20 @@ class CxlMemPooledPacket(_PoolMixin):
         a single C/Python call, typically < 80 ns.
         """
         self._relocate()            # three pointer stores
-        _do_build(self.system_header_,
-                  self.cxl_mem_header_,
-                  self.m2sreq_header_,
-                  addr,
-                  opcode,
-                  meta_field,
-                  meta_value,
-                  snp_type,
-                  ld_id)
-        self._data_len = 0       # no payload in an M2S-REQ
+        _do_build(
+            self,
+            self.system_header_,
+            self.cxl_mem_header_,
+            self.m2sreq_header_,
+            addr,
+            opcode,
+            meta_field,
+            meta_value,
+            snp_type,
+            ld_id,
+            data
+        )
+        self._data_len = len(data)
 
     # ------------ convenience for writer.write() -------------------
     @property
@@ -542,7 +563,7 @@ class CxlMemPooledPacket(_PoolMixin):
         return self.m2sreq_header.mem_opcode == CXL_MEM_M2SREQ_OPCODE.MEM_RD
 
     def __len__(self):
-        return 17
+        return 17 + self._data_len
 
 def demo():
     pkt1 = CxlMemPooledPacket.create(
@@ -553,14 +574,14 @@ def demo():
         222,
         5
     )
-    print("Here 1")
+    #print("Here 1")
     raw  = bytes(pkt1.view)          # send
-    print("Here 2")
+    #print("Here 2")
     del pkt1                         # recycled
-    print("Here 3")
+    #print("Here 3")
     pkt2 = CxlMemPooledPacket(raw)   # receive using same object
-    print("Here 4")
+    #print("Here 4")
     assert bytes(pkt2.view) == raw
-    print("Here 5")
+    #print("Here 5")
     pkt2.release()
-    print("Round-trip OK, freelist length =", len(CxlMemPooledPacket._pool))
+    #print("Round-trip OK, freelist length =", len(CxlMemPooledPacket._pool))
