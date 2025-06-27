@@ -5,12 +5,12 @@ Measure build speed of CxlMemMemWrPacket.create() with buffer pooling.
 
 import os, sys, time, random, gc
 
-from opencis.cxl.transport.packet_pooled import CxlMemPooledPacket
+from opencis.cxl.transport.packet_pooled import _GenCxlMemM2SRwDPacket
 
 PAYLOAD = os.urandom(64)
 
 
-class CxlMemKyeyoonPacket(CxlMemPooledPacket):
+class CxlMemKyeyoonPacket(_GenCxlMemM2SRwDPacket):
     @classmethod
     def create(
         cls,
@@ -22,15 +22,27 @@ class CxlMemKyeyoonPacket(CxlMemPooledPacket):
         ld_id: int,
         data: bytes,
     ):
-        return CxlMemPooledPacket.create(
+        return _GenCxlMemM2SRwDPacket.create(
             addr, opcode, meta_field, meta_value, snp_type, ld_id, data
         )
+
+    def assign(
+        self,
+        addr: int,
+        opcode: int,
+        meta_field: int,
+        meta_value: int,
+        snp_type: int,
+        ld_id: int,
+        data: bytes,
+    ):
+        self.assign(addr, opcode, meta_field, meta_value, snp_type, ld_id, data)
+
 
 data = '\x00' * 64
 def bench(iters: int = 100_000):
     t0 = time.perf_counter()
-    for _ in range(iters):
-        with CxlMemKyeyoonPacket.create(
+    packet = CxlMemKyeyoonPacket.create(
             addr=0x100,
             opcode=0x2,
             meta_field=0x5,
@@ -38,8 +50,17 @@ def bench(iters: int = 100_000):
             snp_type=0x2,
             ld_id=0x1,
             data=PAYLOAD,
-        ):
-            pass
+        )
+    for _ in range(iters):
+        packet.assign(
+            addr=0x100,
+            opcode=0x2,
+            meta_field=0x5,
+            meta_value=0x2,
+            snp_type=0x2,
+            ld_id=0x1,
+            data=PAYLOAD,
+        )
 
     dt = time.perf_counter() - t0
     processed_mb = iters * (17 + len(data)) / 1024 / 1024

@@ -1,19 +1,10 @@
 # cython: language_level=3, boundscheck=False, wraparound=False, no_gc=True, infer_types=True
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, uint64_t
-from cpython.bytes cimport PyBytes_FromStringAndSize
-cimport cython
-from collections import deque
 from libc.string  cimport memcpy
-from packet_constants import *
+from cpython.bytes cimport PyBytes_FromStringAndSize
 from libc.stdint cimport uintptr_t, uint8_t, uint16_t, uint32_t, uint64_t
 from cpython.ref cimport Py_INCREF, Py_DECREF
-
-cimport cython
-from cpython.bytearray cimport PyByteArray_FromStringAndSize
-from cython cimport view     # brings in view.array
 from cpython.object cimport PyObject
-from cython cimport boundscheck, wraparound
-from libc.string cimport memcpy
 
 ctypedef enum:
     MAX_PACKET_SIZE = 200
@@ -69,7 +60,7 @@ cdef void _write_bits(unsigned char* p, int start_bit, int width,
 #  1.  SystemHeader  (2 bytes)
 # ────────────────────────────────────────────────────────────────────────────
 cdef class SystemHeader:
-    __slots__ = ("_p",)               # uint8_t* into the packet buffer
+    __slots__ = ()
     cdef uint8_t* _p
 
     def __cinit__(self):
@@ -126,7 +117,7 @@ cdef class SystemHeader:
 # ────────────────────────────────────────────────────────────────────────────
 
 cdef class CxlMemHeader:
-    __slots__ = ("_p",)
+    __slots__ = ()
     cdef uint8_t* _p
 
     def __cinit__(self):
@@ -181,7 +172,7 @@ cdef class CxlMemHeader:
 # ---------------------------------------------------------------------------
 
 cdef class CxlMemM2SReqHeader:
-    __slots__ = ("_p",)
+    __slots__ = ()
     cdef uint8_t* _p
 
     def __cinit__(self):
@@ -369,10 +360,6 @@ cdef class CxlMemM2SReqHeader:
 
 
 
-
-
-
-
 # ─── Module‐level struct & API ──────────────────────────────────────
 
 cdef struct PoolStruct:
@@ -411,86 +398,55 @@ cdef inline PyObject* pool_pop(PoolStruct *p) noexcept nogil:
 
 
 
+# CxlMemM2SRwDPacket definition
 
+cdef PoolStruct _CxlMemM2SRwDPacket_pool
 
-
-
-cdef PoolStruct _CxlMemPooledPacket_pool
-
-cdef class CxlMemPooledPacket:
+cdef class _GenCxlMemM2SRwDPacket:
+    __slots__ = ()
     # Buffer
     cdef unsigned char _ba[MAX_PACKET_SIZE]
-    cdef Py_ssize_t    _data_len
+    cdef Py_ssize_t    _data_length
 
     # Headers
     cdef SystemHeader       _system_header
     cdef CxlMemHeader       _cxl_mem_header
     cdef CxlMemM2SReqHeader _m2sreq_header
 
+    # ------------------------------------------------------------------  life-cycle management
     cdef void _release(self):
-        # Generic push back into the CxlMemPooledPacket pool:
-        pool_push(&_CxlMemPooledPacket_pool, <PyObject*> self)
+        pool_push(&_CxlMemM2SRwDPacket_pool, <PyObject*> self)
 
-    @classmethod
-    def acquire(cls):
-        if cls._pool:
-            return cls._pool.pop()
-        return cls()
-
-    cpdef release(self):
-        self._release()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.release()
-
-    def __del__(self):
-        self.release()
-
-    @classmethod
-    def pool_size(cls):
-        return len(cls._pool)
-
-    # ------------------------------------------------------------------ relocate header views
-    @boundscheck(False)
-    @wraparound(False)
     cdef inline void _relocate(self) noexcept nogil:
         cdef unsigned char* base = &self._ba[0]
         self._system_header.attach(base + 0)   # bytes 0-1
         self._cxl_mem_header.attach(base + 2)  # bytes 2-3
         self._m2sreq_header.attach(base + 6)   # bytes 6-18
 
-    # ------------------------------------------------------------------ life-cycle hooks
-    @boundscheck(False)
-    @wraparound(False)
+    # ------------------------------------------------------------------
     def __cinit__(self, payload=None):
         cdef const unsigned char* src 
         cdef unsigned char* dst
         cdef Py_ssize_t n
 
-        if not hasattr(self, "_data_len"):
+        if not hasattr(self, "_data_length"):
             # First-time only: init headers
-            self._data_len = 0
+            self._data_length = 0
             self._system_header  = SystemHeader()
             self._cxl_mem_header = CxlMemHeader()
             self._m2sreq_header  = CxlMemM2SReqHeader()
             self._relocate()
 
         if payload is not None:
-            print("Ever called?")
             src = <const unsigned char*> payload
             dst = &self._ba[0]
             n = len(payload)
             if n > MAX_PACKET_SIZE:
                 raise ValueError("packet too large")
             memcpy(dst, src, n)
-            self._data_len = n - 17
+            self._data_length = n - 17
 
     # ------------------------------------------------------------------ builder (send path)
-    @boundscheck(False)
-    @wraparound(False)
     @classmethod
     def create(cls,
                addr: int,
@@ -502,23 +458,36 @@ cdef class CxlMemPooledPacket:
                data: bytes
     ):
         cdef PyObject *tmp
-        cdef CxlMemPooledPacket pkt
+        cdef _GenCxlMemM2SRwDPacket pkt
         cdef Py_ssize_t n = len(data)
         cdef const unsigned char* raw = data
 
-        tmp = pool_pop(&_CxlMemPooledPacket_pool)
+        tmp = pool_pop(&_CxlMemM2SRwDPacket_pool)
         if tmp == NULL:
             pkt = cls()
         else:
-            pkt = <CxlMemPooledPacket> tmp
+            pkt = <_GenCxlMemM2SRwDPacket> tmp
 
         pkt._relocate()
         pkt._build(addr, opcode, meta_field, meta_value, snp_type, ld_id, raw, n)
 
         return pkt
 
-    @boundscheck(False)
-    @wraparound(False)
+    def assign(self,
+               addr: int,
+               opcode: int,
+               meta_field: int,
+               meta_value: int,
+               snp_type: int,
+               ld_id: int,
+               data: bytes
+    ):
+        cdef const unsigned char* raw = data
+        cdef Py_ssize_t n = len(data)
+
+        self._relocate()
+        self._build(addr, opcode, meta_field, meta_value, snp_type, ld_id, raw, n)
+
     cdef inline void _build(self,
                      int addr,
                      int opcode,
@@ -545,51 +514,42 @@ cdef class CxlMemPooledPacket:
         if 17 + n > MAX_PACKET_SIZE:
             raise ValueError("data too large")
         memcpy(dst, src, n)
-        self._data_len = n
+        self._data_length = n
 
     # ------------------------------------------------------------------ mutators / accessors
-    #def set_data(self, bytes payload):
-    #    cdef Py_ssize_t n = len(payload)
-    #    if 17 + n > MAX_PACKET_SIZE:
-    #        raise ValueError("payload too large")
-    #    self._ba[17:17 + n] = payload
-    #    self._data_len = n
-    #    self._system_header.payload_length = 17 + n
-
-    #def raw_bytes(self) -> bytes:
-    #    return PyBytes_FromStringAndSize(<char*>&self._mv[0], 17 + self._data_len)
-
     #@property
-    #def view(self):
-    #    """Memory-view of the in-use bytes (header + payload)."""
-    #    return self._mv[:17 + self._data_len]
-
-    #def is_mem_rd(self) -> bool:
-    #    return self._m2sreq_header.mem_opcode == CXL_MEM_M2SREQ_OPCODE.MEM_RD
+    #def to_bytes(self):
+    #    return PyBytes_FromStringAndSize(<char *> self._ba, 17 + self._data_length)
 
     # ------------------------------------------------------------------ python specials
-    #def __len__(self):
-    #    return 17 + self._data_len
+    def __enter__(self):
+        return self
 
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._release()
+
+    def __del__(self):
+        self._release()
+
+    def __len__(self):
+        return 17 + self._data_length
+
+    def __bytes__(self):
+        return PyBytes_FromStringAndSize(<char *> self._ba, 17 + self._data_length)
 
 
 def demo():
-    pkt1 = CxlMemPooledPacket.create(
+    data = b'\x02' * 64
+    pkt1 = _GenCxlMemM2SRwDPacket.create(
         0x1000,
         5,
         100,
         200,
         222,
-        5
+        5,
+        bytes(data)
     )
-    #print("Here 1")
-    raw  = bytes(pkt1.view)          # send
-    #print("Here 2")
-    del pkt1                         # recycled
-    #print("Here 3")
-    pkt2 = CxlMemPooledPacket(raw)   # receive using same object
-    #print("Here 4")
-    assert bytes(pkt2.view) == raw
-    #print("Here 5")
-    pkt2.release()
-    #print("Round-trip OK, freelist length =", len(CxlMemPooledPacket._pool))
+    raw  = bytes(pkt1)
+    pkt2 = _GenCxlMemM2SRwDPacket(raw)
+    assert bytes(pkt2) == raw
+    print("Round-trip OK")
