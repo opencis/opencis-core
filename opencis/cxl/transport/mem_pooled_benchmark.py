@@ -39,18 +39,20 @@ class CxlMemKyeyoonPacket(_GenCxlMemM2SRwDPacket):
         self.assign(addr, opcode, meta_field, meta_value, snp_type, ld_id, data)
 
 
-data = '\x00' * 64
+data = b"\xa5" * 64
+
+
 def bench(iters: int = 100_000):
     t0 = time.perf_counter()
     packet = CxlMemKyeyoonPacket.create(
-            addr=0x100,
-            opcode=0x2,
-            meta_field=0x5,
-            meta_value=0x2,
-            snp_type=0x2,
-            ld_id=0x1,
-            data=PAYLOAD,
-        )
+        addr=0x100,
+        opcode=0x2,
+        meta_field=0x5,
+        meta_value=0x2,
+        snp_type=0x2,
+        ld_id=0x1,
+        data=PAYLOAD,
+    )
     for _ in range(iters):
         packet.assign(
             addr=0x100,
@@ -69,6 +71,7 @@ def bench(iters: int = 100_000):
         f"(processed {processed_mb:.1f} MB in {dt:.3f} s)"
     )
     print(f"system_header.payload_length: {packet.system_header.payload_length}")
+
 
 if __name__ == "__main__":
     iters = int(sys.argv[1]) if len(sys.argv) > 1 else 100_000

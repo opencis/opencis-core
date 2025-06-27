@@ -166,11 +166,9 @@ cdef class CxlMemHeader:
     def __bytes__(self):
         return PyBytes_FromStringAndSize(<char*>self._p, 2)
 
-
-# ---------------------------------------------------------------------------
-#  CxlMemM2SReqHeader – with SystemHeader-style accessors
-# ---------------------------------------------------------------------------
-
+# ───────────────────────────────────────────────────────────────────────────
+#    CxlMemM2SReqHeader  (13 bytes)
+# ───────────────────────────────────────────────────────────────────────────
 cdef class CxlMemM2SReqHeader:
     __slots__ = ()
     cdef uint8_t* _p
@@ -517,10 +515,6 @@ cdef class _GenCxlMemM2SRwDPacket:
         self._data_length = n
 
     # ------------------------------------------------------------------ mutators / accessors
-    @property
-    def to_bytes(self):
-        return PyBytes_FromStringAndSize(<char *> self._ba, 18 + self._data_length)
-
     @property
     def system_header(self):
         return self._system_header
