@@ -94,7 +94,7 @@ cdef class SystemHeader:
 
     @property
     def payload_length(self):
-        return self._get_payload_len()
+        return self._get_payload_length()
 
     @payload_length.setter
     def payload_length(self, v):
@@ -517,9 +517,21 @@ cdef class _GenCxlMemM2SRwDPacket:
         self._data_length = n
 
     # ------------------------------------------------------------------ mutators / accessors
-    #@property
-    #def to_bytes(self):
-    #    return PyBytes_FromStringAndSize(<char *> self._ba, 17 + self._data_length)
+    @property
+    def to_bytes(self):
+        return PyBytes_FromStringAndSize(<char *> self._ba, 17 + self._data_length)
+
+    @property
+    def system_header(self):
+        return self._system_header
+
+    @property
+    def cxl_mem_header(self):
+        return self._cxl_mem_header
+
+    @property
+    def m2sreq_header(self):
+        return self._m2sreq_header
 
     # ------------------------------------------------------------------ python specials
     def __enter__(self):

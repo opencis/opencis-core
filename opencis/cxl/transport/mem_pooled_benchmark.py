@@ -68,7 +68,7 @@ def bench(iters: int = 100_000):
         f"{iters:,} pkts • {processed_mb/dt:6.2f} MB/s "
         f"(processed {processed_mb:.1f} MB in {dt:.3f} s)"
     )
-
+    print(f"system_header.payload_length: {packet.system_header.payload_length}")
 
 if __name__ == "__main__":
     iters = int(sys.argv[1]) if len(sys.argv) > 1 else 100_000
