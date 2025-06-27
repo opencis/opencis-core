@@ -398,7 +398,7 @@ cdef inline PyObject* pool_pop(PoolStruct *p) noexcept nogil:
 
 
 
-# CxlMemM2SRwDPacket definition
+# CxlMemM2SRwDPacket Definition
 
 cdef PoolStruct _CxlMemM2SRwDPacket_pool
 
@@ -444,7 +444,7 @@ cdef class _GenCxlMemM2SRwDPacket:
             if n > MAX_PACKET_SIZE:
                 raise ValueError("packet too large")
             memcpy(dst, src, n)
-            self._data_length = n - 17
+            self._data_length = n - 18
 
     # ------------------------------------------------------------------ builder (send path)
     @classmethod
@@ -498,10 +498,10 @@ cdef class _GenCxlMemM2SRwDPacket:
                      const unsigned char* src,
                      Py_ssize_t n,
     ) noexcept nogil:
-        cdef unsigned char* dst = &self._ba[17]
+        cdef unsigned char* dst = &self._ba[18]
 
         self._system_header._set_payload_type(3)
-        self._system_header._set_payload_length(17 + n)
+        self._system_header._set_payload_length(18 + n)
         self._cxl_mem_header._set_msg_class(6)
         self._m2sreq_header._set_valid(1)
         self._m2sreq_header._set_mem_opcode(opcode)
@@ -511,7 +511,7 @@ cdef class _GenCxlMemM2SRwDPacket:
         self._m2sreq_header._set_ld_id(ld_id)
         self._m2sreq_header._set_addr(addr >> 6)
 
-        if 17 + n > MAX_PACKET_SIZE:
+        if 18 + n > MAX_PACKET_SIZE:
             raise ValueError("data too large")
         memcpy(dst, src, n)
         self._data_length = n
@@ -519,7 +519,7 @@ cdef class _GenCxlMemM2SRwDPacket:
     # ------------------------------------------------------------------ mutators / accessors
     @property
     def to_bytes(self):
-        return PyBytes_FromStringAndSize(<char *> self._ba, 17 + self._data_length)
+        return PyBytes_FromStringAndSize(<char *> self._ba, 18 + self._data_length)
 
     @property
     def system_header(self):
@@ -544,10 +544,10 @@ cdef class _GenCxlMemM2SRwDPacket:
         self._release()
 
     def __len__(self):
-        return 17 + self._data_length
+        return 18 + self._data_length
 
     def __bytes__(self):
-        return PyBytes_FromStringAndSize(<char *> self._ba, 17 + self._data_length)
+        return PyBytes_FromStringAndSize(<char *> self._ba, 18 + self._data_length)
 
 
 def demo():
