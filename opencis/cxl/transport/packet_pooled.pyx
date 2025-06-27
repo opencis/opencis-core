@@ -6,16 +6,18 @@ from collections import deque
 from libc.string  cimport memcpy
 from packet_constants import *
 from libc.stdint cimport uintptr_t, uint8_t, uint16_t, uint32_t, uint64_t
-from cpython.ref cimport Py_INCREF
+from cpython.ref cimport Py_INCREF, Py_DECREF
+
 cimport cython
 from cpython.bytearray cimport PyByteArray_FromStringAndSize
 from cython cimport view     # brings in view.array
-
+from cpython.object cimport PyObject
 from cython cimport boundscheck, wraparound
 from libc.string cimport memcpy
 
-
 ctypedef enum:
+    MAX_PACKET_SIZE = 200
+    POOL_SIZE = 4
     SYSTEM_PAYLOAD_TYPE_CXL_MEM = 7
     CXL_MEM_MSG_CLASS_M2S_REQ = 2
     CXL_MEM_M2SREQ_OPCODE_MEM_RD = 1
@@ -73,14 +75,14 @@ cdef class SystemHeader:
     def __cinit__(self):
         self._p = <uint8_t*>0         # NULL until first attach()
 
-    cdef void attach(self, uint8_t* p) nogil:
+    cdef void attach(self, uint8_t* p) noexcept nogil:
         self._p = p                   # 0-cost pointer swap
 
     # ───── payload_type : bits 0-3 ──────────────────────────────────────────
-    cdef inline uint8_t _get_payload_type(self) nogil:
+    cdef inline uint8_t _get_payload_type(self) noexcept nogil:
         return self._p[0] & 0x0F
 
-    cdef inline void _set_payload_type(self, uint8_t v) nogil:
+    cdef inline void _set_payload_type(self, uint8_t v) noexcept nogil:
         self._p[0] = (self._p[0] & 0xF0) | (v & 0x0F)
 
     @property
@@ -92,10 +94,10 @@ cdef class SystemHeader:
         self._set_payload_type(<uint8_t>v)
 
     # ───── payload_length : bits 4-15 (12 b) ───────────────────────────────
-    cdef inline uint16_t _get_payload_length(self) nogil:
+    cdef inline uint16_t _get_payload_length(self) noexcept nogil:
         return ((self._p[0] >> 4) & 0x0F) | (self._p[1] << 4)
 
-    cdef inline void _set_payload_length(self, uint16_t v) nogil:
+    cdef inline void _set_payload_length(self, uint16_t v) noexcept nogil:
         self._p[0] = (self._p[0] & 0x0F) | ((v & 0x000F) << 4)
         self._p[1] = (v >> 4) & 0xFF
 
@@ -122,6 +124,7 @@ cdef class SystemHeader:
 # ────────────────────────────────────────────────────────────────────────────
 #  2.  CxlMemHeader  (2 bytes)
 # ────────────────────────────────────────────────────────────────────────────
+
 cdef class CxlMemHeader:
     __slots__ = ("_p",)
     cdef uint8_t* _p
@@ -129,14 +132,14 @@ cdef class CxlMemHeader:
     def __cinit__(self):
         self._p = <uint8_t*>0
 
-    cdef void attach(self, uint8_t* p) nogil:
+    cdef void attach(self, uint8_t* p) noexcept nogil:
         self._p = p
 
     # port_index : bits 0-7
-    cdef inline uint8_t _get_port_index(self) nogil:
+    cdef inline uint8_t _get_port_index(self) noexcept nogil:
         return self._p[0]
 
-    cdef inline void _set_port_index(self, uint8_t v) nogil:
+    cdef inline void _set_port_index(self, uint8_t v) noexcept nogil:
         self._p[0] = v
 
     @property
@@ -148,10 +151,10 @@ cdef class CxlMemHeader:
         self._set_port_index(<uint8_t>v)
 
     # msg_class : bits 8-15
-    cdef inline uint8_t _get_msg_class(self) nogil:
+    cdef inline uint8_t _get_msg_class(self) noexcept nogil:
         return self._p[1]
 
-    cdef inline void _set_msg_class(self, uint8_t v) nogil:
+    cdef inline void _set_msg_class(self, uint8_t v) noexcept nogil:
         self._p[1] = v
 
     @property
@@ -174,12 +177,9 @@ cdef class CxlMemHeader:
 
 
 # ---------------------------------------------------------------------------
-#  CxlMemM2SReqHeader  –  zero-alloc view with Python-visible properties
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
 #  CxlMemM2SReqHeader – with SystemHeader-style accessors
 # ---------------------------------------------------------------------------
+
 cdef class CxlMemM2SReqHeader:
     __slots__ = ("_p",)
     cdef uint8_t* _p
@@ -187,14 +187,14 @@ cdef class CxlMemM2SReqHeader:
     def __cinit__(self):
         self._p = <uint8_t*>0
 
-    cdef void attach(self, uint8_t* p) nogil:
+    cdef void attach(self, uint8_t* p) noexcept nogil:
         self._p = p
 
     # ───── valid : bit 0 ───────────────────────────────────────────────────
-    cdef inline uint8_t _get_valid(self) nogil:
+    cdef inline uint8_t _get_valid(self) noexcept nogil:
         return self._p[0] & 0x01
 
-    cdef inline void _set_valid(self, uint8_t v) nogil:
+    cdef inline void _set_valid(self, uint8_t v) noexcept nogil:
         self._p[0] = (self._p[0] & 0xFE) | (v & 0x01)
 
     @property
@@ -206,10 +206,10 @@ cdef class CxlMemM2SReqHeader:
         self._set_valid(<uint8_t>v)
 
     # ───── mem_opcode : bits 1–4 ───────────────────────────────────────────
-    cdef inline uint8_t _get_mem_opcode(self) nogil:
+    cdef inline uint8_t _get_mem_opcode(self) noexcept nogil:
         return (self._p[0] >> 1) & 0x0F
 
-    cdef inline void _set_mem_opcode(self, uint8_t v) nogil:
+    cdef inline void _set_mem_opcode(self, uint8_t v) noexcept nogil:
         self._p[0] = (self._p[0] & 0xE1) | ((v & 0x0F) << 1)
 
     @property
@@ -221,10 +221,10 @@ cdef class CxlMemM2SReqHeader:
         self._set_mem_opcode(<uint8_t>v)
 
     # ───── snp_type : bits 5–7 ─────────────────────────────────────────────
-    cdef inline uint8_t _get_snp_type(self) nogil:
+    cdef inline uint8_t _get_snp_type(self) noexcept nogil:
         return (self._p[0] >> 5) & 0x07
 
-    cdef inline void _set_snp_type(self, uint8_t v) nogil:
+    cdef inline void _set_snp_type(self, uint8_t v) noexcept nogil:
         self._p[0] = (self._p[0] & 0x1F) | ((v & 0x07) << 5)
 
     @property
@@ -236,10 +236,10 @@ cdef class CxlMemM2SReqHeader:
         self._set_snp_type(<uint8_t>v)
 
     # ───── meta_field : bits 8–9 ───────────────────────────────────────────
-    cdef inline uint8_t _get_meta_field(self) nogil:
+    cdef inline uint8_t _get_meta_field(self) noexcept nogil:
         return self._p[1] & 0x03
 
-    cdef inline void _set_meta_field(self, uint8_t v) nogil:
+    cdef inline void _set_meta_field(self, uint8_t v) noexcept nogil:
         self._p[1] = (self._p[1] & 0xFC) | (v & 0x03)
 
     @property
@@ -251,10 +251,10 @@ cdef class CxlMemM2SReqHeader:
         self._set_meta_field(<uint8_t>v)
 
     # ───── meta_value : bits 10–11 ─────────────────────────────────────────
-    cdef inline uint8_t _get_meta_value(self) nogil:
+    cdef inline uint8_t _get_meta_value(self) noexcept nogil:
         return (self._p[1] >> 2) & 0x03
 
-    cdef inline void _set_meta_value(self, uint8_t v) nogil:
+    cdef inline void _set_meta_value(self, uint8_t v) noexcept nogil:
         self._p[1] = (self._p[1] & 0xF3) | ((v & 0x03) << 2)
 
     @property
@@ -266,10 +266,10 @@ cdef class CxlMemM2SReqHeader:
         self._set_meta_value(<uint8_t>v)
 
     # ───── tag : bits 12–27 (16 b) ─────────────────────────────────────────
-    cdef inline uint16_t _get_tag(self) nogil:
+    cdef inline uint16_t _get_tag(self) noexcept nogil:
         return <uint16_t>_read_bits(self._p, 12, 16)
 
-    cdef inline void _set_tag(self, uint16_t v) nogil:
+    cdef inline void _set_tag(self, uint16_t v) noexcept nogil:
         _write_bits(self._p, 12, 16, v)
 
     @property
@@ -281,10 +281,10 @@ cdef class CxlMemM2SReqHeader:
         self._set_tag(<uint16_t>v)
 
     # ───── addr : bits 28–73 (46 b) ────────────────────────────────────────
-    cdef inline uint64_t _get_addr(self) nogil:
+    cdef inline uint64_t _get_addr(self) noexcept nogil:
         return _read_bits(self._p, 28, 46)
 
-    cdef inline void _set_addr(self, uint64_t v) nogil:
+    cdef inline void _set_addr(self, uint64_t v) noexcept nogil:
         _write_bits(self._p, 28, 46, v)
 
     @property
@@ -296,10 +296,10 @@ cdef class CxlMemM2SReqHeader:
         self._set_addr(<uint64_t>v)
 
     # ───── ld_id : bits 74–77 (4 b) ────────────────────────────────────────
-    cdef inline uint8_t _get_ld_id(self) nogil:
+    cdef inline uint8_t _get_ld_id(self) noexcept nogil:
         return <uint8_t>_read_bits(self._p, 74, 4)
 
-    cdef inline void _set_ld_id(self, uint8_t v) nogil:
+    cdef inline void _set_ld_id(self, uint8_t v) noexcept nogil:
         _write_bits(self._p, 74, 4, v)
 
     @property
@@ -311,10 +311,10 @@ cdef class CxlMemM2SReqHeader:
         self._set_ld_id(<uint8_t>v)
 
     # ───── rsvd : bits 78–97 (20 b) ────────────────────────────────────────
-    cdef inline uint32_t _get_rsvd(self) nogil:
+    cdef inline uint32_t _get_rsvd(self) noexcept nogil:
         return <uint32_t>_read_bits(self._p, 78, 20)
 
-    cdef inline void _set_rsvd(self, uint32_t v) nogil:
+    cdef inline void _set_rsvd(self, uint32_t v) noexcept nogil:
         _write_bits(self._p, 78, 20, v)
 
     @property
@@ -326,10 +326,10 @@ cdef class CxlMemM2SReqHeader:
         self._set_rsvd(<uint32_t>v)
 
     # ───── tc : bits 98–99 (2 b) ───────────────────────────────────────────
-    cdef inline uint8_t _get_tc(self) nogil:
+    cdef inline uint8_t _get_tc(self) noexcept nogil:
         return <uint8_t>_read_bits(self._p, 98, 2)
 
-    cdef inline void _set_tc(self, uint8_t v) nogil:
+    cdef inline void _set_tc(self, uint8_t v) noexcept nogil:
         _write_bits(self._p, 98, 2, v)
 
     @property
@@ -341,10 +341,10 @@ cdef class CxlMemM2SReqHeader:
         self._set_tc(<uint8_t>v)
 
     # ───── padding : bits 100–103 (4 b) ────────────────────────────────────
-    cdef inline uint8_t _get_padding(self) nogil:
+    cdef inline uint8_t _get_padding(self) noexcept nogil:
         return <uint8_t>_read_bits(self._p, 100, 4)
 
-    cdef inline void _set_padding(self, uint8_t v) nogil:
+    cdef inline void _set_padding(self, uint8_t v) noexcept nogil:
         _write_bits(self._p, 100, 4, v)
 
     @property
@@ -368,29 +368,68 @@ cdef class CxlMemM2SReqHeader:
 
 
 
-# ─── packet object with integrated pool ─────────────────────────────────────
-@cython.freelist(256)                    # C-level freelist for emergency speed
+
+
+
+
+
+# ─── Module‐level struct & API ──────────────────────────────────────
+
+cdef struct PoolStruct:
+    PyObject *buf[POOL_SIZE]
+    Py_ssize_t head
+    Py_ssize_t tail
+    Py_ssize_t count
+
+cdef inline void pool_push(PoolStruct *p, PyObject *obj) noexcept nogil:
+    # Only reacquire the GIL for the refcount ops:
+    if p.count == POOL_SIZE:
+        with gil:
+            Py_DECREF(<object>obj)
+        return
+
+    with gil:
+        Py_INCREF(<object>obj)
+
+    # Pure C pointer math—no GIL needed
+    p.buf[p.tail] = obj
+    p.tail    = (p.tail + 1) & (POOL_SIZE - 1)
+    p.count  += 1
+
+
+cdef inline PyObject* pool_pop(PoolStruct *p) noexcept nogil:
+    if p.count == 0:
+        return NULL
+
+    # Pure C
+    cdef PyObject *obj = p.buf[p.head]
+    p.buf[p.head]     = NULL
+    p.head            = (p.head + 1) & (POOL_SIZE - 1)
+    p.count          -= 1
+
+    return obj  # caller owns the reference held by the pool
+
+
+
+
+
+
+
+cdef PoolStruct _CxlMemPooledPacket_pool
+
 cdef class CxlMemPooledPacket:
-    # ---------- class-wide pool (Python level, for debugging) ---------------
-    _POOL_MAX = 8192
-    _pool     = deque()
-
-    # ---------- fixed constants --------------------------------------------
-    _CAP = 200              # max bytes in backing buffer
-
-    # ---------- instance fields --------------------------------------------
-    cdef unsigned char _ba[200]
+    # Buffer
+    cdef unsigned char _ba[MAX_PACKET_SIZE]
     cdef Py_ssize_t    _data_len
 
+    # Headers
     cdef SystemHeader       _system_header
     cdef CxlMemHeader       _cxl_mem_header
     cdef CxlMemM2SReqHeader _m2sreq_header
 
-    # ------------------------------------------------------------------ fast pool helpers
     cdef void _release(self):
-        cdef object pool = self.__class__._pool
-        if len(pool) < self.__class__._POOL_MAX:
-            pool.append(self)
+        # Generic push back into the CxlMemPooledPacket pool:
+        pool_push(&_CxlMemPooledPacket_pool, <PyObject*> self)
 
     @classmethod
     def acquire(cls):
@@ -417,7 +456,7 @@ cdef class CxlMemPooledPacket:
     # ------------------------------------------------------------------ relocate header views
     @boundscheck(False)
     @wraparound(False)
-    cdef void _relocate(self):
+    cdef inline void _relocate(self) noexcept nogil:
         cdef unsigned char* base = &self._ba[0]
         self._system_header.attach(base + 0)   # bytes 0-1
         self._cxl_mem_header.attach(base + 2)  # bytes 2-3
@@ -430,22 +469,24 @@ cdef class CxlMemPooledPacket:
         cdef const unsigned char* src 
         cdef unsigned char* dst
         cdef Py_ssize_t n
+
         if not hasattr(self, "_data_len"):
-            # first-time only: init headers
+            # First-time only: init headers
             self._data_len = 0
             self._system_header  = SystemHeader()
             self._cxl_mem_header = CxlMemHeader()
             self._m2sreq_header  = CxlMemM2SReqHeader()
-        self._data_len = 0
-        self._relocate()
+            self._relocate()
+
         if payload is not None:
+            print("Ever called?")
             src = <const unsigned char*> payload
-            dst = &self._ba[17]
+            dst = &self._ba[0]
             n = len(payload)
-            if n > self._CAP - 17:
+            if n > MAX_PACKET_SIZE:
                 raise ValueError("packet too large")
             memcpy(dst, src, n)
-            self._data_len = n
+            self._data_len = n - 17
 
     # ------------------------------------------------------------------ builder (send path)
     @boundscheck(False)
@@ -460,33 +501,39 @@ cdef class CxlMemPooledPacket:
                ld_id: int,
                data: bytes
     ):
+        cdef PyObject *tmp
         cdef CxlMemPooledPacket pkt
-        if cls._pool:
-            pkt = cls._pool.pop()
-        else:
+        cdef Py_ssize_t n = len(data)
+        cdef const unsigned char* raw = data
+
+        tmp = pool_pop(&_CxlMemPooledPacket_pool)
+        if tmp == NULL:
             pkt = cls()
+        else:
+            pkt = <CxlMemPooledPacket> tmp
+
         pkt._relocate()
-        pkt._build(addr, opcode, meta_field, meta_value, snp_type, ld_id, data)
+        pkt._build(addr, opcode, meta_field, meta_value, snp_type, ld_id, raw, n)
+
         return pkt
 
     @boundscheck(False)
     @wraparound(False)
-    cdef void _build(self,
+    cdef inline void _build(self,
                      int addr,
                      int opcode,
                      int meta_field,
                      int meta_value,
                      int snp_type,
                      int ld_id,
-                     bytes data
-    ):
-        cdef const unsigned char* src = <const unsigned char*> data
+                     const unsigned char* src,
+                     Py_ssize_t n,
+    ) noexcept nogil:
         cdef unsigned char* dst = &self._ba[17]
-        cdef Py_ssize_t n = len(data)
 
-        self._system_header._set_payload_type(SYSTEM_PAYLOAD_TYPE.CXL_MEM)
+        self._system_header._set_payload_type(3)
         self._system_header._set_payload_length(17 + n)
-        self._cxl_mem_header._set_msg_class(CXL_MEM_MSG_CLASS.M2S_REQ)
+        self._cxl_mem_header._set_msg_class(6)
         self._m2sreq_header._set_valid(1)
         self._m2sreq_header._set_mem_opcode(opcode)
         self._m2sreq_header._set_meta_field(meta_field)
@@ -495,7 +542,7 @@ cdef class CxlMemPooledPacket:
         self._m2sreq_header._set_ld_id(ld_id)
         self._m2sreq_header._set_addr(addr >> 6)
 
-        if 17 + n > self._CAP:
+        if 17 + n > MAX_PACKET_SIZE:
             raise ValueError("data too large")
         memcpy(dst, src, n)
         self._data_len = n
@@ -503,7 +550,7 @@ cdef class CxlMemPooledPacket:
     # ------------------------------------------------------------------ mutators / accessors
     #def set_data(self, bytes payload):
     #    cdef Py_ssize_t n = len(payload)
-    #    if 17 + n > self._cap:
+    #    if 17 + n > MAX_PACKET_SIZE:
     #        raise ValueError("payload too large")
     #    self._ba[17:17 + n] = payload
     #    self._data_len = n

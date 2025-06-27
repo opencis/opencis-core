@@ -29,7 +29,7 @@ class CxlMemKyeyoonPacket(CxlMemPooledPacket):
 data = '\x00' * 64
 def bench(iters: int = 100_000):
     t0 = time.perf_counter()
-    for i in range(iters):
+    for _ in range(iters):
         with CxlMemKyeyoonPacket.create(
             addr=0x100,
             opcode=0x2,
