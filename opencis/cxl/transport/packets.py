@@ -17,7 +17,6 @@ PACKETS = {
     "SidebandConnectionRequestPacket": [
         ("SystemHeader", "system_header"),
         ("SidebandHeader", "sideband_header"),
-        ("DataField", "port"),
     ],
     # CXL.io
     "CxlIoBasePacket": [
@@ -30,14 +29,12 @@ PACKETS = {
         ("TlpPrefix", "tlp_prefix"),
         ("CxlIoHeader", "cxl_io_header"),
         ("CxlIoMReqHeader", "mreq_header"),
-        ("DataField", "data"),
     ],
     "CxlIoCfgReqPacket": [
         ("SystemHeader", "system_header"),
         ("TlpPrefix", "tlp_prefix"),
         ("CxlIoHeader", "cxl_io_header"),
         ("CxlIoCfgReqHeader", "cfg_req_header"),
-        ("DataField", "value"),
     ],
     "CxlIoCompletionPacket": [
         ("SystemHeader", "system_header"),
@@ -50,7 +47,6 @@ PACKETS = {
         ("TlpPrefix", "tlp_prefix"),
         ("CxlIoHeader", "cxl_io_header"),
         ("CxlIoCompletionHeader", "cpl_header"),
-        ("DataField", "data"),
     ],
     # CXL.cache
     "CxlCacheBasePacket": [
@@ -71,7 +67,6 @@ PACKETS = {
         ("SystemHeader", "system_header"),
         ("CxlCacheHeader", "cxl_cache_header"),
         ("CxlCacheD2HDataHeader", "d2hdata_header"),
-        ("DataField", "data"),
     ],
     "CxlCacheH2DReqPacket": [
         ("SystemHeader", "system_header"),
@@ -87,7 +82,6 @@ PACKETS = {
         ("SystemHeader", "system_header"),
         ("CxlCacheHeader", "cxl_cache_header"),
         ("CxlCacheH2DDataHeader", "h2ddata_header"),
-        ("DataField", "data"),
     ],
     # CXL.mem
     "CxlMemBasePacket": [
@@ -103,7 +97,6 @@ PACKETS = {
         ("SystemHeader", "system_header"),
         ("CxlMemHeader", "cxl_mem_header"),
         ("CxlMemM2SRwDHeader", "m2srwd_header"),
-        ("DataField", "data"),
     ],
     "CxlMemM2SBIRspPacket": [
         ("SystemHeader", "system_header"),
@@ -124,7 +117,6 @@ PACKETS = {
         ("SystemHeader", "system_header"),
         ("CxlMemHeader", "cxl_mem_header"),
         ("CxlMemS2MDRSHeader", "s2mdrs_header"),
-        ("DataField", "data"),
     ],
     # CCI
     "CciBasePacket": [
@@ -133,23 +125,19 @@ PACKETS = {
     ],
     "CciMessagePacket": [
         ("CciMessageHeader", "cci_msg_header"),
-        ("DataField", "data"),
     ],
     "CciPayloadPacket": [
         ("SystemHeader", "system_header"),
         ("CciHeader", "cci_header"),
-        ("DataField", "cci_msg"),
     ],
     "CciRequestPacket": [
         ("SystemHeader", "system_header"),
         ("CciHeader", "cci_header"),
         ("CciMessageHeader", "cci_msg_header"),
-        ("DataField", "data"),
     ],
     "CciResponsePacket": [
         ("SystemHeader", "system_header"),
         ("CciHeader", "cci_header"),
         ("CciMessageHeader", "cci_msg_header"),
-        ("DataField", "data"),
     ],
 }
