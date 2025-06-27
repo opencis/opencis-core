@@ -236,10 +236,10 @@ def emit_composite(packet_name, layout, field_sizes):
 
 
 TOP_CONTENT = """# cython: language_level=3, boundscheck=False, wraparound=False, no_gc=True, infer_types=True
+
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, uint64_t
 from libc.string  cimport memcpy
 from cpython.bytes cimport PyBytes_FromStringAndSize
-from libc.stdint cimport uintptr_t, uint8_t, uint16_t, uint32_t, uint64_t
 from cpython.ref cimport Py_INCREF, Py_DECREF
 from cpython.object cimport PyObject
 
@@ -261,6 +261,7 @@ cdef unsigned long long _read_bits(unsigned char* p, int start_bit, int width) n
         if (buf[byte_index] >> bit_offset) & 1:
             result |= 1ULL << i
     return result
+
 
 cdef void _write_bits(unsigned char* p, int start_bit, int width,
                     unsigned long long value) noexcept nogil:
@@ -287,6 +288,11 @@ cdef void _write_bits(unsigned char* p, int start_bit, int width,
 
 
 # ───── Pooling structs ────────────────────────────────────────────────
+ctypedef enum:
+    MAX_PACKET_SIZE = 200
+    POOL_SIZE = 4
+
+
 cdef struct PoolStruct:
     PyObject *buf[POOL_SIZE]
     Py_ssize_t head
@@ -303,7 +309,6 @@ cdef inline void pool_push(PoolStruct *p, PyObject *obj) noexcept nogil:
     with gil:
         Py_INCREF(<object>obj)
 
-    # Pure C pointer math—no GIL needed
     p.buf[p.tail] = obj
     p.tail    = (p.tail + 1) & (POOL_SIZE - 1)
     p.count  += 1
@@ -318,7 +323,10 @@ cdef inline PyObject* pool_pop(PoolStruct *p) noexcept nogil:
     p.head            = (p.head + 1) & (POOL_SIZE - 1)
     p.count          -= 1
 
-    return obj  # caller owns the reference held by the pool
+    # caller owns the reference held by the pool
+    return obj
+
+
 """
 
 

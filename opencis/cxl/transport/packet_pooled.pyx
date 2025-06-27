@@ -1,8 +1,8 @@
 # cython: language_level=3, boundscheck=False, wraparound=False, no_gc=True, infer_types=True
+
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, uint64_t
 from libc.string  cimport memcpy
 from cpython.bytes cimport PyBytes_FromStringAndSize
-from libc.stdint cimport uintptr_t, uint8_t, uint16_t, uint32_t, uint64_t
 from cpython.ref cimport Py_INCREF, Py_DECREF
 from cpython.object cimport PyObject
 
