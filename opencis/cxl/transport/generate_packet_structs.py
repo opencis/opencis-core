@@ -131,108 +131,189 @@ def emit_struct(name, layout):
     return code
 
 
-def emit_composite(packet_name, layout, field_sizes):
-    packet_name = f"_Gen{packet_name}"
-    lines = [f"\ncdef class {packet_name}(PacketBuffer):"]
+def emit_composite(packet_name, descriptor, field_sizes):
+    raw_name   = packet_name
+    layout     = descriptor["layout"]
+    create_args = descriptor.get("create_args", {})
 
-    has_data_field = False
+    # internal names
+    class_name = f"_Gen{raw_name}"
+    pool_name  = f"_{class_name}_pool"
+
+    lines = []
+    lines.append(f"cdef PoolStruct {pool_name}\n")
+    lines.append(f"cdef class {class_name}:")
+    lines.append("    # class member vars")
+
+    # build (struct, varname) list
     field_entries = []
     for entry in layout:
-        if isinstance(entry, tuple) and entry[0] == "DataField":
-            has_data_field = True
-            field_entries.append(entry)
-        elif isinstance(entry, tuple):
-            field_entries.append(entry)
-        else:
-            field_entries.append((entry, entry.lower()))
+        struct, varname = entry
+        field_entries.append((struct, varname))
 
-    offset = 0
+    # compute byte-offsets for each struct
+    offset    = 0
     offset_map = {}
     for struct, _ in field_entries:
-        if struct == "DataField":
-            continue
         struct_fields = field_sizes[struct]
-        size_bits = max(start + width for _, start, width in struct_fields)
-        size_bytes = (size_bits + 7) // 8
+        max_bit = max(start + width for _, start, width in struct_fields)
+        size_bytes = (max_bit + 7) // 8
         offset_map[struct] = (offset, size_bytes)
         offset += size_bytes
-
     total_header_bytes = offset
 
-    lines.append("    cdef readonly int HEADER_SIZE")
-    lines.append("    cdef int _data_length")
-
+    # emit declarations
     for struct, varname in field_entries:
-        if struct != "DataField":
-            lines.append(f"    cdef {struct} {varname}_")
+        lines.append(f"    cdef {struct} _{varname}")
+    lines.append("    cdef unsigned char _buf[MAX_PACKET_SIZE]")
+    lines.append("    cdef int _data_length\n")
+
+    # lifecycle / pool hooks
+    lines.append("    #────────────────── Life-cycle management ──────────────────")
+    lines.append("    cdef void _release(self):")
+    lines.append(f"        pool_push(&{pool_name}, <PyObject*> self)\n")
+    lines.append("    cdef inline void _relocate(self) noexcept nogil:")
+    lines.append("        cdef unsigned char* base = &self._buf[0]")
+    for struct, varname in field_entries:
+        off, _ = offset_map[struct]
+        lines.append(f"        self._{varname}.attach(base + {off})")
     lines.append("")
 
-    for struct, varname in field_entries:
-        if struct != "DataField":
-            lines.append("    @property")
-            lines.append(f"    def {varname}(self):")
-            lines.append(f"        return self.{varname}_")
-            lines.append("")
-
-    lines.append("    def __cinit__(self, buf=None):")
-    lines.append(f"        self.HEADER_SIZE = {total_header_bytes}")
-    lines.append("        if buf is not None:")
-    lines.append("            self._data_length = len(buf) - self.HEADER_SIZE")
-    lines.append("        else:")
+    # __cinit__ (first-time init + optional payload copy)
+    lines.append("    #────────────────── Builder ──────────────────")
+    lines.append("    def __cinit__(self, payload=None):")
+    lines.append("        if not hasattr(self, '_data_length'):")
+    lines.append("            # first time only: allocate sub-headers")
     lines.append("            self._data_length = 0")
-    lines.append("")
-    lines.append("        cdef unsigned char[::1] mv = self._buf")
     for struct, varname in field_entries:
-        if struct == "DataField":
-            continue
-        offset_start, size_bytes = offset_map[struct]
-        lines.append(
-            f"        self.{varname}_ = "
-            f"{struct}(mv[{offset_start}:{offset_start + size_bytes}])"
-        )
+        lines.append(f"            self._{varname} = {struct}()")
+    lines.append("            self._relocate()\n")
+    lines.append("        if payload is not None:")
+    lines.append("            src = <const unsigned char*> payload")
+    lines.append("            dst = &self._buf[0]")
+    lines.append("            n = len(payload)")
+    lines.append("            if n > MAX_PACKET_SIZE:")
+    lines.append('                raise ValueError("packet too large")')
+    lines.append("            memcpy(dst, src, n)")
+    lines.append(f"            self._data_length = n - {total_header_bytes}\n")
+
+
+    create_fields = []
+    for struct, varname in field_entries:
+        for fld in create_args.get(struct, []):
+            create_fields.append((varname, fld))
+
+    if create_fields:
+        # _build()
+        lines.append(f"    cdef inline void _build(")
+        lines.append("         self,")
+        for varname, fld in create_fields:
+            lines.append(f"         int {varname}__{fld},")
+        lines.append("         const unsigned char* data_src,")
+        lines.append("         Py_ssize_t data_length")
+        lines.append("    ) noexcept nogil:")
+        lines.append(f"        cdef unsigned char* dst = &self._buf[{total_header_bytes}]\n")
+        for varname, fld in create_fields:
+            lines.append(f"        self._{varname}._set_{fld}({varname}__{fld})")
+        lines.append("")
+
+    lines.append("    #────────────────── Python Interface ──────────────────")
+
+    if create_fields:
+        # create()
+        lines.append("    @classmethod")
+        lines.append(f"    def create(")
+        lines.append("         cls,")
+        for varname, fld in create_fields:
+            lines.append(f"         {varname}__{fld},")
+        lines.append("         data: bytes | None = None,")
+        lines.append("    ):")
+        lines.append(f"        cdef PyObject *tmp")
+        lines.append(f"        cdef {class_name} pkt")
+        lines.append("        cdef Py_ssize_t data_length")
+        lines.append("        cdef const unsigned char* ptr")
+        lines.append("")
+        lines.append("        if data:")
+        lines.append("            data_length = len(data)")
+        lines.append("            ptr = data")
+        lines.append("        else:")
+        lines.append("            data_length = 0")
+        lines.append("            ptr = NULL")
+        lines.append("")
+        lines.append(f"        tmp = pool_pop(&{pool_name})")
+        lines.append("        if tmp == NULL:")
+        lines.append("            pkt = cls()")
+        lines.append("        else:")
+        lines.append("            pkt = <" + class_name + "> tmp\n")
+        lines.append("        pkt._relocate()")
+        build_args = ",\n".join(f"            {varname}__{fld}" for varname, fld in create_fields)
+        if build_args:
+            build_args += ", "
+        build_args += "\n            data,\n            data_length,"
+        lines.append(f"        pkt._build(\n{build_args}\n        )")
+        lines.append("        return pkt\n")
+
+        # assign()
+        lines.append(f"    def assign(")
+        lines.append("         self,")
+        for varname, fld in create_fields:
+            lines.append(f"         {varname}__{fld},")
+        lines.append("         data: bytes | None = None,")
+        lines.append("    ):")
+        lines.append("        cdef Py_ssize_t data_length")
+        lines.append("        cdef const unsigned char* ptr")
+        lines.append("")
+        lines.append("        if data:")
+        lines.append("            data_length = len(data)")
+        lines.append("            ptr = data")
+        lines.append("        else:")
+        lines.append("            data_length = 0")
+        lines.append("            ptr = NULL")
+        lines.append("")
+        lines.append("        self._relocate()")
+        build_args = ",\n".join(f"            {varname}__{fld}" for varname, fld in create_fields)
+        if build_args:
+            build_args += ", "
+        build_args += "\n            data,\n            data_length,"
+        lines.append(f"        self._build(\n{build_args}\n        )")
 
     lines.append("")
-    lines.append("    def get_payload_offset(self) -> int:")
-    lines.append("        return self.HEADER_SIZE")
-    lines.append("")
+    lines.append("    #────────────────── Header accessors ──────────────────")
+    for struct, varname in field_entries:
+        lines.append("    @property")
+        lines.append(f"    def {varname}(self):")
+        lines.append(f"        return self._{varname}\n")
 
-    if has_data_field:
-        lines.append("    cpdef bytes get_data(self):")
-        lines.append("        if self._data_length <= 0:")
-        lines.append("            return b''")
-        lines.append(
-            "        return (<const unsigned char*> "
-            f"&self._buf[{total_header_bytes}])[:self._data_length]"
-        )
-        lines.append("")
-        lines.append("    cpdef void set_data(self, data):")
-        lines.append("        cdef const unsigned char* ptr = data")
-        lines.append("        cdef Py_ssize_t n = len(data)")
-        lines.append("        self.set_data_raw(ptr, n)")
-        lines.append("")
-        lines.append("    cpdef void set_data_raw(self, const unsigned char* data, Py_ssize_t n):")
-        lines.append(f"        memcpy(&self._buf[{total_header_bytes}], data, n)")
-        lines.append("        self._data_length = n")
-    else:
-        lines.append("    cpdef bytes get_data(self):")
-        lines.append('        return b""')
-        lines.append("")
-        lines.append("    cpdef void set_data(self, data):")
-        lines.append("        pass")
-        lines.append("")
-        lines.append("    cpdef void set_data_raw(self, const unsigned char* data, Py_ssize_t n):")
-        lines.append("        pass")
-    lines.append("")
-    lines.append("    cpdef int get_size(self):")
-    lines.append("        return self.HEADER_SIZE + self._data_length")
-    lines.append("")
+    lines.append("    def __enter__(self):")
+    lines.append("        return self\n")
+    lines.append("    def __exit__(self, exc_type, exc_val, exc_tb):")
+    lines.append("        self._release()\n")
+    lines.append("    def __del__(self):")
+    lines.append("        self._release()\n")
     lines.append("    def __len__(self):")
-    lines.append("        return self.get_size()")
-    lines.append("")
+    lines.append(f"        return {total_header_bytes} + self._data_length\n")
     lines.append("    def __bytes__(self):")
-    lines.append("        return self.to_bytes()")
+    lines.append(f"        return PyBytes_FromStringAndSize(<char *> self._buf, {total_header_bytes} + self._data_length)\n")
 
     return "\n".join(lines)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 TOP_CONTENT = """# cython: language_level=3, boundscheck=False, wraparound=False, no_gc=True, infer_types=True
@@ -354,9 +435,9 @@ def main():
         #     "from opencis.cxl.transport.packet_base cimport PacketBuffer\n"
         #     "from libc.string cimport memcpy\n\n"
         # )
-        # for packet_name, layout in packets.PACKETS.items():
-        #     f.write(emit_composite(packet_name, layout, field_sizes))
-        #     f.write("\n")
+        for packet_name, descriptor in packets.PACKETS.items():
+            f.write(emit_composite(packet_name, descriptor, field_sizes))
+            f.write("\n")
 
         # py_shim = base / "packet_structs.pyi"
         # with py_shim.open("w") as s:
