@@ -275,8 +275,23 @@ def emit_composite(packet_name, descriptor, field_sizes):
             build_args += ", "
         build_args += "\n            data,\n            data_length,"
         lines.append(f"        self._build(\n{build_args}\n        )")
+        lines.append("")
 
-    lines.append("")
+    # set_data()
+    lines.append(f"    cpdef set_data(self, data):")
+    lines.append("        src = <const unsigned char*> data")
+    lines.append(f"        dst = &self._buf[{total_header_bytes}]")
+    lines.append("        n = len(data)")
+    lines.append(f"        if {total_header_bytes} + n > MAX_PACKET_SIZE:")
+    lines.append('            raise ValueError("packet too large")')
+    lines.append("        memcpy(dst, src, n)")
+    lines.append(f"        self._data_length = n\n")
+
+    # get_data()
+    lines.append(f"    cpdef get_data(self):")
+    lines.append(f"        return PyBytes_FromStringAndSize(<char*>&self._buf[{total_header_bytes}], self._data_length)")
+
+
     lines.append("    #────────────────── Header accessors ──────────────────")
     for struct, varname in field_entries:
         lines.append("    @property")

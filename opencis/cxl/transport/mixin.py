@@ -6,7 +6,6 @@ See LICENSE for details.
 """
 
 # from opencis.util.logger import logger
-from opencis.cxl.transport.packet_base import PacketBuffer
 from opencis.cxl.transport.packet_constants import (
     SYSTEM_PAYLOAD_TYPE,
     CXL_IO_FMT_TYPE,

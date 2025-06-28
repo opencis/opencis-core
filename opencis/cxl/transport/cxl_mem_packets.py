@@ -7,7 +7,6 @@ See LICENSE for details.
 
 # from opencis.util.logger import logger
 from opencis.cxl.transport.common import TagCounter
-from opencis.cxl.transport.packet_pooled import CxlMemPooledPacket
 from opencis.cxl.transport.packet_structs import (
     _GenCxlMemBasePacket,
     _GenCxlMemM2SReqPacket,
