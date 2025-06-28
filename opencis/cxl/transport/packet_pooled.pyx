@@ -453,12 +453,19 @@ cdef class _GenCxlMemM2SRwDPacket:
                meta_value: int,
                snp_type: int,
                ld_id: int,
-               data: bytes
+               data: bytes | None = None
     ):
         cdef PyObject *tmp
         cdef _GenCxlMemM2SRwDPacket pkt
-        cdef Py_ssize_t n = len(data)
-        cdef const unsigned char* raw = data
+        cdef Py_ssize_t data_length = 0
+        cdef const unsigned char* ptr
+
+        if data:
+            data_length = len(data)
+            ptr = data
+        else:
+            data_length = 0
+            ptr = NULL
 
         tmp = pool_pop(&_CxlMemM2SRwDPacket_pool)
         if tmp == NULL:
@@ -467,7 +474,7 @@ cdef class _GenCxlMemM2SRwDPacket:
             pkt = <_GenCxlMemM2SRwDPacket> tmp
 
         pkt._relocate()
-        pkt._build(addr, opcode, meta_field, meta_value, snp_type, ld_id, raw, n)
+        pkt._build(addr, opcode, meta_field, meta_value, snp_type, ld_id, ptr, data_length)
 
         return pkt
 
@@ -493,13 +500,13 @@ cdef class _GenCxlMemM2SRwDPacket:
                      int meta_value,
                      int snp_type,
                      int ld_id,
-                     const unsigned char* src,
-                     Py_ssize_t n,
-    ) noexcept nogil:
-        cdef unsigned char* dst = &self._ba[18]
+                     const unsigned char* data_src,
+                     Py_ssize_t data_length,
+    ):
+        cdef unsigned char* dst = &self._ba[17]
 
         self._system_header._set_payload_type(3)
-        self._system_header._set_payload_length(18 + n)
+        self._system_header._set_payload_length(17 + data_length)
         self._cxl_mem_header._set_msg_class(6)
         self._m2sreq_header._set_valid(1)
         self._m2sreq_header._set_mem_opcode(opcode)
@@ -509,10 +516,15 @@ cdef class _GenCxlMemM2SRwDPacket:
         self._m2sreq_header._set_ld_id(ld_id)
         self._m2sreq_header._set_addr(addr >> 6)
 
-        if 18 + n > MAX_PACKET_SIZE:
+        if data_src == NULL:
+            self._data_length = 0
+            return
+
+        if 17 + data_length > MAX_PACKET_SIZE:
             raise ValueError("data too large")
-        memcpy(dst, src, n)
-        self._data_length = n
+
+        memcpy(dst, data_src, data_length)
+        self._data_length = data_length
 
     # ------------------------------------------------------------------ mutators / accessors
     @property
