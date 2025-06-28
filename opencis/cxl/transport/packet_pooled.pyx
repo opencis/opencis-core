@@ -457,7 +457,7 @@ cdef class _GenCxlMemM2SRwDPacket:
     ):
         cdef PyObject *tmp
         cdef _GenCxlMemM2SRwDPacket pkt
-        cdef Py_ssize_t data_length = 0
+        cdef Py_ssize_t data_length
         cdef const unsigned char* ptr
 
         if data:
@@ -502,7 +502,7 @@ cdef class _GenCxlMemM2SRwDPacket:
                      int ld_id,
                      const unsigned char* data_src,
                      Py_ssize_t data_length,
-    ):
+    ) noexcept nogil:
         cdef unsigned char* dst = &self._ba[17]
 
         self._system_header._set_payload_type(3)
