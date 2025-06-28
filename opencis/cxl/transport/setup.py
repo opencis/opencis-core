@@ -22,8 +22,8 @@ common_cflags = [
 ext_modules = cythonize(
     [
         Extension(
-            "packet_test",
-            [os.path.join(here, "packet_test.pyx")],
+            "packet_structs",
+            [os.path.join(here, "packet_structs.pyx")],
             extra_compile_args=common_cflags,
             extra_link_args=["-g"],
         ),

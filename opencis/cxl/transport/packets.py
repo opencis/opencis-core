@@ -67,14 +67,7 @@ PACKETS = {
         "create_args": {
             "SystemHeader": ["payload_type", "payload_length"],
             "TlpPrefix": ["ld_id"],
-            "CxlIoHeader": [
-                "fmt_type",
-                "tc",
-                "attr",
-                "at",
-                "length_upper",
-                "length_lower"
-            ],
+            "CxlIoHeader": ["fmt_type", "tc", "attr", "at", "length_upper", "length_lower"],
             "CxlIoCfgReqHeader": [
                 "req_id",
                 "tag",
@@ -96,11 +89,7 @@ PACKETS = {
         "create_args": {
             "SystemHeader": ["payload_type", "payload_length"],
             "TlpPrefix": ["ld_id"],
-            "CxlIoHeader": [
-                "fmt_type",
-                "length_upper",
-                "length_lower"
-            ],
+            "CxlIoHeader": ["fmt_type", "length_upper", "length_lower"],
             "CxlIoCompletionHeader": [
                 "cpl_id",
                 "status",
@@ -122,11 +111,7 @@ PACKETS = {
         "create_args": {
             "SystemHeader": ["payload_type", "payload_length"],
             "TlpPrefix": ["ld_id"],
-            "CxlIoHeader": [
-                "fmt_type",
-                "length_upper",
-                "length_lower"
-            ],
+            "CxlIoHeader": ["fmt_type", "length_upper", "length_lower"],
             "CxlIoCompletionHeader": [
                 "cpl_id",
                 "status",
@@ -143,9 +128,7 @@ PACKETS = {
             ("SystemHeader", "system_header"),
             ("CxlCacheHeader", "cxl_cache_header"),
         ],
-        "create_args": {
-            "CxlCacheHeader": ["cache_op"],
-        },
+        "create_args": {},
     },
     "CxlCacheD2HReqPacket": {
         "layout": [
@@ -154,7 +137,15 @@ PACKETS = {
             ("CxlCacheD2HReqHeader", "d2hreq_header"),
         ],
         "create_args": {
-            "CxlCacheD2HReqHeader": ["request_id"],
+            "SystemHeader": ["payload_type", "payload_length"],
+            "CxlCacheHeader": ["msg_class"],
+            "CxlCacheD2HReqHeader": [
+                "valid",
+                "cache_opcode",
+                "cqid",
+                "cache_id",
+                "addr",
+            ],
         },
     },
     "CxlCacheD2HRspPacket": {
@@ -164,7 +155,13 @@ PACKETS = {
             ("CxlCacheD2HRspHeader", "d2hrsp_header"),
         ],
         "create_args": {
-            "CxlCacheD2HRspHeader": ["response_code"],
+            "SystemHeader": ["payload_type", "payload_length"],
+            "CxlCacheHeader": ["msg_class"],
+            "CxlCacheD2HRspHeader": [
+                "valid",
+                "uqid",
+                "cache_opcode",
+            ],
         },
     },
     "CxlCacheD2HDataPacket": {
@@ -174,7 +171,13 @@ PACKETS = {
             ("CxlCacheD2HDataHeader", "d2hdata_header"),
         ],
         "create_args": {
-            "CxlCacheD2HDataHeader": ["data_length"],
+            "SystemHeader": ["payload_type", "payload_length"],
+            "CxlCacheHeader": ["msg_class"],
+            "CxlCacheD2HDataHeader": [
+                "valid",
+                "uqid",
+                "poison",
+            ],
         },
     },
     "CxlCacheH2DReqPacket": {
@@ -184,7 +187,14 @@ PACKETS = {
             ("CxlCacheH2DReqHeader", "h2dreq_header"),
         ],
         "create_args": {
-            "CxlCacheH2DReqHeader": ["request_type"],
+            "SystemHeader": ["payload_type", "payload_length"],
+            "CxlCacheHeader": ["msg_class"],
+            "CxlCacheH2DReqHeader": [
+                "valid",
+                "cache_opcode",
+                "cache_id",
+                "addr",
+            ],
         },
     },
     "CxlCacheH2DRspPacket": {
@@ -194,7 +204,15 @@ PACKETS = {
             ("CxlCacheH2DRspHeader", "h2drsp_header"),
         ],
         "create_args": {
-            "CxlCacheH2DRspHeader": ["status_code"],
+            "SystemHeader": ["payload_type", "payload_length"],
+            "CxlCacheHeader": ["msg_class"],
+            "CxlCacheH2DRspHeader": [
+                "valid",
+                "cache_opcode",
+                "cache_id",
+                "rsp_data",
+                "cqid",
+            ],
         },
     },
     "CxlCacheH2DDataPacket": {
@@ -204,7 +222,13 @@ PACKETS = {
             ("CxlCacheH2DDataHeader", "h2ddata_header"),
         ],
         "create_args": {
-            "CxlCacheH2DDataHeader": ["data_field"],
+            "SystemHeader": ["payload_type", "payload_length"],
+            "CxlCacheHeader": ["msg_class"],
+            "CxlCacheH2DDataHeader": [
+                "valid",
+                "cache_id",
+                "cqid",
+            ],
         },
     },
     # CXL.mem
@@ -213,9 +237,7 @@ PACKETS = {
             ("SystemHeader", "system_header"),
             ("CxlMemHeader", "cxl_mem_header"),
         ],
-        "create_args": {
-            "CxlMemHeader": ["mem_op"],
-        },
+        "create_args": {},
     },
     "CxlMemM2SReqPacket": {
         "layout": [
@@ -224,7 +246,17 @@ PACKETS = {
             ("CxlMemM2SReqHeader", "m2sreq_header"),
         ],
         "create_args": {
-            "CxlMemM2SReqHeader": ["meta_field", "ld_id"],
+            "SystemHeader": ["payload_type", "payload_length"],
+            "CxlMemHeader": ["msg_class"],
+            "CxlMemM2SReqHeader": [
+                "valid",
+                "mem_opcode",
+                "meta_field",
+                "meta_value",
+                "snp_type",
+                "ld_id",
+                "addr",
+            ],
         },
     },
     "CxlMemM2SRwDPacket": {
@@ -234,7 +266,17 @@ PACKETS = {
             ("CxlMemM2SRwDHeader", "m2srwd_header"),
         ],
         "create_args": {
-            "CxlMemM2SRwDHeader": ["rw_flag"],
+            "SystemHeader": ["payload_type", "payload_length"],
+            "CxlMemHeader": ["msg_class"],
+            "CxlMemM2SRwDHeader": [
+                "valid",
+                "mem_opcode",
+                "meta_field",
+                "meta_value",
+                "snp_type",
+                "ld_id",
+                "addr",
+            ],
         },
     },
     "CxlMemM2SBIRspPacket": {
@@ -244,7 +286,15 @@ PACKETS = {
             ("CxlMemM2SBIRspHeader", "m2sbirsp_header"),
         ],
         "create_args": {
-            "CxlMemM2SBIRspHeader": ["status"],
+            "SystemHeader": ["payload_type", "payload_length"],
+            "CxlMemHeader": ["msg_class"],
+            "CxlMemM2SBIRspHeader": [
+                "valid",
+                "opcode",
+                "low_addr",
+                "bi_id",
+                "bi_tag",
+            ],
         },
     },
     "CxlMemS2MBISnpPacket": {
@@ -254,7 +304,15 @@ PACKETS = {
             ("CxlMemS2MBISnpHeader", "s2mbisnp_header"),
         ],
         "create_args": {
-            "CxlMemS2MBISnpHeader": ["snp_code"],
+            "SystemHeader": ["payload_type", "payload_length"],
+            "CxlMemHeader": ["msg_class"],
+            "CxlMemS2MBISnpHeader": [
+                "valid",
+                "opcode",
+                "bi_id",
+                "bi_tag",
+                "addr",
+            ],
         },
     },
     "CxlMemS2MNDRPacket": {
@@ -264,7 +322,15 @@ PACKETS = {
             ("CxlMemS2MNDRHeader", "s2mndr_header"),
         ],
         "create_args": {
-            "CxlMemS2MNDRHeader": ["ndr_code"],
+            "SystemHeader": ["payload_type", "payload_length"],
+            "CxlMemHeader": ["msg_class"],
+            "CxlMemS2MNDRHeader": [
+                "valid",
+                "opcode",
+                "meta_field",
+                "meta_value",
+                "ld_id",
+            ],
         },
     },
     "CxlMemS2MDRSPacket": {
@@ -274,7 +340,15 @@ PACKETS = {
             ("CxlMemS2MDRSHeader", "s2mdrs_header"),
         ],
         "create_args": {
-            "CxlMemS2MDRSHeader": ["rsp_code"],
+            "SystemHeader": ["payload_type", "payload_length"],
+            "CxlMemHeader": ["msg_class"],
+            "CxlMemS2MDRSHeader": [
+                "valid",
+                "opcode",
+                "meta_field",
+                "meta_value",
+                "ld_id",
+            ],
         },
     },
     # CCI
@@ -283,26 +357,20 @@ PACKETS = {
             ("SystemHeader", "system_header"),
             ("CciHeader", "cci_header"),
         ],
-        "create_args": {
-            "CciHeader": ["cci_op"],
-        },
+        "create_args": {},
     },
     "CciMessagePacket": {
         "layout": [
             ("CciMessageHeader", "cci_msg_header"),
         ],
-        "create_args": {
-            "CciMessageHeader": ["msg_type"],
-        },
+        "create_args": {},
     },
     "CciPayloadPacket": {
         "layout": [
             ("SystemHeader", "system_header"),
             ("CciHeader", "cci_header"),
         ],
-        "create_args": {
-            "CciHeader": ["payload_len"],
-        },
+        "create_args": {},
     },
     "CciRequestPacket": {
         "layout": [
@@ -310,9 +378,7 @@ PACKETS = {
             ("CciHeader", "cci_header"),
             ("CciMessageHeader", "cci_msg_header"),
         ],
-        "create_args": {
-            "CciMessageHeader": ["request_id"],
-        },
+        "create_args": {},
     },
     "CciResponsePacket": {
         "layout": [
@@ -320,8 +386,6 @@ PACKETS = {
             ("CciHeader", "cci_header"),
             ("CciMessageHeader", "cci_msg_header"),
         ],
-        "create_args": {
-            "CciMessageHeader": ["response_id"],
-        },
+        "create_args": {},
     },
 }

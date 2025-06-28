@@ -132,13 +132,13 @@ def emit_struct(name, layout):
 
 
 def emit_composite(packet_name, descriptor, field_sizes):
-    raw_name   = packet_name
-    layout     = descriptor["layout"]
+    raw_name = packet_name
+    layout = descriptor["layout"]
     create_args = descriptor.get("create_args", {})
 
     # internal names
     class_name = f"_Gen{raw_name}"
-    pool_name  = f"_{class_name}_pool"
+    pool_name = f"_{class_name}_pool"
 
     lines = []
     lines.append(f"cdef PoolStruct {pool_name}\n")
@@ -152,7 +152,7 @@ def emit_composite(packet_name, descriptor, field_sizes):
         field_entries.append((struct, varname))
 
     # compute byte-offsets for each struct
-    offset    = 0
+    offset = 0
     offset_map = {}
     for struct, _ in field_entries:
         struct_fields = field_sizes[struct]
@@ -196,7 +196,6 @@ def emit_composite(packet_name, descriptor, field_sizes):
     lines.append('                raise ValueError("packet too large")')
     lines.append("            memcpy(dst, src, n)")
     lines.append(f"            self._data_length = n - {total_header_bytes}\n")
-
 
     create_fields = []
     for struct, varname in field_entries:
@@ -293,27 +292,11 @@ def emit_composite(packet_name, descriptor, field_sizes):
     lines.append("    def __len__(self):")
     lines.append(f"        return {total_header_bytes} + self._data_length\n")
     lines.append("    def __bytes__(self):")
-    lines.append(f"        return PyBytes_FromStringAndSize(<char *> self._buf, {total_header_bytes} + self._data_length)\n")
+    lines.append(
+        f"        return PyBytes_FromStringAndSize(<char *> self._buf, {total_header_bytes} + self._data_length)\n"
+    )
 
     return "\n".join(lines)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 TOP_CONTENT = """# cython: language_level=3, boundscheck=False, wraparound=False, no_gc=True, infer_types=True
@@ -416,7 +399,7 @@ def main():
     fields = load_module(base / "fields.py", "fields")
     packets = load_module(base / "packets.py", "packets")
 
-    out_file = base / "packet_test.pyx"
+    out_file = base / "packet_structs.pyx"
     with open(out_file, "w") as f:
         f.write(TOP_CONTENT)
 
@@ -430,25 +413,20 @@ def main():
             f.write(emit_struct(name, layout))
             f.write("\n")
 
-        # f.write(
-        #     "# Generated file\n\n"
-        #     "from opencis.cxl.transport.packet_base cimport PacketBuffer\n"
-        #     "from libc.string cimport memcpy\n\n"
-        # )
         for packet_name, descriptor in packets.PACKETS.items():
             f.write(emit_composite(packet_name, descriptor, field_sizes))
             f.write("\n")
 
-        # py_shim = base / "packet_structs.pyi"
-        # with py_shim.open("w") as s:
-        #     s.write(
-        #         "# Auto-generated shim. Do NOT edit.\n\n"
-        #         "# pylint: disable=missing-module-docstring\n\n"
-        #     )
-        #     for pkt in packets.PACKETS:
-        #         s.write(f"class _Gen{pkt}: ...\n")
-        #     for hdr in field_sizes:
-        #         s.write(f"class {hdr}: ...\n")
+        py_shim = base / "packet_structs.pyi"
+        with py_shim.open("w") as s:
+            s.write(
+                "# Auto-generated shim. Do NOT edit.\n\n"
+                "# pylint: disable=missing-module-docstring\n\n"
+            )
+            for pkt in packets.PACKETS:
+                s.write(f"class _Gen{pkt}: ...\n")
+            for hdr in field_sizes:
+                s.write(f"class {hdr}: ...\n")
 
 
 if __name__ == "__main__":
