@@ -187,7 +187,8 @@ def emit_composite(packet_name, descriptor, field_sizes):
     lines.append("            self._data_length = 0")
     for struct, varname in field_entries:
         lines.append(f"            self._{varname} = {struct}()")
-    lines.append("            self._relocate()\n")
+    lines.append("            self._relocate()")
+    lines.append("            Py_INCREF(self)\n")
     lines.append("        if payload is not None:")
     lines.append("            src = <const unsigned char*> payload")
     lines.append("            dst = &self._buf[0]")
