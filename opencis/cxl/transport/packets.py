@@ -44,7 +44,7 @@ PACKETS = {
             ("CxlIoMReqHeader", "mreq_header"),
         ],
         "create_args": {
-            "SystemHeader": ["payload_type", "payload_length"],
+            "SystemHeader": ["payload_type"],
             "TlpPrefix": ["ld_id"],
             "CxlIoHeader": ["fmt_type", "length_upper", "length_lower"],
             "CxlIoMReqHeader": [
@@ -65,7 +65,7 @@ PACKETS = {
             ("CxlIoCfgReqHeader", "cfg_req_header"),
         ],
         "create_args": {
-            "SystemHeader": ["payload_type", "payload_length"],
+            "SystemHeader": ["payload_type"],
             "TlpPrefix": ["ld_id"],
             "CxlIoHeader": ["fmt_type", "tc", "attr", "at", "length_upper", "length_lower"],
             "CxlIoCfgReqHeader": [
@@ -87,7 +87,7 @@ PACKETS = {
             ("CxlIoCompletionHeader", "cpl_header"),
         ],
         "create_args": {
-            "SystemHeader": ["payload_type", "payload_length"],
+            "SystemHeader": ["payload_type"],
             "TlpPrefix": ["ld_id"],
             "CxlIoHeader": ["fmt_type", "length_upper", "length_lower"],
             "CxlIoCompletionHeader": [
@@ -109,7 +109,7 @@ PACKETS = {
             ("CxlIoCompletionHeader", "cpl_header"),
         ],
         "create_args": {
-            "SystemHeader": ["payload_type", "payload_length"],
+            "SystemHeader": ["payload_type"],
             "TlpPrefix": ["ld_id"],
             "CxlIoHeader": ["fmt_type", "length_upper", "length_lower"],
             "CxlIoCompletionHeader": [
@@ -137,7 +137,7 @@ PACKETS = {
             ("CxlCacheD2HReqHeader", "d2hreq_header"),
         ],
         "create_args": {
-            "SystemHeader": ["payload_type", "payload_length"],
+            "SystemHeader": ["payload_type"],
             "CxlCacheHeader": ["msg_class"],
             "CxlCacheD2HReqHeader": [
                 "valid",
@@ -155,7 +155,7 @@ PACKETS = {
             ("CxlCacheD2HRspHeader", "d2hrsp_header"),
         ],
         "create_args": {
-            "SystemHeader": ["payload_type", "payload_length"],
+            "SystemHeader": ["payload_type"],
             "CxlCacheHeader": ["msg_class"],
             "CxlCacheD2HRspHeader": [
                 "valid",
@@ -171,7 +171,7 @@ PACKETS = {
             ("CxlCacheD2HDataHeader", "d2hdata_header"),
         ],
         "create_args": {
-            "SystemHeader": ["payload_type", "payload_length"],
+            "SystemHeader": ["payload_type"],
             "CxlCacheHeader": ["msg_class"],
             "CxlCacheD2HDataHeader": [
                 "valid",
@@ -187,7 +187,7 @@ PACKETS = {
             ("CxlCacheH2DReqHeader", "h2dreq_header"),
         ],
         "create_args": {
-            "SystemHeader": ["payload_type", "payload_length"],
+            "SystemHeader": ["payload_type"],
             "CxlCacheHeader": ["msg_class"],
             "CxlCacheH2DReqHeader": [
                 "valid",
@@ -204,7 +204,7 @@ PACKETS = {
             ("CxlCacheH2DRspHeader", "h2drsp_header"),
         ],
         "create_args": {
-            "SystemHeader": ["payload_type", "payload_length"],
+            "SystemHeader": ["payload_type"],
             "CxlCacheHeader": ["msg_class"],
             "CxlCacheH2DRspHeader": [
                 "valid",
@@ -222,7 +222,7 @@ PACKETS = {
             ("CxlCacheH2DDataHeader", "h2ddata_header"),
         ],
         "create_args": {
-            "SystemHeader": ["payload_type", "payload_length"],
+            "SystemHeader": ["payload_type"],
             "CxlCacheHeader": ["msg_class"],
             "CxlCacheH2DDataHeader": [
                 "valid",
@@ -246,7 +246,7 @@ PACKETS = {
             ("CxlMemM2SReqHeader", "m2sreq_header"),
         ],
         "create_args": {
-            "SystemHeader": ["payload_type", "payload_length"],
+            "SystemHeader": ["payload_type"],
             "CxlMemHeader": ["msg_class"],
             "CxlMemM2SReqHeader": [
                 "valid",
@@ -266,7 +266,7 @@ PACKETS = {
             ("CxlMemM2SRwDHeader", "m2srwd_header"),
         ],
         "create_args": {
-            "SystemHeader": ["payload_type", "payload_length"],
+            "SystemHeader": ["payload_type"],
             "CxlMemHeader": ["msg_class"],
             "CxlMemM2SRwDHeader": [
                 "valid",
@@ -286,7 +286,7 @@ PACKETS = {
             ("CxlMemM2SBIRspHeader", "m2sbirsp_header"),
         ],
         "create_args": {
-            "SystemHeader": ["payload_type", "payload_length"],
+            "SystemHeader": ["payload_type"],
             "CxlMemHeader": ["msg_class"],
             "CxlMemM2SBIRspHeader": [
                 "valid",
@@ -304,7 +304,7 @@ PACKETS = {
             ("CxlMemS2MBISnpHeader", "s2mbisnp_header"),
         ],
         "create_args": {
-            "SystemHeader": ["payload_type", "payload_length"],
+            "SystemHeader": ["payload_type"],
             "CxlMemHeader": ["msg_class"],
             "CxlMemS2MBISnpHeader": [
                 "valid",
@@ -322,7 +322,7 @@ PACKETS = {
             ("CxlMemS2MNDRHeader", "s2mndr_header"),
         ],
         "create_args": {
-            "SystemHeader": ["payload_type", "payload_length"],
+            "SystemHeader": ["payload_type"],
             "CxlMemHeader": ["msg_class"],
             "CxlMemS2MNDRHeader": [
                 "valid",
@@ -340,7 +340,7 @@ PACKETS = {
             ("CxlMemS2MDRSHeader", "s2mdrs_header"),
         ],
         "create_args": {
-            "SystemHeader": ["payload_type", "payload_length"],
+            "SystemHeader": ["payload_type"],
             "CxlMemHeader": ["msg_class"],
             "CxlMemS2MDRSHeader": [
                 "valid",
