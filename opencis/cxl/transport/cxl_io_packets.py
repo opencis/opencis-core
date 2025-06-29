@@ -107,12 +107,6 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         tag: int = None,
         ld_id: int = 0,
     ) -> "CxlIoMemWrPacket":
-        # TODO: REMOVE, too slow
-        dlength = (data.bit_length() + 7) // 8 or 1
-        data = data.to_bytes(dlength, byteorder="little")
-        print(f"{data}")
-
-        # optimize
         address_offset = addr % 4
         length_dword = (address_offset + length + 3) // 4
         bytes_enabled = (1 << length) - 1
@@ -121,6 +115,7 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         last_dw_be = (
             (bytes_enabled_with_offset >> ((length_dword - 1) * 4)) & 0xF if length_dword > 1 else 0
         )
+        data = data.to_bytes(length, byteorder="little")
         packet = super().create(
             SYSTEM_PAYLOAD_TYPE.CXL_IO,  # system_header__payload_type,
             ld_id,  # tlp_prefix__ld_id,
@@ -135,7 +130,6 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
             (addr & 0xFF) >> 2,  # mreq_header__addr_lower,
             data,  # data: bytes | None = None,
         )
-        print(f"packet: {packet.get_data()}")
         return packet
 
 
@@ -148,37 +142,6 @@ class CxlIoCfgReqPacket(
     @classmethod
     def acquire_tag(cls, tag) -> int:
         return _io_cfg_tags.next(tag)
-
-    def _fill_common(
-        self, dest_id: int, cfg_addr: int, size: int, req_id: int, tag: int
-    ) -> "CxlIoCfgReqPacket":
-        self.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_IO
-
-        self.cxl_io_header.tc = 0b000
-        self.cxl_io_header.attr = 0b00
-        self.cxl_io_header.at = 0b00
-        self.cxl_io_header.length_upper = 0b00
-        self.cxl_io_header.length_lower = 0b00000001
-        self.cfg_req_header.req_id = htotlp16(req_id)
-        self.cfg_req_header.tag = tag
-
-        # compute byte-enable bits
-        if cfg_addr > 0xFFF:
-            raise ValueError("Invalid CFG address")
-        offset = cfg_addr & 0x3
-        if offset + size > 4:
-            raise ValueError("Invalid access size")
-
-        first_dw_be = 0
-        for i in range(size):
-            first_dw_be |= 1 << (offset + i)
-        self.cfg_req_header.first_dw_be = first_dw_be
-        self.cfg_req_header.last_dw_be = 0
-
-        self.cfg_req_header.dest_id = htotlp16(dest_id)
-        self.cfg_req_header.ext_reg_num = (cfg_addr >> 8) & 0x0F
-        self.cfg_req_header.reg_num = (cfg_addr >> 2) & 0x3F
-        return self
 
     def get_cfg_addr_read_info(self) -> tuple[int, int]:
         reg_num = (self.cfg_req_header.ext_reg_num << 6) | self.cfg_req_header.reg_num
@@ -226,13 +189,29 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
         tag: Optional[int] = None,
         ld_id: int = 0,
     ) -> "CxlIoCfgRdPacket":
-        packet = cls()
-        packet._fill_common(dest_id, cfg_addr, size, req_id, super().acquire_tag(tag))
-        packet.cxl_io_header.fmt_type = (
-            CXL_IO_FMT_TYPE.CFG_RD0 if is_type0 else CXL_IO_FMT_TYPE.CFG_RD1
+        offset = cfg_addr & 0x3
+        if cfg_addr > 0xFFF:
+            raise ValueError("Invalid CFG address")
+        if offset + size > 4:
+            raise ValueError("Invalid access size")
+        first_dw_be = ((1 << size) - 1) << offset
+        packet = super().create(
+            SYSTEM_PAYLOAD_TYPE.CXL_IO,  # system_header__payload_type,
+            ld_id,  # tlp_prefix__ld_id,
+            (
+                CXL_IO_FMT_TYPE.CFG_RD0 if is_type0 else CXL_IO_FMT_TYPE.CFG_RD1
+            ),  # cxl_io_header__fmt_type,
+            0,  # cxl_io_header__length_upper,
+            1,  # cxl_io_header__length_lower,
+            htotlp16(req_id),  # mreq_header__req_id,
+            super().acquire_tag(tag),  # mreq_header__tag,
+            first_dw_be,  # cfg_req_header__first_dw_be,
+            0,  # cfg_req_header__last_dw_be,
+            htotlp16(dest_id),  # cfg_req_header__dest_id,
+            (cfg_addr >> 8) & 0x0F,  # cfg_req_header__ext_reg_num,
+            (cfg_addr >> 2) & 0x3F,  # cfg_req_header__reg_num,
+            None,
         )
-        packet.system_header.payload_length = len(packet)
-        packet.tlp_prefix.ld_id = ld_id
         return packet
 
 
@@ -249,14 +228,32 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
         tag: Optional[int] = None,
         ld_id: int = 0,
     ) -> "CxlIoCfgWrPacket":
-        packet = cls()
-        packet.set_data_as_int(value << ((cfg_addr & 0x3) * 8))
-        packet._fill_common(dest_id, cfg_addr, size, req_id, super().acquire_tag(tag))
-        packet.cxl_io_header.fmt_type = (
-            CXL_IO_FMT_TYPE.CFG_WR0 if is_type0 else CXL_IO_FMT_TYPE.CFG_WR1
+        length = (value.bit_length() + 7) // 8 or 1
+        data = value.to_bytes(length, byteorder="little")
+
+        offset = cfg_addr & 0x3
+        if cfg_addr > 0xFFF:
+            raise ValueError("Invalid CFG address")
+        if offset + size > 4:
+            raise ValueError("Invalid access size")
+
+        packet = super().create(
+            SYSTEM_PAYLOAD_TYPE.CXL_IO,  # system_header__payload_type,
+            ld_id,  # tlp_prefix__ld_id,
+            (
+                CXL_IO_FMT_TYPE.CFG_WR0 if is_type0 else CXL_IO_FMT_TYPE.CFG_WR1
+            ),  # cxl_io_header__fmt_type,
+            0,  # cxl_io_header__length_upper,
+            1,  # cxl_io_header__length_lower,
+            htotlp16(req_id),  # mreq_header__req_id,
+            super().acquire_tag(tag),  # mreq_header__tag,
+            ((1 << size) - 1) << offset,  # cfg_req_header__first_dw_be,
+            0,  # cfg_req_header__last_dw_be,
+            htotlp16(dest_id),  # cfg_req_header__dest_id,
+            (cfg_addr >> 8) & 0x0F,  # cfg_req_header__ext_reg_num,
+            (cfg_addr >> 2) & 0x3F,  # cfg_req_header__reg_num,
+            data,
         )
-        packet.tlp_prefix.ld_id = ld_id
-        packet.system_header.payload_length = len(packet)
         return packet
 
     def get_value(self) -> int:

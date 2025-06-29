@@ -67,7 +67,7 @@ PACKETS = {
         "create_args": {
             "SystemHeader": ["payload_type"],
             "TlpPrefix": ["ld_id"],
-            "CxlIoHeader": ["fmt_type", "tc", "attr", "at", "length_upper", "length_lower"],
+            "CxlIoHeader": ["fmt_type", "length_upper", "length_lower"],
             "CxlIoCfgReqHeader": [
                 "req_id",
                 "tag",

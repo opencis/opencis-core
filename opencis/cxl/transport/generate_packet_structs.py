@@ -211,13 +211,13 @@ def emit_composite(packet_name, descriptor, field_sizes):
         lines.append("         const unsigned char* data_src,")
         lines.append("         Py_ssize_t data_length")
         lines.append("    ) noexcept nogil:")
-        lines.append(f"        cdef unsigned char* dst = &self._buf[{total_header_bytes}]\n")
+        lines.append(f"        cdef unsigned char* dst\n")
+        lines.append("        memset(&self._buf[0], 0, MAX_PACKET_SIZE)")
         for varname, fld in create_fields:
             lines.append(f"        self._{varname}._set_{fld}({varname}__{fld})")
         lines.append("        if data_src:")
-        lines.append(
-            "            if data_length > MAX_PACKET_SIZE - " + str(total_header_bytes) + ":"
-        )
+        lines.append(f"            dst = &self._buf[{total_header_bytes}]\n")
+        lines.append(f"            if data_length > MAX_PACKET_SIZE - {total_header_bytes}:")
         lines.append('                raise ValueError("data too large")')
         lines.append("            memcpy(dst, data_src, data_length)")
         lines.append("            self._data_length = data_length")
@@ -325,7 +325,7 @@ def emit_composite(packet_name, descriptor, field_sizes):
 TOP_CONTENT = """# cython: language_level=3, boundscheck=False, wraparound=False, no_gc=True, infer_types=True
 
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, uint64_t
-from libc.string  cimport memcpy
+from libc.string  cimport memcpy, memset
 from cpython.bytes cimport PyBytes_FromStringAndSize
 from cpython.ref cimport Py_INCREF, Py_DECREF
 from cpython.object cimport PyObject
