@@ -167,7 +167,7 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
             snp_type,  # m2srwd_header__snp_type,
             ld_id,  # m2srwd_header__ld_id,
             addr >> 6,  # m2srwd_header__addr,
-            data
+            data,
         )
         return packet
 

@@ -217,8 +217,9 @@ class CxlIoCfgWrPacket(
         tag: Optional[int] = None,
         ld_id: int = 0,
     ) -> "CxlIoCfgWrPacket":
-        length = (value.bit_length() + 7) // 8 or 1
-        data = value.to_bytes(length, byteorder="little")
+        offset = cfg_addr & 3
+        val = value << (offset * 8)
+        data = val.to_bytes((val.bit_length() + 7) // 8 or 1, "little")
 
         offset = cfg_addr & 0x3
         if cfg_addr > 0xFFF:
