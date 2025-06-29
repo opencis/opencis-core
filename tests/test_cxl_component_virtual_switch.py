@@ -31,7 +31,6 @@ from opencis.cxl.transport.common import BasePacket
 from opencis.cxl.transport.packet_constants import CXL_MEM_M2SBIRSP_OPCODE
 from opencis.cxl.transport.cxl_io_packets import (
     CxlIoBasePacket,
-    CxlIoCompletionWithDataPacket,
     is_cxl_io_completion_status_ur,
 )
 from opencis.util.pci import (
@@ -53,7 +52,7 @@ def extract_cfg_read_value(packet):
     assert base_packet.is_cxl_io()
     cxl_io_packet = cast(CxlIoBasePacket, packet)
     assert cxl_io_packet.is_cpld()
-    cxl_io_cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+    cxl_io_cpld_packet = cast(CxlIoCompletionPacket, packet)
     return cxl_io_cpld_packet.data
 
 

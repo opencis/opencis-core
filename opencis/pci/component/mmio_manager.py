@@ -20,7 +20,6 @@ from opencis.cxl.transport.cxl_io_packets import (
     CxlIoBasePacket,
     CxlIoMemReqPacket,
     CxlIoCompletionPacket,
-    CxlIoCompletionWithDataPacket,
 )
 
 
@@ -136,21 +135,16 @@ class MmioManager(PacketProcessor):
         req_id: int,
         tag: int,
         cpl_id: int,
-        data: int = None,
-        data_len: int = 0,
+        data: int,
+        length: int = 0,
         ld_id: int = 0,
     ):
-        if data is not None:
-            if isinstance(data, int) and data >= (1 << (data_len * 8)):
-                # if isinstance(data, MagicMock), then just assume it'll fit in the given size
-                raise Exception(f"'Data: {data} could not possibly fit within length: {data_len}")
-            packet = CxlIoCompletionWithDataPacket.create(
-                req_id, tag, cpl_id=cpl_id, data=data, pload_len=data_len, ld_id=ld_id
-            )
-        else:
-            packet = CxlIoCompletionPacket.create(
-                req_id=req_id, tag=tag, cpl_id=cpl_id, ld_id=ld_id
-            )
+        if isinstance(data, int) and data >= (1 << (length * 8)):
+            # if isinstance(data, MagicMock), then just assume it'll fit in the given size
+            raise Exception(f"'Data: {data} could not possibly fit within length: {length}")
+        packet = CxlIoCompletionPacket.create(
+            req_id, tag, cpl_id=cpl_id, data=data, length=length, ld_id=ld_id
+        )
 
         await self._upstream_fifo.target_to_host.put(packet)
 
@@ -184,7 +178,7 @@ class MmioManager(PacketProcessor):
                     logger.debug(self._create_message(f"RD: 0x{address:x}[{size}] OOB"))
                     # TODO: NEEDS TO BE UR with no data
                     await self._send_completion(
-                        req_id=req_id, tag=tag, cpl_id=0, data=0, data_len=size, ld_id=ld_id
+                        req_id=req_id, tag=tag, cpl_id=0, data=None, ld_id=ld_id
                     )
                 elif mem_req_packet.is_mem_write():
                     logger.debug(self._create_message(f"WR: 0x{address:x}[{size}] OOB"))
@@ -196,14 +190,14 @@ class MmioManager(PacketProcessor):
         end_offset = offset + size - 1
         if mem_req_packet.is_mem_write():
             data = mem_req_packet.get_data_as_int()
-
-            logger.debug(self._create_message(f"WR: 0x{address:x}[{size}]=0x{data:08x}"))
+            logger.info(self._create_message(f"WR: 0x{address:x}[{size}]=0x{data:x}"))
             register.write_bytes(start_offset, end_offset, data)
         elif mem_req_packet.is_mem_read():
-            logger.debug(self._create_message(f"RD: 0x{address:x}[{size}]"))
+            logger.info(self._create_message(f"RD: 0x{address:x}[{size}]"))
             data = register.read_bytes(start_offset, end_offset)
+            logger.info(self._create_message(f"RD: data - 0x{data:x}"))
             await self._send_completion(
-                req_id=req_id, tag=tag, cpl_id=0, data=data, data_len=size, ld_id=ld_id
+                req_id=req_id, tag=tag, cpl_id=0, data=data, length=size, ld_id=ld_id
             )
         else:
             raise Exception("Unsupported MMIO packet")

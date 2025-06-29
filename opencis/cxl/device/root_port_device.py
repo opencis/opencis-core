@@ -37,7 +37,6 @@ from opencis.cxl.transport.cxl_io_packets import (
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
     CxlIoCompletionPacket,
-    CxlIoCompletionWithDataPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
     is_cxl_io_completion_status_sc,
@@ -287,7 +286,7 @@ class CxlRootPortDevice(RunnableComponent):
             )
             return 0xFFFFFFFF & bit_mask
 
-        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        cpld_packet = cast(CxlIoCompletionPacket, packet)
         data = (cpld_packet.get_data_as_int() >> bit_offset) & bit_mask
 
         logger.debug(
@@ -308,7 +307,7 @@ class CxlRootPortDevice(RunnableComponent):
 
     async def read_mmio(
         self, address: int, size: int = 4, verbose: bool = True
-    ) -> CxlIoCompletionWithDataPacket:
+    ) -> CxlIoCompletionPacket:
         message = self._create_message(f"MMIO: Reading data from 0x{address:08x}")
         if verbose:
             logger.info(message)
@@ -318,7 +317,7 @@ class CxlRootPortDevice(RunnableComponent):
         await self._downstream_connection.mmio_fifo.host_to_target.put(packet)
         packet = await self._downstream_connection.mmio_fifo.target_to_host.get()
         assert is_cxl_io_completion_status_sc(packet)
-        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        cpld_packet = cast(CxlIoCompletionPacket, packet)
         return cpld_packet.get_data_as_int()
 
     async def cxl_mem_read(self, address: int) -> int:

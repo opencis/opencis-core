@@ -29,7 +29,7 @@ from opencis.cxl.transport.cxl_io_packets import (
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
     CxlIoCfgWrPacket,
-    CxlIoCompletionWithDataPacket,
+    CxlIoCompletionPacket,
     is_cxl_io_completion_status_sc,
     is_cxl_io_completion_status_ur,
 )
@@ -129,7 +129,7 @@ async def test_multi_logical_device_ld_id():
         packet = await packet_reader.get_packet()
         assert packet.tlp_prefix.ld_id == target_ld_id
         assert is_cxl_io_completion_status_sc(packet)
-        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        cpld_packet = cast(CxlIoCompletionPacket, packet)
         assert cpld_packet.get_data_as_int() == (EEUM_VID | (SW_MLD_DID << 16))
 
         # NOTE: Test Config Space Type0 Write - BAR WRITE
@@ -153,7 +153,7 @@ async def test_multi_logical_device_ld_id():
         packet = await packet_reader.get_packet()
         assert packet.tlp_prefix.ld_id == target_ld_id
         assert is_cxl_io_completion_status_sc(packet)
-        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        cpld_packet = cast(CxlIoCompletionPacket, packet)
         size = 0xFFFFFFFF - cpld_packet.get_data_as_int() + 1
         assert size == bar_size
 
@@ -298,7 +298,7 @@ async def test_multi_logical_device_ld_id():
         packet = await packet_reader.get_packet()
         assert is_cxl_io_completion_status_sc(packet)
         assert packet.tlp_prefix.ld_id == target_ld_id
-        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        cpld_packet = cast(CxlIoCompletionPacket, packet)
         logger.info(f"[PyTest] Received CXL.io packet: {cpld_packet}")
         assert cpld_packet.get_data_as_int() == data
 
@@ -321,7 +321,7 @@ async def test_multi_logical_device_ld_id():
         packet = await packet_reader.get_packet()
         assert is_cxl_io_completion_status_sc(packet)
         assert packet.tlp_prefix.ld_id == target_ld_id
-        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        cpld_packet = cast(CxlIoCompletionPacket, packet)
         assert cpld_packet.get_data_as_int() == 0
 
         # NOTE: Read OOB (Lower Boundary), Expect 0
@@ -331,7 +331,7 @@ async def test_multi_logical_device_ld_id():
         packet = await packet_reader.get_packet()
         assert is_cxl_io_completion_status_sc(packet)
         assert packet.tlp_prefix.ld_id == target_ld_id
-        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        cpld_packet = cast(CxlIoCompletionPacket, packet)
         assert cpld_packet.get_data_as_int() == 0
 
     async def send_packets(

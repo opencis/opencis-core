@@ -14,6 +14,14 @@ from opencis.cxl.transport.packet_constants import (
     SIDEBAND_TYPES,
     CCI_MSG_CLASS,
 )
+from opencis.util.pci import (
+    extract_function_from_bdf,
+    extract_device_from_bdf,
+    extract_bus_from_bdf,
+)
+from opencis.util.number import (
+    tlptoh16,
+)
 
 
 class PacketDataMixin:
@@ -176,6 +184,52 @@ class CxlIoBasePacketMixin:
     def build_transaction_id(req_id: int, tag: int) -> int:
         tid = (req_id << 8) | tag
         return tid
+
+
+class CxlIoMemReqPacketMixin:
+    def get_address(self) -> int:
+        return (self.mreq_header.addr_upper << 8) | (self.mreq_header.addr_lower << 2)
+
+    def get_data_size(self) -> int:
+        return ((self.cxl_io_header.length_upper << 8) | self.cxl_io_header.length_lower) * 4
+
+    def get_transaction_id(self) -> int:
+        return self.build_transaction_id(self.mreq_header.req_id, self.mreq_header.tag)
+
+
+class CxlIoCfgReqPacketMixin:
+    def get_cfg_addr_read_info(self) -> tuple[int, int]:
+        reg_num = (self.cfg_req_header.ext_reg_num << 6) | self.cfg_req_header.reg_num
+        return reg_num << 2, 4
+
+    def get_cfg_addr_write_info(self) -> tuple[int, int]:
+        reg_num = (self.cfg_req_header.ext_reg_num << 6) | self.cfg_req_header.reg_num
+        be = self.cfg_req_header.first_dw_be
+        b, pos = 1, 0
+        while be & b == 0:
+            b = b << 1
+            pos += 1
+        cfg_addr = (reg_num << 2) + pos
+        size = 0
+        while be != 0:
+            be = be & (be - 1)
+            size += 1
+        return cfg_addr, size
+
+    def get_bus(self) -> int:
+        dest_id = tlptoh16(self.cfg_req_header.dest_id)
+        return extract_bus_from_bdf(dest_id)
+
+    def get_device(self) -> int:
+        dest_id = tlptoh16(self.cfg_req_header.dest_id)
+        return extract_device_from_bdf(dest_id)
+
+    def get_function(self) -> int:
+        dest_id = tlptoh16(self.cfg_req_header.dest_id)
+        return extract_function_from_bdf(dest_id)
+
+    def get_transaction_id(self) -> int:
+        return self.build_transaction_id(self.cfg_req_header.req_id, self.cfg_req_header.tag)
 
 
 class CxlCacheBasePacketMixin:

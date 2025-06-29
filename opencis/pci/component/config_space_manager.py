@@ -18,7 +18,6 @@ from opencis.cxl.transport.cxl_io_packets import (
     CxlIoCfgWrPacket,
     CxlIoCfgReqPacket,
     CxlIoCompletionPacket,
-    CxlIoCompletionWithDataPacket,
 )
 from opencis.cxl.transport.packet_constants import (
     CXL_IO_FMT_TYPE,
@@ -64,7 +63,12 @@ class ConfigSpaceManager(RunnableComponent):
 
     async def _send_unsupported_request(self, req_id, tag, cpl_id, ld_id):
         packet = CxlIoCompletionPacket.create(
-            req_id=req_id, tag=tag, cpl_id=cpl_id, status=CXL_IO_CPL_STATUS.UR, ld_id=ld_id
+            req_id=req_id,
+            tag=tag,
+            cpl_id=cpl_id,
+            data=None,
+            status=CXL_IO_CPL_STATUS.UR,
+            ld_id=ld_id,
         )
         await self._upstream_fifo.target_to_host.put(packet)
 
@@ -113,8 +117,8 @@ class ConfigSpaceManager(RunnableComponent):
         )
         value = self._register.read_bytes(cfg_addr, cfg_addr + size - 1)
         logger.debug(self._create_message(f"[RD] value: 0x{value:x}"))
-        cpl_packet = CxlIoCompletionWithDataPacket.create(
-            req_id=req_id, tag=tag, cpl_id=dest_id, data=value, ld_id=ld_id
+        cpl_packet = CxlIoCompletionPacket.create(
+            req_id=req_id, tag=tag, cpl_id=dest_id, data=value, length=4, ld_id=ld_id
         )
         await self._upstream_fifo.target_to_host.put(cpl_packet)
 
@@ -152,7 +156,7 @@ class ConfigSpaceManager(RunnableComponent):
         self._register.write_bytes(cfg_addr, cfg_addr + size - 1, value)
 
         cpl_packet = CxlIoCompletionPacket.create(
-            req_id=req_id, tag=tag, cpl_id=dest_id, ld_id=ld_id
+            req_id=req_id, tag=tag, cpl_id=dest_id, data=None, ld_id=ld_id
         )
         await self._upstream_fifo.target_to_host.put(cpl_packet)
 

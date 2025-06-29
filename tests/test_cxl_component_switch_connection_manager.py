@@ -41,7 +41,7 @@ from opencis.cxl.transport.cxl_io_packets import (
     CxlIoCfgWrPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
-    CxlIoCompletionWithDataPacket,
+    CxlIoCompletionPacket,
 )
 
 
@@ -465,12 +465,13 @@ async def test_switch_connection_manager_handle_cfg_completion():
         tag = 0xA6
         req2 = CxlIoCfgRdPacket.create(0, 0x10, 4, req_id=req_id, tag=tag)
         await client_connection.cfg_fifo.host_to_target.put(req2)
-        cpl2 = CxlIoCompletionWithDataPacket.create(
+        cpl2 = CxlIoCompletionPacket.create(
             req_id=req_id,
             tag=tag,
             cpl_id=cpl_id,
-            status=CXL_IO_CPL_STATUS.SC,
             data=0xDEADBEEF,
+            length=4,
+            status=CXL_IO_CPL_STATUS.SC,
         )
         await server_connection.cfg_fifo.target_to_host.put(cpl2)
 
@@ -537,8 +538,12 @@ async def test_switch_connection_manager_handle_mmio_completion():
         tag = 0x2
         req2 = CxlIoMemRdPacket.create(0x10, 4, req_id=req_id, tag=tag)
         await client_connection.mmio_fifo.host_to_target.put(req2)
-        cpl2 = CxlIoCompletionWithDataPacket.create(
-            req_id=req_id, tag=tag, cpl_id=cpl_id, data=0xA5A5
+        cpl2 = CxlIoCompletionPacket.create(
+            req_id=req_id,
+            tag=tag,
+            cpl_id=cpl_id,
+            data=0xA5A5,
+            length=2,
         )
         await server_connection.mmio_fifo.target_to_host.put(cpl2)
 

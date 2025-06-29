@@ -10,15 +10,11 @@ from typing import Optional
 from opencis.cxl.transport.common import TagCounter
 from opencis.cxl.transport.packet_structs import (
     _GenCxlIoBasePacket,
-    _GenCxlIoMemReqPacket,
-    _GenCxlIoCfgReqPacket,
+    _GenCxlIoCfgRdPacket,
+    _GenCxlIoCfgWrPacket,
+    _GenCxlIoMemRdPacket,
+    _GenCxlIoMemWrPacket,
     _GenCxlIoCompletionPacket,
-    _GenCxlIoCompletionWithDataPacket,
-)
-from opencis.util.pci import (
-    extract_function_from_bdf,
-    extract_device_from_bdf,
-    extract_bus_from_bdf,
 )
 from opencis.util.number import (
     htotlp16,
@@ -35,6 +31,8 @@ from opencis.cxl.transport.mixin import (
     BasePacketMixin,
     PacketDataMixin,
     CxlIoBasePacketMixin,
+    CxlIoMemReqPacketMixin,
+    CxlIoCfgReqPacketMixin,
 )
 
 
@@ -46,27 +44,16 @@ class CxlIoBasePacket(BasePacketMixin, CxlIoBasePacketMixin, _GenCxlIoBasePacket
     pass
 
 
-class CxlIoMemReqPacket(
+class CxlIoMemRdPacket(
+    _GenCxlIoMemRdPacket,
     BasePacketMixin,
     CxlIoBasePacketMixin,
-    _GenCxlIoMemReqPacket,
-    PacketDataMixin,
+    CxlIoMemReqPacketMixin,
 ):
     @classmethod
     def acquire_tag(cls, tag) -> int:
         return _io_mem_tags.next(tag)
 
-    def get_address(self) -> int:
-        return (self.mreq_header.addr_upper << 8) | (self.mreq_header.addr_lower << 2)
-
-    def get_data_size(self) -> int:
-        return ((self.cxl_io_header.length_upper << 8) | self.cxl_io_header.length_lower) * 4
-
-    def get_transaction_id(self) -> int:
-        return self.build_transaction_id(self.mreq_header.req_id, self.mreq_header.tag)
-
-
-class CxlIoMemRdPacket(CxlIoMemReqPacket):
     @classmethod
     def create(
         cls, addr: int, length: int, req_id: int = 0, tag: int = None, ld_id: int = 0
@@ -86,7 +73,7 @@ class CxlIoMemRdPacket(CxlIoMemReqPacket):
             length_dword & 0x300,  # cxl_io_header__length_upper,
             length_dword & 0xFF,  # cxl_io_header__length_lower,
             htotlp16(req_id),  # mreq_header__req_id,
-            super().acquire_tag(tag),  # mreq_header__tag,
+            cls.acquire_tag(tag),  # mreq_header__tag,
             first_dw_be,  # mreq_header__first_dw_be,
             last_dw_be,  # mreq_header__last_dw_be,
             (addr >> 8),  # mreq_header__addr_upper,
@@ -96,7 +83,26 @@ class CxlIoMemRdPacket(CxlIoMemReqPacket):
         return packet
 
 
-class CxlIoMemWrPacket(CxlIoMemReqPacket):
+class CxlIoMemReqPacket(
+    BasePacketMixin,
+    CxlIoBasePacketMixin,
+    CxlIoMemReqPacketMixin,
+    PacketDataMixin,
+):
+    pass
+
+
+class CxlIoMemWrPacket(
+    _GenCxlIoMemWrPacket,
+    BasePacketMixin,
+    CxlIoBasePacketMixin,
+    CxlIoMemReqPacketMixin,
+    PacketDataMixin,
+):
+    @classmethod
+    def acquire_tag(cls, tag) -> int:
+        return _io_mem_tags.next(tag)
+
     @classmethod
     def create(
         cls,
@@ -123,7 +129,7 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
             length_dword & 0x300,  # cxl_io_header__length_upper,
             length_dword & 0xFF,  # cxl_io_header__length_lower,
             htotlp16(req_id),  # mreq_header__req_id,
-            super().acquire_tag(tag),  # mreq_header__tag,
+            cls.acquire_tag(tag),  # mreq_header__tag,
             first_dw_be,  # mreq_header__first_dw_be,
             last_dw_be,  # mreq_header__last_dw_be,
             (addr >> 8),  # mreq_header__addr_upper,
@@ -136,48 +142,21 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
 class CxlIoCfgReqPacket(
     BasePacketMixin,
     CxlIoBasePacketMixin,
-    _GenCxlIoCfgReqPacket,
-    PacketDataMixin,
+    CxlIoCfgReqPacketMixin,
+):
+    pass
+
+
+class CxlIoCfgRdPacket(
+    _GenCxlIoCfgRdPacket,
+    BasePacketMixin,
+    CxlIoBasePacketMixin,
+    CxlIoCfgReqPacketMixin,
 ):
     @classmethod
     def acquire_tag(cls, tag) -> int:
         return _io_cfg_tags.next(tag)
 
-    def get_cfg_addr_read_info(self) -> tuple[int, int]:
-        reg_num = (self.cfg_req_header.ext_reg_num << 6) | self.cfg_req_header.reg_num
-        return reg_num << 2, 4
-
-    def get_cfg_addr_write_info(self) -> tuple[int, int]:
-        reg_num = (self.cfg_req_header.ext_reg_num << 6) | self.cfg_req_header.reg_num
-        be = self.cfg_req_header.first_dw_be
-        b, pos = 1, 0
-        while be & b == 0:
-            b = b << 1
-            pos += 1
-        cfg_addr = (reg_num << 2) + pos
-        size = 0
-        while be != 0:
-            be = be & (be - 1)
-            size += 1
-        return cfg_addr, size
-
-    def get_bus(self) -> int:
-        dest_id = tlptoh16(self.cfg_req_header.dest_id)
-        return extract_bus_from_bdf(dest_id)
-
-    def get_device(self) -> int:
-        dest_id = tlptoh16(self.cfg_req_header.dest_id)
-        return extract_device_from_bdf(dest_id)
-
-    def get_function(self) -> int:
-        dest_id = tlptoh16(self.cfg_req_header.dest_id)
-        return extract_function_from_bdf(dest_id)
-
-    def get_transaction_id(self) -> int:
-        return self.build_transaction_id(self.cfg_req_header.req_id, self.cfg_req_header.tag)
-
-
-class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
     @classmethod
     def create(
         cls,
@@ -204,7 +183,7 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
             0,  # cxl_io_header__length_upper,
             1,  # cxl_io_header__length_lower,
             htotlp16(req_id),  # mreq_header__req_id,
-            super().acquire_tag(tag),  # mreq_header__tag,
+            cls.acquire_tag(tag),  # mreq_header__tag,
             first_dw_be,  # cfg_req_header__first_dw_be,
             0,  # cfg_req_header__last_dw_be,
             htotlp16(dest_id),  # cfg_req_header__dest_id,
@@ -215,7 +194,17 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
         return packet
 
 
-class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
+class CxlIoCfgWrPacket(
+    _GenCxlIoCfgWrPacket,
+    BasePacketMixin,
+    CxlIoBasePacketMixin,
+    CxlIoCfgReqPacketMixin,
+    PacketDataMixin,
+):
+    @classmethod
+    def acquire_tag(cls, tag) -> int:
+        return _io_cfg_tags.next(tag)
+
     @classmethod
     def create(
         cls,
@@ -246,7 +235,7 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
             0,  # cxl_io_header__length_upper,
             1,  # cxl_io_header__length_lower,
             htotlp16(req_id),  # mreq_header__req_id,
-            super().acquire_tag(tag),  # mreq_header__tag,
+            cls.acquire_tag(tag),  # mreq_header__tag,
             ((1 << size) - 1) << offset,  # cfg_req_header__first_dw_be,
             0,  # cfg_req_header__last_dw_be,
             htotlp16(dest_id),  # cfg_req_header__dest_id,
@@ -265,44 +254,9 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
 
 
 class CxlIoCompletionPacket(
-    BasePacketMixin,
-    CxlIoBasePacketMixin,
     _GenCxlIoCompletionPacket,
-):
-    @classmethod
-    def create(
-        cls,
-        req_id: int,
-        tag: int,
-        cpl_id: int = 0,
-        status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
-        ld_id: int = 0,
-    ) -> "CxlIoCompletionPacket":
-        packet = cls()
-        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_IO
-        packet.system_header.payload_length = len(packet)
-        packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL
-        packet.cxl_io_header.length_upper = 0
-        packet.cxl_io_header.length_lower = 0
-        packet.tlp_prefix.ld_id = ld_id
-
-        packet.cpl_header.cpl_id = htotlp16(cpl_id)
-        packet.cpl_header.status = status
-        packet.cpl_header.byte_count_upper = 0
-        packet.cpl_header.byte_count_lower = 4
-        packet.cpl_header.req_id = htotlp16(req_id)
-        packet.cpl_header.tag = tag
-
-        return packet
-
-    def get_transaction_id(self) -> int:
-        return self.build_transaction_id(self.cpl_header.req_id, self.cpl_header.tag)
-
-
-class CxlIoCompletionWithDataPacket(
     BasePacketMixin,
     CxlIoBasePacketMixin,
-    _GenCxlIoCompletionWithDataPacket,
     PacketDataMixin,
 ):
     @classmethod
@@ -310,35 +264,42 @@ class CxlIoCompletionWithDataPacket(
         cls,
         req_id: int,
         tag: int,
+        cpl_id: int,
         data: int,
-        cpl_id: int = 0,
+        length: int = 0,
         status: CXL_IO_CPL_STATUS = CXL_IO_CPL_STATUS.SC,
-        pload_len: int = 0x04,
         ld_id: int = 0,
-    ) -> "CxlIoCompletionWithDataPacket":
+    ) -> "CxlIoCompletionPacket":
         packet = cls()
-        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_IO
-        packet.cxl_io_header.fmt_type = CXL_IO_FMT_TYPE.CPL_D
-
-        packet.cxl_io_header.length_upper = extract_upper(pload_len // 4, 2, 10)
-        packet.cxl_io_header.length_lower = extract_lower(pload_len // 4, 8, 10)
-
-        packet.cpl_header.cpl_id = htotlp16(cpl_id)
-        packet.cpl_header.status = status
-        packet.cpl_header.req_id = htotlp16(req_id)
-        packet.cpl_header.tag = tag
-
-        packet.cpl_header.byte_count_upper = extract_upper(pload_len, 4, 12)
-        packet.cpl_header.byte_count_lower = extract_lower(pload_len, 8, 12)
-
-        if hasattr(data, "__int__"):
-            packet.set_data_as_int(int(data), pload_len)
+        if data is not None:
+            fmt_type = CXL_IO_FMT_TYPE.CPL_D
+            length_upper = extract_upper(length // 4, 2, 10)
+            length_lower = extract_lower(length // 4, 8, 10)
+            byte_count_upper = extract_upper(length, 4, 12)
+            byte_count_lower = extract_lower(length, 8, 12)
+            data_length = (data.bit_length() + 7) // 8 or 1
+            data = data.to_bytes(data_length, byteorder="little")
         else:
-            packet.set_data(bytes(data))
+            fmt_type = CXL_IO_FMT_TYPE.CPL
+            length_upper = 0
+            length_lower = 1
+            byte_count_upper = 0
+            byte_count_lower = 4
 
-        packet.tlp_prefix.ld_id = ld_id
-        packet.system_header.payload_length = len(packet)
-
+        packet = super().create(
+            SYSTEM_PAYLOAD_TYPE.CXL_IO,  # system_header__payload_type,
+            ld_id,  # tlp_prefix__ld_id,
+            fmt_type,  # cxl_io_header__fmt_type,
+            length_upper,  # cxl_io_header__length_upper,
+            length_lower,  # cxl_io_header__length_lower,
+            cpl_id,  # cpl_header__cpl_id,
+            status,  # cpl_header__status,
+            byte_count_upper,  # cpl_header__byte_count_upper,
+            byte_count_lower,  # cpl_header__byte_count_lower,
+            htotlp16(req_id),  # cpl_header__req_id,
+            tag,  # cpl_header__tag,
+            data,
+        )
         return packet
 
     def get_transaction_id(self) -> int:

@@ -25,7 +25,7 @@ from opencis.cxl.transport.cxl_io_packets import (
     CxlIoCfgWrPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
-    CxlIoCompletionWithDataPacket,
+    CxlIoCompletionPacket,
     is_cxl_io_completion_status_sc,
     is_cxl_io_completion_status_ur,
 )
@@ -101,7 +101,7 @@ async def test_pci_device_config_space():
         await transport_connection.cfg_fifo.host_to_target.put(packet)
         packet = await transport_connection.cfg_fifo.target_to_host.get()
         assert is_cxl_io_completion_status_sc(packet)
-        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        cpld_packet = cast(CxlIoCompletionPacket, packet)
         assert cpld_packet.get_data_as_int() == (EEUM_VID | (SW_EP_DID << 16))
 
         # NOTE: Test Config Space Type0 Write - BAR WRITE
@@ -117,7 +117,7 @@ async def test_pci_device_config_space():
         await transport_connection.cfg_fifo.host_to_target.put(packet)
         packet = await transport_connection.cfg_fifo.target_to_host.get()
         assert is_cxl_io_completion_status_sc(packet)
-        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        cpld_packet = cast(CxlIoCompletionPacket, packet)
         size = 0xFFFFFFFF - cpld_packet.get_data_as_int() + 1
         assert size == bar_size
 
@@ -168,8 +168,11 @@ async def test_pci_device_mmio():
         packet = CxlIoCfgWrPacket.create(
             create_bdf(0, 0, 0), 0x10, 4, value=base_addresss, is_type0=True
         )
+        logger.info("configure_bar 1")
         await transport_connection.cfg_fifo.host_to_target.put(packet)
+        logger.info("configure_bar 2")
         packet = await transport_connection.cfg_fifo.target_to_host.get()
+        logger.info("configure_bar 3")
         assert is_cxl_io_completion_status_sc(packet)
 
     async def test_mmio(transport_connection: PciConnection):
@@ -184,7 +187,7 @@ async def test_pci_device_mmio():
         await transport_connection.mmio_fifo.host_to_target.put(packet)
         packet = await transport_connection.mmio_fifo.target_to_host.get()
         assert is_cxl_io_completion_status_sc(packet)
-        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        cpld_packet = cast(CxlIoCompletionPacket, packet)
         assert cpld_packet.get_data_as_int() == data
 
         # NOTE: Write OOB (Upper Boundary), Expect No Error
@@ -200,7 +203,7 @@ async def test_pci_device_mmio():
         await transport_connection.mmio_fifo.host_to_target.put(packet)
         packet = await transport_connection.mmio_fifo.target_to_host.get()
         assert is_cxl_io_completion_status_sc(packet)
-        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        cpld_packet = cast(CxlIoCompletionPacket, packet)
         assert cpld_packet.get_data_as_int() == 0
 
         # NOTE: Read OOB (Lower Boundary), Expect 0
@@ -208,7 +211,7 @@ async def test_pci_device_mmio():
         await transport_connection.mmio_fifo.host_to_target.put(packet)
         packet = await transport_connection.mmio_fifo.target_to_host.get()
         assert is_cxl_io_completion_status_sc(packet)
-        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        cpld_packet = cast(CxlIoCompletionPacket, packet)
         assert cpld_packet.get_data_as_int() == 0
 
     async def wait_test_stop():

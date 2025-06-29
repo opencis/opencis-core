@@ -40,7 +40,6 @@ from opencis.cxl.transport.cxl_io_packets import (
     CxlIoCfgWrPacket,
     CxlIoCompletionPacket,
     CxlIoMemReqPacket,
-    CxlIoCompletionWithDataPacket,
 )
 
 
@@ -209,12 +208,9 @@ class MmioRouter(CxlRouter):
         """
         Note that data_len should be in bytes.
         """
-        if data is not None:
-            packet = CxlIoCompletionWithDataPacket.create(
-                req_id=req_id, tag=tag, cpl_id=cpl_id, data=data, pload_len=data_len
-            )
-        else:
-            packet = CxlIoCompletionPacket.create(req_id=req_id, tag=tag, cpl_id=cpl_id)
+        packet = CxlIoCompletionPacket.create(
+            req_id=req_id, tag=tag, cpl_id=cpl_id, data=data, length=data_len
+        )
         await self._upstream_connection_fifo.target_to_host.put(packet)
 
     async def update_router(self, vppb_index: int):
@@ -313,7 +309,9 @@ class ConfigSpaceRouter(CxlRouter):
             await self._upstream_connection_fifo.target_to_host.put(packet)
 
     async def _send_unsupported_request(self, req_id, tag):
-        packet = CxlIoCompletionPacket.create(req_id=req_id, tag=tag, status=CXL_IO_CPL_STATUS.UR)
+        packet = CxlIoCompletionPacket.create(
+            req_id=req_id, tag=tag, data=None, status=CXL_IO_CPL_STATUS.UR
+        )
         await self._upstream_connection_fifo.target_to_host.put(packet)
 
     async def update_router(self, vppb_index: int):

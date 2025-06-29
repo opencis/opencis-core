@@ -24,7 +24,6 @@ from opencis.cxl.transport.cxl_io_packets import (
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
     CxlIoCompletionPacket,
-    CxlIoCompletionWithDataPacket,
 )
 from opencis.cxl.transport.cxl_cache_packets import (
     CxlCacheBasePacket,
@@ -154,10 +153,8 @@ class PacketReader(LabeledComponent):
             cxl_io_packet = CxlIoMemRdPacket(payload)
         elif cxl_io_base_packet.is_mem_write():
             cxl_io_packet = CxlIoMemWrPacket(payload)
-        elif cxl_io_base_packet.is_cpl():
+        elif cxl_io_base_packet.is_cpl() or cxl_io_base_packet.is_cpld():
             cxl_io_packet = CxlIoCompletionPacket(payload)
-        elif cxl_io_base_packet.is_cpld():
-            cxl_io_packet = CxlIoCompletionWithDataPacket(payload)
 
         if cxl_io_packet is None:
             protocol = cxl_io_base_packet.cxl_io_header.fmt_type

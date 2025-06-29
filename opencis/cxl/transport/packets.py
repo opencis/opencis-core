@@ -36,7 +36,7 @@ PACKETS = {
         ],
         "create_args": {},
     },
-    "CxlIoMemReqPacket": {
+    "CxlIoMemRdPacket": {
         "layout": [
             ("SystemHeader", "system_header"),
             ("TlpPrefix", "tlp_prefix"),
@@ -57,7 +57,50 @@ PACKETS = {
             ],
         },
     },
-    "CxlIoCfgReqPacket": {
+    "CxlIoMemWrPacket": {
+        "layout": [
+            ("SystemHeader", "system_header"),
+            ("TlpPrefix", "tlp_prefix"),
+            ("CxlIoHeader", "cxl_io_header"),
+            ("CxlIoMReqHeader", "mreq_header"),
+        ],
+        "create_args": {
+            "SystemHeader": ["payload_type"],
+            "TlpPrefix": ["ld_id"],
+            "CxlIoHeader": ["fmt_type", "length_upper", "length_lower"],
+            "CxlIoMReqHeader": [
+                "req_id",
+                "tag",
+                "first_dw_be",
+                "last_dw_be",
+                "addr_upper",
+                "addr_lower",
+            ],
+        },
+    },
+    "CxlIoCfgRdPacket": {
+        "layout": [
+            ("SystemHeader", "system_header"),
+            ("TlpPrefix", "tlp_prefix"),
+            ("CxlIoHeader", "cxl_io_header"),
+            ("CxlIoCfgReqHeader", "cfg_req_header"),
+        ],
+        "create_args": {
+            "SystemHeader": ["payload_type"],
+            "TlpPrefix": ["ld_id"],
+            "CxlIoHeader": ["fmt_type", "length_upper", "length_lower"],
+            "CxlIoCfgReqHeader": [
+                "req_id",
+                "tag",
+                "first_dw_be",
+                "last_dw_be",
+                "dest_id",
+                "ext_reg_num",
+                "reg_num",
+            ],
+        },
+    },
+    "CxlIoCfgWrPacket": {
         "layout": [
             ("SystemHeader", "system_header"),
             ("TlpPrefix", "tlp_prefix"),
@@ -80,28 +123,6 @@ PACKETS = {
         },
     },
     "CxlIoCompletionPacket": {
-        "layout": [
-            ("SystemHeader", "system_header"),
-            ("TlpPrefix", "tlp_prefix"),
-            ("CxlIoHeader", "cxl_io_header"),
-            ("CxlIoCompletionHeader", "cpl_header"),
-        ],
-        "create_args": {
-            "SystemHeader": ["payload_type"],
-            "TlpPrefix": ["ld_id"],
-            "CxlIoHeader": ["fmt_type", "length_upper", "length_lower"],
-            "CxlIoCompletionHeader": [
-                "cpl_id",
-                "status",
-                "byte_count_upper",
-                "byte_count_lower",
-                "req_id",
-                "tag",
-            ],
-        },
-    },
-    # TODO: GET RID OF IT
-    "CxlIoCompletionWithDataPacket": {
         "layout": [
             ("SystemHeader", "system_header"),
             ("TlpPrefix", "tlp_prefix"),

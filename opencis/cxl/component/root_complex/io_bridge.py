@@ -21,7 +21,6 @@ from opencis.cxl.transport.cxl_io_packets import (
     CxlIoCfgRdPacket,
     CxlIoCfgWrPacket,
     CxlIoCompletionPacket,
-    CxlIoCompletionWithDataPacket,
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
     is_cxl_io_completion_status_sc,
@@ -146,7 +145,7 @@ class IoBridge(RunnableComponent):
             )
             return 0xFFFFFFFF & bit_mask
 
-        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        cpld_packet = cast(CxlIoCompletionPacket, packet)
         data = (cpld_packet.get_data_as_int() >> bit_offset) & bit_mask
 
         logger.debug(
@@ -176,7 +175,7 @@ class IoBridge(RunnableComponent):
             logger.error(self._create_message("CXL.io mmio RD: Timed-out"))
             return None
 
-        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        cpld_packet = cast(CxlIoCompletionPacket, packet)
         return cpld_packet.get_data_as_int()
 
     # pylint: enable=duplicate-code
