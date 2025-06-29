@@ -75,19 +75,23 @@ class CxlIoMemRdPacket(CxlIoMemReqPacket):
         length_dword = (address_offset + length + 3) // 4
         bytes_enabled = (1 << length) - 1
         bytes_enabled_with_offset = bytes_enabled << address_offset
+        first_dw_be = bytes_enabled_with_offset & 0xF
+        last_dw_be = (
+            (bytes_enabled_with_offset >> ((length_dword - 1) * 4)) & 0xF if length_dword > 1 else 0
+        )
         packet = super().create(
             SYSTEM_PAYLOAD_TYPE.CXL_IO,  # system_header__payload_type,
-            ld_id,                       # tlp_prefix__ld_id,
-            CXL_IO_FMT_TYPE.MRD_64B,     # cxl_io_header__fmt_type,
-            length_dword & 0x300,        # cxl_io_header__length_upper,
-            length_dword & 0xFF,         # cxl_io_header__length_lower,
-            htotlp16(req_id),            # mreq_header__req_id,
-            super().acquire_tag(tag),        # mreq_header__tag,
-            bytes_enabled_with_offset & 0xF,  # mreq_header__first_dw_be,
-            (bytes_enabled_with_offset >> ((length_dword - 1) * 4)) & 0xF if length_dword > 1 else 0, # mreq_header__last_dw_be,
-            (addr >> 8),                 # mreq_header__addr_upper,
-            (addr & 0xFF) >> 2,          # mreq_header__addr_lower,
-            None,                        # data: bytes | None = None,
+            ld_id,  # tlp_prefix__ld_id,
+            CXL_IO_FMT_TYPE.MRD_64B,  # cxl_io_header__fmt_type,
+            length_dword & 0x300,  # cxl_io_header__length_upper,
+            length_dword & 0xFF,  # cxl_io_header__length_lower,
+            htotlp16(req_id),  # mreq_header__req_id,
+            super().acquire_tag(tag),  # mreq_header__tag,
+            first_dw_be,  # mreq_header__first_dw_be,
+            last_dw_be,  # mreq_header__last_dw_be,
+            (addr >> 8),  # mreq_header__addr_upper,
+            (addr & 0xFF) >> 2,  # mreq_header__addr_lower,
+            None,  # data: bytes | None = None,
         )
         return packet
 
@@ -113,22 +117,25 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
         length_dword = (address_offset + length + 3) // 4
         bytes_enabled = (1 << length) - 1
         bytes_enabled_with_offset = bytes_enabled << address_offset
+        first_dw_be = bytes_enabled_with_offset & 0xF
+        last_dw_be = (
+            (bytes_enabled_with_offset >> ((length_dword - 1) * 4)) & 0xF if length_dword > 1 else 0
+        )
         packet = super().create(
             SYSTEM_PAYLOAD_TYPE.CXL_IO,  # system_header__payload_type,
-            ld_id,                       # tlp_prefix__ld_id,
-            CXL_IO_FMT_TYPE.MWR_64B,     # cxl_io_header__fmt_type,
-            length_dword & 0x300,        # cxl_io_header__length_upper,
-            length_dword & 0xFF,         # cxl_io_header__length_lower,
-            htotlp16(req_id),            # mreq_header__req_id,
-            super().acquire_tag(tag),        # mreq_header__tag,
-            bytes_enabled_with_offset & 0xF,  # mreq_header__first_dw_be,
-            (bytes_enabled_with_offset >> ((length_dword - 1) * 4)) & 0xF if length_dword > 1 else 0, # mreq_header__last_dw_be,
-            (addr >> 8),                 # mreq_header__addr_upper,
-            (addr & 0xFF) >> 2,          # mreq_header__addr_lower,
-            data,                        # data: bytes | None = None,
+            ld_id,  # tlp_prefix__ld_id,
+            CXL_IO_FMT_TYPE.MWR_64B,  # cxl_io_header__fmt_type,
+            length_dword & 0x300,  # cxl_io_header__length_upper,
+            length_dword & 0xFF,  # cxl_io_header__length_lower,
+            htotlp16(req_id),  # mreq_header__req_id,
+            super().acquire_tag(tag),  # mreq_header__tag,
+            first_dw_be,  # mreq_header__first_dw_be,
+            last_dw_be,  # mreq_header__last_dw_be,
+            (addr >> 8),  # mreq_header__addr_upper,
+            (addr & 0xFF) >> 2,  # mreq_header__addr_lower,
+            data,  # data: bytes | None = None,
         )
         print(f"packet: {packet.get_data()}")
-        # packet._fill_common(addr, length, htotlp16(req_id), super().acquire_tag(tag))
         return packet
 
 

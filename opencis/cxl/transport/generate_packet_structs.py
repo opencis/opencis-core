@@ -215,7 +215,9 @@ def emit_composite(packet_name, descriptor, field_sizes):
         for varname, fld in create_fields:
             lines.append(f"        self._{varname}._set_{fld}({varname}__{fld})")
         lines.append("        if data_src:")
-        lines.append("            if data_length > MAX_PACKET_SIZE - " + str(total_header_bytes) + ":")
+        lines.append(
+            "            if data_length > MAX_PACKET_SIZE - " + str(total_header_bytes) + ":"
+        )
         lines.append('                raise ValueError("data too large")')
         lines.append("            memcpy(dst, data_src, data_length)")
         lines.append("            self._data_length = data_length")
@@ -294,8 +296,9 @@ def emit_composite(packet_name, descriptor, field_sizes):
 
     # get_data()
     lines.append(f"    cpdef get_data(self):")
-    lines.append(f"        return PyBytes_FromStringAndSize(<char*>&self._buf[{total_header_bytes}], self._data_length)")
-
+    lines.append(
+        f"        return PyBytes_FromStringAndSize(<char*>&self._buf[{total_header_bytes}], self._data_length)"
+    )
 
     lines.append("    #────────────────── Header accessors ──────────────────")
     for struct, varname in field_entries:
