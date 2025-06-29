@@ -406,13 +406,14 @@ cdef inline PyObject* pool_pop(PoolStruct *p) noexcept nogil:
         return NULL
 
     cdef PyObject *obj = p.buf[p.head]
-    p.buf[p.head]     = NULL
-    p.head            = (p.head + 1) & (POOL_SIZE - 1)
-    p.count          -= 1
+    p.buf[p.head]    = NULL
+    p.head           = (p.head + 1) & (POOL_SIZE - 1)
+    p.count         -= 1
 
     # caller owns the reference held by the pool
+    with gil:
+        Py_INCREF(<object>obj)
     return obj
-
 
 """
 
