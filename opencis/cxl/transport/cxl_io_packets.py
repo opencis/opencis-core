@@ -220,7 +220,7 @@ class CxlIoCfgWrPacket(
         offset = cfg_addr & 3
         val = value << (offset * 8)
         data = val.to_bytes((val.bit_length() + 7) // 8 or 1, "little")
-
+        print(f"dest_id:{dest_id}")
         offset = cfg_addr & 0x3
         if cfg_addr > 0xFFF:
             raise ValueError("Invalid CFG address")
@@ -283,7 +283,7 @@ class CxlIoCompletionPacket(
         else:
             fmt_type = CXL_IO_FMT_TYPE.CPL
             length_upper = 0
-            length_lower = 1
+            length_lower = 0
             byte_count_upper = 0
             byte_count_lower = 4
 

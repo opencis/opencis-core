@@ -332,10 +332,12 @@ def emit_composite(packet_name, descriptor, field_sizes):
     lines.append("            self._buf[offset + i] = view[i]\n")
 
     lines.append("    cpdef void write_bits(self, int start_bit, int width, unsigned long long value):")
+    #lines.append("        print('WRITE_write_bits: ', start_bit, width, value)\n")
     lines.append("        _write_bits(&self._buf[0], start_bit, width, value)\n")
+    #lines.append("        print('WRITE_read_bits: ', _read_bits(&self._buf[0], start_bit, width))\n")
 
-    lines.append("    cpdef void read_bits(self, int start_bit, int width):")
-    lines.append("        _read_bits(&self._buf[0], start_bit, width)\n")
+    lines.append("    cpdef unsigned long long read_bits(self, int start_bit, int width):")
+    lines.append("        return _read_bits(&self._buf[0], start_bit, width)\n")
 
     lines.append("    cpdef get_bytes(self, int start, int length):")
     lines.append(f"        return PyBytes_FromStringAndSize(<char*>&self._buf[start], length)\n")

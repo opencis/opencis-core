@@ -62,7 +62,7 @@ class CciPayload:
             # field is wider than a single word, return bytes
             byte_start = (payload._base + offset) // 8
             full_bytes = width // 8
-            data = bytes(payload._packet.buf[byte_start : byte_start + full_bytes])
+            data = payload._packet.get_bytes(byte_start, full_bytes)
 
             tail_bits = width - full_bytes * 8
             if tail_bits:
@@ -89,7 +89,7 @@ class CciPayload:
             byte_start = (payload._base + offset) // 8
             full_bytes = width // 8
             if full_bytes:
-                payload._packet.buf[byte_start : byte_start + full_bytes] = value[:full_bytes]
+                payload._packet.set_bytes(byte_start, value[:full_bytes])
 
             tail_width = width - (full_bytes * 8)
             if tail_width:
@@ -432,7 +432,7 @@ class GetLdInfoResponsePacket(CciResponsePacket):
         packet.payload.memory_size = memory_size
         packet.payload.ld_count = ld_count
         packet.payload.qos_telemetry_capability = 0
-        # packet.set_data(bytes(packet.payload))
+        packet.set_data(bytes(packet.payload))
 
         packet.system_header.payload_length = len(packet)
         return packet
