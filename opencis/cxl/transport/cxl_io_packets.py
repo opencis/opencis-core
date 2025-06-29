@@ -53,27 +53,8 @@ class CxlIoMemReqPacket(
     PacketDataMixin,
 ):
     @classmethod
-    def get_tag(cls, tag) -> int:
+    def acquire_tag(cls, tag) -> int:
         return _io_mem_tags.next(tag)
-
-    def _fill_common(self, addr: int, length: int, req_id: int, tag: int) -> None:
-        address_offset = addr % 4
-        length_dword = (address_offset + length + 3) // 4
-
-        self.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_IO
-        self.cxl_io_header.length_upper = length_dword & 0x300
-        self.cxl_io_header.length_lower = length_dword & 0xFF
-        self.mreq_header.req_id = req_id
-        self.mreq_header.tag = tag
-
-        bytes_enabled = (1 << length) - 1
-        bytes_enabled_with_offset = bytes_enabled << address_offset
-        self.mreq_header.first_dw_be = bytes_enabled_with_offset & 0xF
-        self.mreq_header.last_dw_be = (
-            (bytes_enabled_with_offset >> ((length_dword - 1) * 4)) & 0xF if length_dword > 1 else 0
-        )
-        self.mreq_header.addr_upper = (addr >> 8)
-        self.mreq_header.addr_lower = (addr & 0xFF) >> 2
 
     def get_address(self) -> int:
         return (self.mreq_header.addr_upper << 8) | (self.mreq_header.addr_lower << 2)
@@ -101,7 +82,7 @@ class CxlIoMemRdPacket(CxlIoMemReqPacket):
             length_dword & 0x300,        # cxl_io_header__length_upper,
             length_dword & 0xFF,         # cxl_io_header__length_lower,
             htotlp16(req_id),            # mreq_header__req_id,
-            super().get_tag(tag),        # mreq_header__tag,
+            super().acquire_tag(tag),        # mreq_header__tag,
             bytes_enabled_with_offset & 0xF,  # mreq_header__first_dw_be,
             (bytes_enabled_with_offset >> ((length_dword - 1) * 4)) & 0xF if length_dword > 1 else 0, # mreq_header__last_dw_be,
             (addr >> 8),                 # mreq_header__addr_upper,
@@ -139,7 +120,7 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
             length_dword & 0x300,        # cxl_io_header__length_upper,
             length_dword & 0xFF,         # cxl_io_header__length_lower,
             htotlp16(req_id),            # mreq_header__req_id,
-            super().get_tag(tag),        # mreq_header__tag,
+            super().acquire_tag(tag),        # mreq_header__tag,
             bytes_enabled_with_offset & 0xF,  # mreq_header__first_dw_be,
             (bytes_enabled_with_offset >> ((length_dword - 1) * 4)) & 0xF if length_dword > 1 else 0, # mreq_header__last_dw_be,
             (addr >> 8),                 # mreq_header__addr_upper,
@@ -147,7 +128,7 @@ class CxlIoMemWrPacket(CxlIoMemReqPacket):
             data,                        # data: bytes | None = None,
         )
         print(f"packet: {packet.get_data()}")
-        # packet._fill_common(addr, length, htotlp16(req_id), super().get_tag(tag))
+        # packet._fill_common(addr, length, htotlp16(req_id), super().acquire_tag(tag))
         return packet
 
 
@@ -158,7 +139,7 @@ class CxlIoCfgReqPacket(
     PacketDataMixin,
 ):
     @classmethod
-    def get_tag(cls, tag) -> int:
+    def acquire_tag(cls, tag) -> int:
         return _io_cfg_tags.next(tag)
 
     def _fill_common(
@@ -239,7 +220,7 @@ class CxlIoCfgRdPacket(CxlIoCfgReqPacket):
         ld_id: int = 0,
     ) -> "CxlIoCfgRdPacket":
         packet = cls()
-        packet._fill_common(dest_id, cfg_addr, size, req_id, super().get_tag(tag))
+        packet._fill_common(dest_id, cfg_addr, size, req_id, super().acquire_tag(tag))
         packet.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_RD0 if is_type0 else CXL_IO_FMT_TYPE.CFG_RD1
         )
@@ -263,7 +244,7 @@ class CxlIoCfgWrPacket(CxlIoCfgReqPacket):
     ) -> "CxlIoCfgWrPacket":
         packet = cls()
         packet.set_data_as_int(value << ((cfg_addr & 0x3) * 8))
-        packet._fill_common(dest_id, cfg_addr, size, req_id, super().get_tag(tag))
+        packet._fill_common(dest_id, cfg_addr, size, req_id, super().acquire_tag(tag))
         packet.cxl_io_header.fmt_type = (
             CXL_IO_FMT_TYPE.CFG_WR0 if is_type0 else CXL_IO_FMT_TYPE.CFG_WR1
         )

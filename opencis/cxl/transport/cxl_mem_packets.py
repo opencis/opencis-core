@@ -206,7 +206,7 @@ class CxlMemBISnpPacket(
     _GenCxlMemS2MBISnpPacket,
 ):
     @classmethod
-    def get_tag(cls, tag) -> int:
+    def acquire_tag(cls, tag) -> int:
         return _bisnp_tags.next(tag)
 
     @classmethod
@@ -224,7 +224,7 @@ class CxlMemBISnpPacket(
         packet.s2mbisnp_header.valid = 1
         packet.s2mbisnp_header.opcode = opcode
         packet.s2mbisnp_header.bi_id = bi_id
-        packet.s2mbisnp_header.bi_tag = cls.get_tag(bi_tag)
+        packet.s2mbisnp_header.bi_tag = cls.acquire_tag(bi_tag)
         packet.s2mbisnp_header.addr = addr >> 6
         return packet
 
