@@ -120,17 +120,18 @@ class CxlMemMemRdPacket(CxlMemM2SReqPacket):
         snp_type: CXL_MEM_M2S_SNP_TYPE = CXL_MEM_M2S_SNP_TYPE.NO_OP,
         ld_id: int = 0,
     ) -> "CxlMemMemRdPacket":
-        packet = cls()
-        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
-        packet.system_header.payload_length = len(packet)
-        packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_REQ
-        packet.m2sreq_header.valid = 1
-        packet.m2sreq_header.mem_opcode = opcode
-        packet.m2sreq_header.meta_field = meta_field
-        packet.m2sreq_header.meta_value = meta_value
-        packet.m2sreq_header.snp_type = snp_type
-        packet.m2sreq_header.ld_id = ld_id
-        packet.m2sreq_header.addr = addr >> 6
+        packet = super().create(
+            SYSTEM_PAYLOAD_TYPE.CXL_MEM,  # system_header__payload_type,
+            CXL_MEM_MSG_CLASS.M2S_REQ,  # cxl_mem_header__msg_class,
+            1,  # m2sreq_header__valid,
+            opcode,  # m2sreq_header__mem_opcode,
+            meta_field,  # m2sreq_header__meta_field,
+            meta_value,  # m2sreq_header__meta_value,
+            snp_type,  # m2sreq_header__snp_type,
+            ld_id,  # m2sreq_header__ld_id,
+            addr >> 6,  # m2sreq_header__addr,
+            None,  # data
+        )
         return packet
 
     def is_mem_rd(self) -> bool:
@@ -155,24 +156,19 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
         snp_type: CXL_MEM_M2S_SNP_TYPE = CXL_MEM_M2S_SNP_TYPE.NO_OP,
         ld_id: int = 0,
     ) -> "CxlMemMemWrPacket":
-        # pylint: disable=duplicate-code
-        packet = cls()
-        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
-        packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_RWD
-        packet.m2srwd_header.valid = 1
-        packet.m2srwd_header.mem_opcode = opcode
-        packet.m2srwd_header.meta_field = meta_field
-        packet.m2srwd_header.meta_value = meta_value
-        packet.m2srwd_header.snp_type = snp_type
-        packet.m2srwd_header.ld_id = ld_id
-        packet.m2srwd_header.addr = addr >> 6
-
-        if isinstance(data, int):
-            packet.set_data_as_int(data)
-        else:
-            packet.set_data(data)
-
-        packet.system_header.payload_length = len(packet)
+        data = data.to_bytes(64, byteorder="little")
+        packet = super().create(
+            SYSTEM_PAYLOAD_TYPE.CXL_MEM,  # system_header__payload_type,
+            CXL_MEM_MSG_CLASS.M2S_RWD,  # cxl_mem_header__msg_class,
+            1,  # m2srwd_header__valid,
+            opcode,  # m2srwd_header__mem_opcode,
+            meta_field,  # m2srwd_header__meta_field,
+            meta_value,  # m2srwd_header__meta_value,
+            snp_type,  # m2srwd_header__snp_type,
+            ld_id,  # m2srwd_header__ld_id,
+            addr >> 6,  # m2srwd_header__addr,
+            data
+        )
         return packet
 
 

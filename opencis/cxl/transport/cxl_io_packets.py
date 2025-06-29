@@ -78,7 +78,7 @@ class CxlIoMemRdPacket(
             last_dw_be,  # mreq_header__last_dw_be,
             (addr >> 8),  # mreq_header__addr_upper,
             (addr & 0xFF) >> 2,  # mreq_header__addr_lower,
-            None,  # data: bytes | None = None,
+            None,  # data
         )
         return packet
 
@@ -134,7 +134,7 @@ class CxlIoMemWrPacket(
             last_dw_be,  # mreq_header__last_dw_be,
             (addr >> 8),  # mreq_header__addr_upper,
             (addr & 0xFF) >> 2,  # mreq_header__addr_lower,
-            data,  # data: bytes | None = None,
+            data,  # data
         )
         return packet
 
@@ -189,7 +189,7 @@ class CxlIoCfgRdPacket(
             htotlp16(dest_id),  # cfg_req_header__dest_id,
             (cfg_addr >> 8) & 0x0F,  # cfg_req_header__ext_reg_num,
             (cfg_addr >> 2) & 0x3F,  # cfg_req_header__reg_num,
-            None,
+            None,  # data
         )
         return packet
 
@@ -298,7 +298,7 @@ class CxlIoCompletionPacket(
             byte_count_lower,  # cpl_header__byte_count_lower,
             htotlp16(req_id),  # cpl_header__req_id,
             tag,  # cpl_header__tag,
-            data,
+            data,  # data
         )
         return packet
 
