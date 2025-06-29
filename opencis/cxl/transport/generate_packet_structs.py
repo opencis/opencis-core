@@ -214,6 +214,11 @@ def emit_composite(packet_name, descriptor, field_sizes):
         lines.append(f"        cdef unsigned char* dst = &self._buf[{total_header_bytes}]\n")
         for varname, fld in create_fields:
             lines.append(f"        self._{varname}._set_{fld}({varname}__{fld})")
+        lines.append("        if data_src:")
+        lines.append("            if data_length > MAX_PACKET_SIZE - " + str(total_header_bytes) + ":")
+        lines.append('                raise ValueError("data too large")')
+        lines.append("            memcpy(dst, data_src, data_length)")
+        lines.append("            self._data_length = data_length")
         lines.append("")
 
     lines.append("    #────────────────── Python Interface ──────────────────")
@@ -248,7 +253,7 @@ def emit_composite(packet_name, descriptor, field_sizes):
         build_args = ",\n".join(f"            {varname}__{fld}" for varname, fld in create_fields)
         if build_args:
             build_args += ", "
-        build_args += "\n            data,\n            data_length,"
+        build_args += "\n            ptr,\n            data_length,"
         lines.append(f"        pkt._build(\n{build_args}\n        )")
         lines.append("        return pkt\n")
 
@@ -273,7 +278,7 @@ def emit_composite(packet_name, descriptor, field_sizes):
         build_args = ",\n".join(f"            {varname}__{fld}" for varname, fld in create_fields)
         if build_args:
             build_args += ", "
-        build_args += "\n            data,\n            data_length,"
+        build_args += "\n            ptr,\n            data_length,"
         lines.append(f"        self._build(\n{build_args}\n        )")
         lines.append("")
 
