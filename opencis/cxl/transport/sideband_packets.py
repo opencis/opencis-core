@@ -32,7 +32,6 @@ class BaseSidebandPacket(
         packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.SIDEBAND
         packet.sideband_header.type = type
         packet.system_header.payload_length = len(packet)
-        print(f"BaseSideband: {packet.system_header.payload_type}, {packet.sideband_header.type}, {packet.system_header.payload_length}")
         return packet
 
 
