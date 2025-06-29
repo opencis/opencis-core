@@ -142,7 +142,8 @@ class CciPayload:
 
         byte_start = self._base // 8
         byte_len = (total_bits + 7) // 8
-        return bytes(self._packet.buf[byte_start : byte_start + byte_len])
+        data = self._packet.get_bytes(byte_start, byte_len)
+        return data
 
     def set_dynamic_field_width(self, name: str, width_bits: int) -> None:
         if name not in self._fields:
@@ -431,7 +432,7 @@ class GetLdInfoResponsePacket(CciResponsePacket):
         packet.payload.memory_size = memory_size
         packet.payload.ld_count = ld_count
         packet.payload.qos_telemetry_capability = 0
-        packet.set_data(bytes(packet.payload))
+        # packet.set_data(bytes(packet.payload))
 
         packet.system_header.payload_length = len(packet)
         return packet

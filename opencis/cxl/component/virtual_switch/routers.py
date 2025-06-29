@@ -310,7 +310,7 @@ class ConfigSpaceRouter(CxlRouter):
 
     async def _send_unsupported_request(self, req_id, tag):
         packet = CxlIoCompletionPacket.create(
-            req_id=req_id, tag=tag, data=None, status=CXL_IO_CPL_STATUS.UR
+            req_id=req_id, tag=tag, cpl_id=0, data=None, status=CXL_IO_CPL_STATUS.UR
         )
         await self._upstream_connection_fifo.target_to_host.put(packet)
 
