@@ -31,6 +31,7 @@ from opencis.cxl.transport.common import BasePacket
 from opencis.cxl.transport.packet_constants import CXL_MEM_M2SBIRSP_OPCODE
 from opencis.cxl.transport.cxl_io_packets import (
     CxlIoBasePacket,
+    CxlIoCompletionPacket,
     is_cxl_io_completion_status_ur,
 )
 from opencis.util.pci import (

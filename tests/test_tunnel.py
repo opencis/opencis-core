@@ -26,6 +26,7 @@ from opencis.cxl.transport.cxl_io_packets import (
     CxlIoMemRdPacket,
     CxlIoMemWrPacket,
     CxlIoCfgWrPacket,
+    CxlIoCompletionPacket,
     is_cxl_io_completion_status_sc,
     is_cxl_io_completion_status_ur,
 )

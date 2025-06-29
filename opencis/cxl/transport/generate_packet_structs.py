@@ -217,11 +217,14 @@ def emit_composite(packet_name, descriptor, field_sizes):
         for varname, fld in create_fields:
             lines.append(f"        self._{varname}._set_{fld}({varname}__{fld})")
         lines.append("        if data_src:")
-        lines.append(f"            dst = &self._buf[{total_header_bytes}]\n")
+        lines.append(f"            dst = &self._buf[{total_header_bytes}]")
         lines.append(f"            if data_length > MAX_PACKET_SIZE - {total_header_bytes}:")
         lines.append('                raise ValueError("data too large")')
         lines.append("            memcpy(dst, data_src, data_length)")
         lines.append("            self._data_length = data_length")
+        lines.append(
+            f"        self._system_header._set_payload_length({total_header_bytes} + data_length)"
+        )
         lines.append("")
 
     lines.append("    #────────────────── Python Interface ──────────────────")
