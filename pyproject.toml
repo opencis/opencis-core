@@ -4,7 +4,7 @@ build-backend = "pdm.backend"
 
 [tool.pytest.ini_options]
 testpaths = "tests/"
-timeout = 45
+timeout = 30
 filterwarnings = [
   "ignore::DeprecationWarning"
 ]
@@ -41,7 +41,7 @@ jobs = 4
 
 [tool.black]
 line-length = 100
-target-version = ['py311']
+target-version = ['py313']
 
 [project]
 authors = [
@@ -87,7 +87,7 @@ dependencies = [
 ]
 name = "opencis"
 version = "0.5"
-description = "OpenCXL"
+description = "OpenCIS"
 readme = "README.md"
 
 [dependency-groups]

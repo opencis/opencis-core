@@ -171,7 +171,7 @@ class MmioRouter(CxlRouter):
                 if mmio_packet.is_mem_read():
                     logger.debug(self._create_message(f"RD: 0x{address:x}[{size}] OOB"))
                     # TODO: NEEDS TO BE UR with no data
-                    await self._send_completion(req_id, tag, cpl_id=0, data=0, data_len=size)
+                    await self._send_completion(req_id, tag, cpl_id=0, data=None)
                 elif mmio_packet.is_mem_write():
                     logger.debug(self._create_message(f"WR: 0x{address:x}[{size}] OOB"))
                 continue
