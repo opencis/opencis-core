@@ -311,7 +311,7 @@ def emit_composite(packet_name, descriptor, field_sizes):
     lines.append("        self._data_length = n\n")
 
     # get_data()
-    lines.append(f"    cpdef get_data(self):")
+    lines.append("    cpdef get_data(self):")
     lines.append(
         f"        return PyBytes_FromStringAndSize(<char*>&self._buf[{total_header_bytes}], "
         "self._data_length)\n"

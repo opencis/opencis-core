@@ -18,7 +18,6 @@ from opencis.cxl.transport.packet_structs import (
 )
 from opencis.util.number import (
     htotlp16,
-    tlptoh16,
     extract_upper,
     extract_lower,
 )
