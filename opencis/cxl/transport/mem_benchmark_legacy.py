@@ -2,8 +2,11 @@
 """
 Measure build speed of CxlMemMemWrPacket.create() with buffer pooling.
 """
-
-import os, sys, time, random, gc
+# pylint: disable=import-error, no-name-in-module
+import os
+import sys
+import time
+import gc
 
 from opencis.cxl.transport.transaction import CxlMemMemWrPacket
 
@@ -30,5 +33,5 @@ def bench(iters: int = 100_000):
 
 
 if __name__ == "__main__":
-    iters = int(sys.argv[1]) if len(sys.argv) > 1 else 100_000
-    bench(iters)
+    count = int(sys.argv[1]) if len(sys.argv) > 1 else 100_000
+    bench(count)
