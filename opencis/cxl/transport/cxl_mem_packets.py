@@ -209,15 +209,15 @@ class CxlMemBIRspPacket(
         bi_id: int = 0,
         bi_tag: int = 0,
     ) -> "CxlMemBIRspPacket":
-        packet = cls()
-        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
-        packet.system_header.payload_length = len(packet)
-        packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.M2S_BIRSP
-        packet.m2sbirsp_header.valid = 1
-        packet.m2sbirsp_header.opcode = opcode
-        packet.m2sbirsp_header.low_addr = 0
-        packet.m2sbirsp_header.bi_id = bi_id
-        packet.m2sbirsp_header.bi_tag = bi_tag
+        packet = super().create(
+            SYSTEM_PAYLOAD_TYPE.CXL_MEM,  # system_header__payload_type,
+            CXL_MEM_MSG_CLASS.M2S_BIRSP,  # cxl_mem_header__msg_class,
+            1,  # m2sbirsp_header__valid,
+            opcode,  # m2sbirsp_header__opcode,
+            0,  # m2sbirsp_header__low_addr,
+            bi_id,  # m2sbirsp_header__bi_id,
+            bi_tag,  # m2sbirsp_header__bi_tag
+        )
         return packet
 
 
@@ -238,22 +238,22 @@ class CxlMemBISnpPacket(
         bi_id: int = 0,
         bi_tag: int = None,
     ) -> "CxlMemBISnpPacket":
-        packet = cls()
-        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
-        packet.system_header.payload_length = len(packet)
-        packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_BISNP
-        packet.s2mbisnp_header.valid = 1
-        packet.s2mbisnp_header.opcode = opcode
-        packet.s2mbisnp_header.bi_id = bi_id
-        packet.s2mbisnp_header.bi_tag = cls.acquire_tag(bi_tag)
-        packet.s2mbisnp_header.addr = addr >> 6
+        packet = super().create(
+            SYSTEM_PAYLOAD_TYPE.CXL_MEM,  # system_header__payload_type,
+            CXL_MEM_MSG_CLASS.S2M_BISNP,  # cxl_mem_header__msg_class,
+            1,  # s2mbisnp_header__valid,
+            opcode,  # s2mbisnp_header__opcode,
+            bi_id,  # s2mbisnp_header__bi_id,
+            cls.acquire_tag(bi_tag),  # s2mbisnp_header__bi_tag,
+            addr >> 6,  # s2mbisnp_header__addr
+        )
         return packet
 
 
 class CxlMemMemDataPacket(
+    _GenCxlMemS2MDRSPacket,
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    _GenCxlMemS2MDRSPacket,
     PacketDataMixin,
 ):
     @classmethod
@@ -265,22 +265,17 @@ class CxlMemMemDataPacket(
         meta_value: CXL_MEM_META_VALUE = CXL_MEM_META_VALUE.ANY,
         ld_id: int = 0,
     ) -> "CxlMemMemDataPacket":
-        # pylint: disable=duplicate-code
-        packet = cls()
-        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
-        packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_DRS
-        packet.s2mdrs_header.valid = 1
-        packet.s2mdrs_header.opcode = opcode
-        packet.s2mdrs_header.meta_field = meta_field
-        packet.s2mdrs_header.meta_value = meta_value
-        packet.s2mdrs_header.ld_id = ld_id
-
-        if isinstance(data, int):
-            packet.set_data_as_int(data)
-        else:
-            packet.set_data(data)
-
-        packet.system_header.payload_length = len(packet)
+        data = data.to_bytes(64, byteorder="little")
+        packet = super().create(
+            SYSTEM_PAYLOAD_TYPE.CXL_MEM,  # system_header__payload_type,
+            CXL_MEM_MSG_CLASS.S2M_DRS,  # cxl_mem_header__msg_class,
+            1,  # s2mdrs_header__valid,
+            opcode,  # s2mdrs_header__opcode,
+            meta_field,  # s2mdrs_header__meta_field,
+            meta_value,  # s2mdrs_header__,
+            ld_id,  # s2mdrs_header__ld_id,
+            data,  # data
+        )
         return packet
 
 
@@ -297,15 +292,15 @@ class CxlMemCmpPacket(
         meta_value: CXL_MEM_META_VALUE = CXL_MEM_META_VALUE.ANY,
         ld_id: int = 0,
     ) -> "CxlMemCmpPacket":
-        packet = cls()
-        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_MEM
-        packet.system_header.payload_length = len(packet)
-        packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_NDR
-        packet.s2mndr_header.valid = 1
-        packet.s2mndr_header.opcode = opcode
-        packet.s2mndr_header.meta_field = meta_field
-        packet.s2mndr_header.meta_value = meta_value
-        packet.s2mndr_header.ld_id = ld_id
+        packet = super().create(
+            SYSTEM_PAYLOAD_TYPE.CXL_MEM,  # system_header__payload_type,
+            CXL_MEM_MSG_CLASS.S2M_NDR,  # cxl_mem_header__msg_class,
+            1,  # s2mndr_header__valid,
+            opcode,  # s2mndr_header__opcode,
+            meta_field,  # s2mndr_header__meta_field,
+            meta_value,  # s2mndr_header__meta_value,
+            ld_id,  # s2mndr_header__ld_id,
+        )
         return packet
 
 
