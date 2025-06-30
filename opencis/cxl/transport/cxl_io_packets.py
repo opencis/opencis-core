@@ -293,7 +293,7 @@ class CxlIoCompletionPacket(
             fmt_type,  # cxl_io_header__fmt_type,
             length_upper,  # cxl_io_header__length_upper,
             length_lower,  # cxl_io_header__length_lower,
-            cpl_id,  # cpl_header__cpl_id,
+            htotlp16(cpl_id),  # cpl_header__cpl_id,
             status,  # cpl_header__status,
             byte_count_upper,  # cpl_header__byte_count_upper,
             byte_count_lower,  # cpl_header__byte_count_lower,
