@@ -168,11 +168,8 @@ async def test_pci_device_mmio():
         packet = CxlIoCfgWrPacket.create(
             create_bdf(0, 0, 0), 0x10, 4, value=base_addresss, is_type0=True
         )
-        logger.info("configure_bar 1")
         await transport_connection.cfg_fifo.host_to_target.put(packet)
-        logger.info("configure_bar 2")
         packet = await transport_connection.cfg_fifo.target_to_host.get()
-        logger.info("configure_bar 3")
         assert is_cxl_io_completion_status_sc(packet)
 
     async def test_mmio(transport_connection: PciConnection):
