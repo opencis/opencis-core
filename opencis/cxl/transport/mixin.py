@@ -61,12 +61,11 @@ class BasePacketMixin:
         for name in dir(self):
             if not name.startswith("_"):
                 v = getattr(self, name, None)
-                if isinstance(v, PacketBuffer):
-                    try:
-                        off = int(self.get_byte_offset(v))
-                    except (TypeError, ValueError):
-                        off = 0
-                    hdrs.append((off, name, v))
+                try:
+                    off = int(self.get_byte_offset(v))
+                except (TypeError, ValueError):
+                    off = 0
+                hdrs.append((off, name, v))
 
         # Print headers
         for _, name, hdr in sorted(hdrs, key=lambda x: x[0]):

@@ -123,6 +123,7 @@ class BytesLikeMock(MagicMock):
             return format(int(self), format_spec)
         return super().__format__(format_spec)
 
+
 @pytest.mark.asyncio
 async def test_mmio_manager_read():
     # pylint: disable=protected-access

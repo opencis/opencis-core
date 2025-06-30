@@ -79,12 +79,14 @@ def emit_struct(name, layout):
             elif bit == 0:
                 code += (
                     f"    cdef inline void _set_{field_name}(self, uint8_t v) noexcept nogil:\n"
-                    f"        self._p[{byte}] = (self._p[{byte}] & 0x{clear:02X}) | (v & 0x{mask:02X})\n\n"
+                    f"        self._p[{byte}] = (self._p[{byte}] & 0x{clear:02X}) | "
+                    f"(v & 0x{mask:02X})\n\n"
                 )
             else:
                 code += (
                     f"    cdef inline void _set_{field_name}(self, uint8_t v) noexcept nogil:\n"
-                    f"        self._p[{byte}] = (self._p[{byte}] & 0x{clear:02X}) | ((v & 0x{mask:02X}) << {bit})\n\n"
+                    f"        self._p[{byte}] = (self._p[{byte}] & 0x{clear:02X}) | "
+                    f"((v & 0x{mask:02X}) << {bit})\n\n"
                 )
         else:
             # wide fields
@@ -205,7 +207,7 @@ def emit_composite(packet_name, descriptor, field_sizes):
 
     if create_fields:
         # _build()
-        lines.append(f"    cdef inline void _build(")
+        lines.append("    cdef inline void _build(")
         lines.append("        self,")
         for struct, varname, fld_name in create_fields:
             fields = field_sizes[struct]
@@ -218,7 +220,7 @@ def emit_composite(packet_name, descriptor, field_sizes):
         lines.append("        const unsigned char* data_src,")
         lines.append("        Py_ssize_t data_length")
         lines.append("    ) noexcept nogil:")
-        lines.append(f"        cdef unsigned char* dst\n")
+        lines.append("        cdef unsigned char* dst\n")
         lines.append("        memset(&self._buf[0], 0, MAX_PACKET_SIZE)")
         for _, varname, fld in create_fields:
             lines.append(f"        self._{varname}._set_{fld}({varname}__{fld})")
@@ -238,13 +240,13 @@ def emit_composite(packet_name, descriptor, field_sizes):
     if create_fields:
         # create()
         lines.append("    @classmethod")
-        lines.append(f"    def create(")
+        lines.append("    def create(")
         lines.append("        cls,")
         for _, varname, fld in create_fields:
             lines.append(f"        {varname}__{fld},")
         lines.append("        data: bytes | None = None,")
         lines.append("    ):")
-        lines.append(f"        cdef PyObject *tmp")
+        lines.append("        cdef PyObject *tmp")
         lines.append(f"        cdef {class_name} pkt")
         lines.append("        cdef Py_ssize_t data_length")
         lines.append("        cdef const unsigned char* ptr")
@@ -262,7 +264,9 @@ def emit_composite(packet_name, descriptor, field_sizes):
         lines.append("        else:")
         lines.append("            pkt = <" + class_name + "> tmp\n")
         lines.append("        pkt._relocate()")
-        build_args = ",\n".join(f"            {varname}__{fld}" for _, varname, fld in create_fields)
+        build_args = ",\n".join(
+            f"            {varname}__{fld}" for _, varname, fld in create_fields
+        )
         if build_args:
             build_args += ", "
         build_args += "\n            ptr,\n            data_length,"
@@ -270,7 +274,7 @@ def emit_composite(packet_name, descriptor, field_sizes):
         lines.append("        return pkt\n")
 
         # assign()
-        lines.append(f"    def assign(")
+        lines.append("    def assign(")
         lines.append("        self,")
         for _, varname, fld in create_fields:
             lines.append(f"        {varname}__{fld},")
@@ -287,7 +291,9 @@ def emit_composite(packet_name, descriptor, field_sizes):
         lines.append("            ptr = NULL")
         lines.append("")
         lines.append("        self._relocate()")
-        build_args = ",\n".join(f"            {varname}__{fld}" for _, varname, fld in create_fields)
+        build_args = ",\n".join(
+            f"            {varname}__{fld}" for _, varname, fld in create_fields
+        )
         if build_args:
             build_args += ", "
         build_args += "\n            ptr,\n           data_length,"
@@ -295,19 +301,20 @@ def emit_composite(packet_name, descriptor, field_sizes):
         lines.append("")
 
     # set_data()
-    lines.append(f"    cpdef set_data(self, data):")
+    lines.append("    cpdef set_data(self, data):")
     lines.append("        src = <const unsigned char*> data")
     lines.append(f"        dst = &self._buf[{total_header_bytes}]")
     lines.append("        n = len(data)")
     lines.append(f"        if {total_header_bytes} + n > MAX_PACKET_SIZE:")
     lines.append('            raise ValueError("packet too large")')
     lines.append("        memcpy(dst, src, n)")
-    lines.append(f"        self._data_length = n\n")
+    lines.append("        self._data_length = n\n")
 
     # get_data()
     lines.append(f"    cpdef get_data(self):")
     lines.append(
-        f"        return PyBytes_FromStringAndSize(<char*>&self._buf[{total_header_bytes}], self._data_length)\n"
+        f"        return PyBytes_FromStringAndSize(<char*>&self._buf[{total_header_bytes}], "
+        "self._data_length)\n"
     )
     lines.append("    cpdef int get_payload_offset(self):")
     lines.append(f"       return {total_header_bytes}\n")
@@ -331,17 +338,16 @@ def emit_composite(packet_name, descriptor, field_sizes):
     lines.append("        for i in range(view.shape[0]):")
     lines.append("            self._buf[offset + i] = view[i]\n")
 
-    lines.append("    cpdef void write_bits(self, int start_bit, int width, unsigned long long value):")
-    #lines.append("        print('WRITE_write_bits: ', start_bit, width, value)\n")
+    lines.append(
+        "    cpdef void write_bits(self, int start_bit, int width, unsigned long long value):"
+    )
     lines.append("        _write_bits(&self._buf[0], start_bit, width, value)\n")
-    #lines.append("        print('WRITE_read_bits: ', _read_bits(&self._buf[0], start_bit, width))\n")
 
     lines.append("    cpdef unsigned long long read_bits(self, int start_bit, int width):")
     lines.append("        return _read_bits(&self._buf[0], start_bit, width)\n")
 
     lines.append("    cpdef get_bytes(self, int start, int length):")
-    lines.append(f"        return PyBytes_FromStringAndSize(<char*>&self._buf[start], length)\n")
-
+    lines.append("        return PyBytes_FromStringAndSize(<char*>&self._buf[start], length)\n")
 
     lines.append("    #────────────────── Header accessors ──────────────────")
     for struct, varname in field_entries:
@@ -359,13 +365,15 @@ def emit_composite(packet_name, descriptor, field_sizes):
     lines.append(f"        return {total_header_bytes} + self._data_length\n")
     lines.append("    def __bytes__(self):")
     lines.append(
-        f"        return PyBytes_FromStringAndSize(<char *> self._buf, {total_header_bytes} + self._data_length)\n"
+        f"        return PyBytes_FromStringAndSize(<char *> self._buf, "
+        f"{total_header_bytes} + self._data_length)\n"
     )
 
     return "\n".join(lines)
 
 
-TOP_CONTENT = """# cython: language_level=3, boundscheck=False, wraparound=False, no_gc=True, infer_types=True
+TOP_CONTENT = """
+# cython: language_level=3, boundscheck=False, wraparound=False, no_gc=True, infer_types=True
 
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, uint64_t
 from libc.string  cimport memcpy, memset
