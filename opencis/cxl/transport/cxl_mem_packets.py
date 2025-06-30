@@ -171,6 +171,31 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
         )
         return packet
 
+    def assign(
+        self,
+        addr: int,
+        data: int,
+        opcode: CXL_MEM_M2SRWD_OPCODE = CXL_MEM_M2SRWD_OPCODE.MEM_WR,
+        meta_field: CXL_MEM_META_FIELD = CXL_MEM_META_FIELD.NO_OP,
+        meta_value: CXL_MEM_META_VALUE = CXL_MEM_META_VALUE.ANY,
+        snp_type: CXL_MEM_M2S_SNP_TYPE = CXL_MEM_M2S_SNP_TYPE.NO_OP,
+        ld_id: int = 0,
+    ) -> "CxlMemMemWrPacket":
+        data = data.to_bytes(64, byteorder="little")
+        packet = super().assign(
+            SYSTEM_PAYLOAD_TYPE.CXL_MEM,  # system_header__payload_type,
+            CXL_MEM_MSG_CLASS.M2S_RWD,  # cxl_mem_header__msg_class,
+            1,  # m2srwd_header__valid,
+            opcode,  # m2srwd_header__mem_opcode,
+            meta_field,  # m2srwd_header__meta_field,
+            meta_value,  # m2srwd_header__meta_value,
+            snp_type,  # m2srwd_header__snp_type,
+            ld_id,  # m2srwd_header__ld_id,
+            addr >> 6,  # m2srwd_header__addr,
+            data,
+        )
+        return packet
+
 
 class CxlMemBIRspPacket(
     BasePacketMixin,

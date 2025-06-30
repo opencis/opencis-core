@@ -296,7 +296,7 @@ def emit_composite(packet_name, descriptor, field_sizes):
         )
         if build_args:
             build_args += ", "
-        build_args += "\n            ptr,\n           data_length,"
+        build_args += "\n            ptr,\n            data_length,"
         lines.append(f"        self._build(\n{build_args}\n        )")
         lines.append("")
 
