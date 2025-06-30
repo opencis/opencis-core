@@ -33,9 +33,9 @@ def emit_struct(name, layout):
         "    __slots__ = ('_p')\n"
         "    cdef uint8_t* _p\n\n"
         "    def __cinit__(self):\n"
-        "        self._p = <uint8_t*>0         # NULL until first attach()\n\n"
+        "        self._p = <uint8_t*>NULL  # NULL until first attach()\n\n"
         "    cdef void attach(self, uint8_t* p) noexcept nogil:\n"
-        "        self._p = p                   # 0-cost pointer swap\n\n"
+        "        self._p = p\n\n"
     )
 
     for field_name, start, width in layout:
@@ -129,7 +129,6 @@ def emit_struct(name, layout):
         "    def __bytes__(self):\n"
         f"        return PyBytes_FromStringAndSize(<char*>self._p, {size})\n"
     )
-
     return code
 
 
@@ -170,7 +169,7 @@ def emit_composite(packet_name, descriptor, field_sizes):
     lines.append("    cdef unsigned char _buf[MAX_PACKET_SIZE]")
     lines.append("    cdef int _data_length\n")
 
-    # lifecycle / pool hooks
+    # lifecycle / pool management
     lines.append("    #────────────────── Life-cycle management ──────────────────")
     lines.append("    cdef void _release(self):")
     lines.append(f"        pool_push(&{pool_name}, <PyObject*> self)\n")
@@ -182,7 +181,7 @@ def emit_composite(packet_name, descriptor, field_sizes):
     lines.append("")
 
     # __cinit__ (first-time init + optional payload copy)
-    lines.append("    #────────────────── Builder ──────────────────")
+    lines.append("    #─────────────────────── Builder ───────────────────────")
     lines.append("    def __cinit__(self, payload=None):")
     lines.append("        if not hasattr(self, '_data_length'):")
     lines.append("            # first time only: allocate sub-headers")
@@ -236,7 +235,6 @@ def emit_composite(packet_name, descriptor, field_sizes):
         lines.append("")
 
     lines.append("    #────────────────── Python Interface ──────────────────")
-
     if create_fields:
         # create()
         lines.append("    @classmethod")
@@ -349,7 +347,7 @@ def emit_composite(packet_name, descriptor, field_sizes):
     lines.append("    cpdef get_bytes(self, int start, int length):")
     lines.append("        return PyBytes_FromStringAndSize(<char*>&self._buf[start], length)\n")
 
-    lines.append("    #────────────────── Header accessors ──────────────────")
+    lines.append("    #──────────────────── Header accessors ────────────────────")
     for struct, varname in field_entries:
         lines.append("    @property")
         lines.append(f"    def {varname}(self):")

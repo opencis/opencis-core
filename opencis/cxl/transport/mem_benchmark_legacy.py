@@ -1,7 +1,10 @@
-#!/usr/bin/env python3
 """
-Measure build speed of CxlMemMemWrPacket.create() with buffer pooling.
+Copyright (c) 2024-2025, Eeum, Inc.
+
+This software is licensed under the terms of the Revised BSD License.
+See LICENSE for details.
 """
+
 # pylint: disable=import-error, no-name-in-module
 import os
 import sys
