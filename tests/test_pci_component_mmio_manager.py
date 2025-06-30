@@ -117,6 +117,11 @@ class BytesLikeMock(MagicMock):
     def to_bytes(self, *args, **kwargs):
         return int(self).to_bytes(*args, **kwargs)
 
+    def __format__(self, format_spec):
+        # support only hex; everything else delegates to default
+        if format_spec == "x":
+            return format(int(self), format_spec)
+        return super().__format__(format_spec)
 
 @pytest.mark.asyncio
 async def test_mmio_manager_read():

@@ -58,6 +58,10 @@ class CxlIoMemRdPacket(
     def create(
         cls, addr: int, length: int, req_id: int = 0, tag: int = None, ld_id: int = 0
     ) -> "CxlIoMemRdPacket":
+        addr_upper_bytes = (addr >> 8).to_bytes(7, byteorder="big")
+        addr_upper = int.from_bytes(addr_upper_bytes, byteorder="little")
+        addr_lower = (addr & 0xFF) >> 2
+
         address_offset = addr % 4
         length_dword = (address_offset + length + 3) // 4
         bytes_enabled = (1 << length) - 1
@@ -76,8 +80,8 @@ class CxlIoMemRdPacket(
             cls.acquire_tag(tag),  # mreq_header__tag,
             first_dw_be,  # mreq_header__first_dw_be,
             last_dw_be,  # mreq_header__last_dw_be,
-            (addr >> 8),  # mreq_header__addr_upper,
-            (addr & 0xFF) >> 2,  # mreq_header__addr_lower,
+            addr_upper,  # mreq_header__addr_upper,
+            addr_lower,  # mreq_header__addr_lower,
             None,  # data
         )
         return packet
@@ -113,6 +117,10 @@ class CxlIoMemWrPacket(
         tag: int = None,
         ld_id: int = 0,
     ) -> "CxlIoMemWrPacket":
+        addr_upper_bytes = (addr >> 8).to_bytes(7, byteorder="big")
+        addr_upper = int.from_bytes(addr_upper_bytes, byteorder="little")
+        addr_lower = (addr & 0xFF) >> 2
+
         address_offset = addr % 4
         length_dword = (address_offset + length + 3) // 4
         bytes_enabled = (1 << length) - 1
@@ -132,8 +140,8 @@ class CxlIoMemWrPacket(
             cls.acquire_tag(tag),  # mreq_header__tag,
             first_dw_be,  # mreq_header__first_dw_be,
             last_dw_be,  # mreq_header__last_dw_be,
-            (addr >> 8),  # mreq_header__addr_upper,
-            (addr & 0xFF) >> 2,  # mreq_header__addr_lower,
+            addr_upper,  # mreq_header__addr_upper,
+            addr_lower,  # mreq_header__addr_lower,
             data,  # data
         )
         return packet
@@ -278,8 +286,9 @@ class CxlIoCompletionPacket(
             length_lower = extract_lower(length // 4, 8, 10)
             byte_count_upper = extract_upper(length, 4, 12)
             byte_count_lower = extract_lower(length, 8, 12)
-            data_length = (data.bit_length() + 7) // 8 or 1
-            data = data.to_bytes(data_length, byteorder="little")
+            if length == 0:
+                length = (data.bit_length() + 7) // 8 or 1
+            data = data.to_bytes(length, byteorder="little")
         else:
             fmt_type = CXL_IO_FMT_TYPE.CPL
             length_upper = 0

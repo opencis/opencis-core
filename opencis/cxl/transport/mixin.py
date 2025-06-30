@@ -188,7 +188,11 @@ class CxlIoBasePacketMixin:
 
 class CxlIoMemReqPacketMixin:
     def get_address(self) -> int:
-        return (self.mreq_header.addr_upper << 8) | (self.mreq_header.addr_lower << 2)
+        addr = 0
+        addr_upper_bytes = self.mreq_header.addr_upper.to_bytes(7, byteorder="little")
+        addr |= int.from_bytes(addr_upper_bytes, byteorder="big") << 8
+        addr |= self.mreq_header.addr_lower << 2
+        return addr
 
     def get_data_size(self) -> int:
         return ((self.cxl_io_header.length_upper << 8) | self.cxl_io_header.length_lower) * 4
