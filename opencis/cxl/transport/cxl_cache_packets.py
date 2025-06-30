@@ -31,25 +31,25 @@ from opencis.cxl.transport.mixin import (
 
 
 class CxlCacheBasePacket(
+    _GenCxlCacheBasePacket,
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    _GenCxlCacheBasePacket,
 ):
     pass
 
 
 class CxlCacheD2HReqPacket(
+    _GenCxlCacheD2HReqPacket,
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    _GenCxlCacheD2HReqPacket,
 ):
     pass
 
 
 class CxlCacheCacheD2HReqPacket(
+    _GenCxlCacheD2HReqPacket,
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    _GenCxlCacheD2HReqPacket,
 ):
     @classmethod
     def create(
@@ -59,17 +59,15 @@ class CxlCacheCacheD2HReqPacket(
         opcode: CXL_CACHE_D2HREQ_OPCODE,
         cqid: int = 0,
     ) -> "CxlCacheCacheD2HReqPacket":
-        packet = cls()
-        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
-        packet.system_header.payload_length = len(packet)
-        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_REQ
-        packet.d2hreq_header.valid = 1
-        packet.d2hreq_header.cache_opcode = opcode
-        packet.d2hreq_header.cqid = cqid
-        packet.d2hreq_header.cache_id = cache_id
-        if addr & 0x3F:
-            raise Exception("Address must be a multiple of 0x40")
-        packet.d2hreq_header.addr = addr >> 6
+        packet = super().create(
+            SYSTEM_PAYLOAD_TYPE.CXL_CACHE,  # system_header__payload_type,
+            CXL_CACHE_MSG_CLASS.D2H_REQ,  # cxl_cache_header__msg_class,
+            1,  # d2hreq_header__valid,
+            opcode,  # d2hreq_header__cache_opcode,
+            cqid,  # d2hreq_header__cqid,
+            cache_id,  # d2hreq_header__cache_id,
+            addr >> 6,  # d2hreq_header__addr,
+        )
         return packet
 
     def get_address(self) -> int:
@@ -80,17 +78,17 @@ class CxlCacheCacheD2HReqPacket(
 
 
 class CxlCacheD2HRspPacket(
+    _GenCxlCacheD2HRspPacket,
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    _GenCxlCacheD2HRspPacket,
 ):
     pass
 
 
 class CxlCacheCacheD2HRspPacket(
+    _GenCxlCacheD2HRspPacket,
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    _GenCxlCacheD2HRspPacket,
 ):
     @classmethod
     def create(
@@ -98,29 +96,29 @@ class CxlCacheCacheD2HRspPacket(
         uqid: int,
         opcode: CXL_CACHE_D2HRSP_OPCODE,
     ) -> "CxlCacheCacheD2HRspPacket":
-        packet = cls()
-        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
-        packet.system_header.payload_length = len(packet)
-        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_RSP
-        packet.d2hrsp_header.valid = 1
-        packet.d2hrsp_header.uqid = uqid
-        packet.d2hrsp_header.cache_opcode = opcode
+        packet = super().create(
+            SYSTEM_PAYLOAD_TYPE.CXL_CACHE,  # system_header__payload_type,
+            CXL_CACHE_MSG_CLASS.D2H_RSP,  # cxl_cache_header__msg_class,
+            1,  # d2hrsp_header__valid,
+            uqid,  # d2hrsp_header__uqid,
+            opcode,  # d2hrsp_header__cache_opcode,
+        )
         return packet
 
 
 class CxlCacheD2HDataPacket(
+    _GenCxlCacheD2HDataPacket,
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    _GenCxlCacheD2HDataPacket,
     PacketDataMixin,
 ):
     pass
 
 
 class CxlCacheCacheD2HDataPacket(
+    _GenCxlCacheD2HDataPacket,
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    _GenCxlCacheD2HDataPacket,
     PacketDataMixin,
 ):
     @classmethod
@@ -129,35 +127,30 @@ class CxlCacheCacheD2HDataPacket(
         uqid: int,
         data: int,
     ) -> "CxlCacheCacheD2HDataPacket":
-        # pylint: disable=duplicate-code
-        packet = cls()
-        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
-        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.D2H_DATA
-        packet.d2hdata_header.valid = 1
-        packet.d2hdata_header.uqid = uqid
-        packet.d2hdata_header.poison = 0
-
-        if isinstance(data, int):
-            packet.set_data_as_int(data)
-        else:
-            packet.set_data(data)
-
-        packet.system_header.payload_length = len(packet)
+        data = data.to_bytes(64, byteorder="little")
+        packet = super().create(
+            SYSTEM_PAYLOAD_TYPE.CXL_CACHE,  # system_header__payload_type,
+            CXL_CACHE_MSG_CLASS.D2H_DATA,  # cxl_cache_header__msg_class,
+            1,  # d2hdata_header__valid,
+            uqid,  # d2hdata_header__uqid,
+            0,  # d2hdata_header__poison,
+            data,  # data
+        )
         return packet
 
 
 class CxlCacheH2DReqPacket(
+    _GenCxlCacheH2DReqPacket,
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    _GenCxlCacheH2DReqPacket,
 ):
     pass
 
 
 class CxlCacheCacheH2DReqPacket(
+    _GenCxlCacheH2DReqPacket,
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    _GenCxlCacheH2DReqPacket,
 ):
     @classmethod
     def create(
@@ -166,16 +159,14 @@ class CxlCacheCacheH2DReqPacket(
         cache_id: int,
         opcode: CXL_CACHE_H2DREQ_OPCODE,
     ) -> "CxlCacheCacheH2DReqPacket":
-        packet = cls()
-        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
-        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_REQ
-        packet.h2dreq_header.valid = 1
-        packet.h2dreq_header.cache_opcode = opcode
-        packet.h2dreq_header.cache_id = cache_id
-        if addr & 0x3F:
-            raise Exception("Address must be a multiple of 0x40")
-        packet.h2dreq_header.addr = addr >> 6
-        packet.system_header.payload_length = len(packet)
+        packet = super().create(
+            SYSTEM_PAYLOAD_TYPE.CXL_CACHE,  # system_header__payload_type,
+            CXL_CACHE_MSG_CLASS.H2D_REQ,  # cxl_cache_header__msg_class,
+            1,  # h2dreq_header__valid,
+            opcode,  # h2dreq_header__cache_opcode,
+            cache_id,  # h2dreq_header__cache_id,
+            addr >> 6,  # h2dreq_header__addr,
+        )
         return packet
 
     def get_address(self) -> int:
@@ -186,17 +177,17 @@ class CxlCacheCacheH2DReqPacket(
 
 
 class CxlCacheH2DRspPacket(
+    _GenCxlCacheH2DRspPacket,
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    _GenCxlCacheH2DRspPacket,
 ):
     pass
 
 
 class CxlCacheCacheH2DRspPacket(
+    _GenCxlCacheH2DRspPacket,
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    _GenCxlCacheH2DRspPacket,
 ):
     @classmethod
     def create(
@@ -206,15 +197,15 @@ class CxlCacheCacheH2DRspPacket(
         rsp_data: CXL_CACHE_H2DRSP_CACHE_STATE,
         cqid: int = 0,
     ) -> "CxlCacheCacheH2DRspPacket":
-        packet = cls()
-        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
-        packet.system_header.payload_length = len(packet)
-        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_RSP
-        packet.h2drsp_header.valid = 1
-        packet.h2drsp_header.cache_opcode = opcode
-        packet.h2drsp_header.cache_id = cache_id
-        packet.h2drsp_header.rsp_data = rsp_data
-        packet.h2drsp_header.cqid = cqid
+        packet = super().create(
+            SYSTEM_PAYLOAD_TYPE.CXL_CACHE,  # system_header__payload_type,
+            CXL_CACHE_MSG_CLASS.H2D_RSP,  # cxl_cache_header__msg_class,
+            1,  # h2drsp_header__valid,
+            opcode,  # h2drsp_header__cache_opcode,
+            cache_id,  # h2drsp_header__cache_id,
+            rsp_data,  # h2drsp_header__rsp_data,
+            cqid,  # h2drsp_header__cqid,
+        )
         return packet
 
     def get_opcode(self) -> CXL_CACHE_H2DRSP_OPCODE:
@@ -222,18 +213,18 @@ class CxlCacheCacheH2DRspPacket(
 
 
 class CxlCacheH2DDataPacket(
+    _GenCxlCacheH2DDataPacket,
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    _GenCxlCacheH2DDataPacket,
     PacketDataMixin,
 ):
     pass
 
 
 class CxlCacheCacheH2DDataPacket(
+    _GenCxlCacheH2DDataPacket,
     BasePacketMixin,
     CxlCacheBasePacketMixin,
-    _GenCxlCacheH2DDataPacket,
     PacketDataMixin,
 ):
     @classmethod
@@ -243,20 +234,15 @@ class CxlCacheCacheH2DDataPacket(
         data: int,
         cqid: int = 0,
     ) -> "CxlCacheCacheH2DDataPacket":
-        # pylint: disable=duplicate-code
-        packet = cls()
-        packet.system_header.payload_type = SYSTEM_PAYLOAD_TYPE.CXL_CACHE
-        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_DATA
-        packet.h2ddata_header.valid = 1
-        packet.h2ddata_header.cache_id = cache_id
-        packet.h2ddata_header.cqid = cqid
-
-        if isinstance(data, int):
-            packet.set_data_as_int(data)
-        else:
-            packet.set_data(data)
-
-        packet.system_header.payload_length = len(packet)
+        data = data.to_bytes(64, byteorder="little")
+        packet = super().create(
+            SYSTEM_PAYLOAD_TYPE.CXL_CACHE,  # system_header__payload_type,
+            CXL_CACHE_MSG_CLASS.H2D_DATA,  # cxl_cache_header__msg_class,
+            1,  # h2ddata_header__valid,
+            cache_id,  # h2ddata_header__cache_id,
+            cqid,  # h2ddata_header__cqid,
+            data,  # data
+        )
         return packet
 
     def get_cqid(self) -> int:

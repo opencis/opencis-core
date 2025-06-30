@@ -40,17 +40,17 @@ _bisnp_tags = TagCounter(4096)
 
 
 class CxlMemBasePacket(
+    _GenCxlMemBasePacket,
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    _GenCxlMemBasePacket,
 ):
     pass
 
 
 class CxlMemM2SReqPacket(
+    _GenCxlMemM2SReqPacket,
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    _GenCxlMemM2SReqPacket,
 ):
     def is_mem_rd(self) -> bool:
         return self.m2sreq_header.mem_opcode == CXL_MEM_M2SREQ_OPCODE.MEM_RD
@@ -63,9 +63,9 @@ class CxlMemM2SReqPacket(
 
 
 class CxlMemM2SRwDPacket(
+    _GenCxlMemM2SRwDPacket,
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    _GenCxlMemM2SRwDPacket,
     PacketDataMixin,
 ):
     def is_mem_wr(self) -> bool:
@@ -76,34 +76,34 @@ class CxlMemM2SRwDPacket(
 
 
 class CxlMemM2SBIRspPacket(
+    _GenCxlMemM2SBIRspPacket,
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    _GenCxlMemM2SBIRspPacket,
 ):
     pass
 
 
 class CxlMemS2MBISnpPacket(
+    _GenCxlMemS2MBISnpPacket,
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    _GenCxlMemS2MBISnpPacket,
 ):
     def get_address(self) -> int:
         return self.s2mbisnp_header.addr << 6
 
 
 class CxlMemS2MNDRPacket(
+    _GenCxlMemS2MNDRPacket,
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    _GenCxlMemS2MNDRPacket,
 ):
     pass
 
 
 class CxlMemS2MDRSPacket(
+    _GenCxlMemS2MDRSPacket,
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    _GenCxlMemS2MDRSPacket,
     PacketDataMixin,
 ):
     pass
@@ -198,9 +198,9 @@ class CxlMemMemWrPacket(CxlMemM2SRwDPacket):
 
 
 class CxlMemBIRspPacket(
+    _GenCxlMemM2SBIRspPacket,
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    _GenCxlMemM2SBIRspPacket,
 ):
     @classmethod
     def create(
@@ -222,9 +222,9 @@ class CxlMemBIRspPacket(
 
 
 class CxlMemBISnpPacket(
+    _GenCxlMemS2MBISnpPacket,
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    _GenCxlMemS2MBISnpPacket,
 ):
     @classmethod
     def acquire_tag(cls, tag) -> int:
@@ -280,9 +280,9 @@ class CxlMemMemDataPacket(
 
 
 class CxlMemCmpPacket(
+    _GenCxlMemS2MNDRPacket,
     BasePacketMixin,
     CxlMemBasePacketMixin,
-    _GenCxlMemS2MNDRPacket,
 ):
     @classmethod
     def create(
