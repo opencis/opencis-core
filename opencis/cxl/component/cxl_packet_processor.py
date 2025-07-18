@@ -76,13 +76,12 @@ class CxlPacketProcessor(RunnableComponent):
         super().__init__(label)
         self._reader = PacketReader(reader, label=label)
         self._writer = writer
-        self._tlp_table: Dict[int, CXL_IO_FIFO_TYPE] = {}
+        self._tlp_table: Dict[int, CXL_IO_FIFO_TYPE] = {} 
         self._cxl_connection = cxl_connection
         self._component_type = component_type
         self._fmld = None
         self._cci_connection_for_fmld = None
 
-        #change ---------------------
         label_d = {                    
             'ClientPort0' : 'Host0',    
             'ClientPort1' : '  MLD', 
@@ -93,7 +92,6 @@ class CxlPacketProcessor(RunnableComponent):
             }                         
         self.__h_label = label_d[label] if label in label_d else label 
         print('%s -> %s' % (label, self.__h_label))
-        #til here -------------
 
         logger.debug(self._create_message(f"Configured for {component_type.name}"))
         if component_type in (CXL_COMPONENT_TYPE.R, CXL_COMPONENT_TYPE.DSP):
@@ -199,6 +197,9 @@ class CxlPacketProcessor(RunnableComponent):
 
     def _push_tlp_table_entry(self, cxl_io_packet: CxlIoBasePacket):
         tid = cxl_io_packet.get_transaction_id()
+        ld_id = cxl_io_packet.tlp_prefix.ld_id
+        tid = (tid << 8) | ld_id
+
         if tid in self._tlp_table:
             raise Exception(f"tid ({tid:02x}) already exists in the TLP table")
         if cxl_io_packet.is_cfg():
@@ -209,19 +210,24 @@ class CxlPacketProcessor(RunnableComponent):
             fmt_type_str = CXL_IO_FMT_TYPE(cxl_io_packet.cxl_io_header.fmt_type)
             raise Exception(f"pushing tid of {fmt_type_str} type is not allowed")
         self._tlp_table[tid] = fifo_type
+      
+
         
     def _pop_tlp_table_entry(self, cxl_io_packet: CxlIoBasePacket) -> CXL_IO_FIFO_TYPE:
         tid = cxl_io_packet.get_transaction_id()
+        if self.__h_label.find("USP") > -1:
+            cxl_io_packet.tlp_prefix.ld_id = 0
+        ld_id = cxl_io_packet.tlp_prefix.ld_id
+        tid = (tid<<8) | ld_id
         if tid not in self._tlp_table:
             raise Exception(f"tid ({tid:02x}) is not found in the TLP table")
-        fifo_type = self._tlp_table[tid]
+        fifo_type= self._tlp_table[tid] 
         del self._tlp_table[tid]
         return fifo_type
 
     async def _process_incoming_packets(self):
         logger.debug(self._create_message(f"Starting {self._incoming_dir} packet processor"))
 
-        #-----------------
         pcie_type = {
             '04' : 'CfgRd0', 
             '05' : 'CfgRd1', 
@@ -229,7 +235,7 @@ class CxlPacketProcessor(RunnableComponent):
             '45' : 'CfgWr1', 
             '0a' : '   Cpl', 
             '4a' : '  CplD', 
-            }
+        }
 
         cmp_type_str = {
             CXL_COMPONENT_TYPE.P    : 'P',
@@ -246,42 +252,34 @@ class CxlPacketProcessor(RunnableComponent):
             CXL_COMPONENT_TYPE.T1   : 'T1',
             CXL_COMPONENT_TYPE.T2   : 'T2'
         }
-        #-------------------
 
         while True:  # pylint: disable=too-many-nested-blocks
             try:
                 packet = await self._reader.get_packet()
-                #----------------------
+        
                 lp = ('%s' % packet).split(' ')
-                print('[%s] ingress_packet: %s %s:0.0->%s:0.0 -- %s' % (self.__h_label, 
-                                                pcie_type[lp[6]], lp[10], lp[14], packet))
-                #-----------
+                if lp[6] in pcie_type:
+                    print('[%s] ingress_packet: %s %s:0.0->%s:0.0 -- %s' % (self.__h_label, 
+                                                pcie_type[lp[6], lp[10], lp[14]], packet))
 
                 if packet.is_cxl_io():
                     cxl_io_packet = cast(CxlIoBasePacket, packet)
-                    #bdf_str = "[%x:%x.%x]" % (cxl_io_packet.get_bus(), cxl_io_packet.get_device(), cxl_io_packet.get_function())
-                    bdf_str = ""
-                    #print('    %s comp_type: %s' % (bdf_str, cmp_type_str[self._component_type]))   
+                    bdf_str = ""  
                     if cxl_io_packet.is_cpl() or cxl_io_packet.is_cpld():
                         logger.debug(
                             self._create_message(
                                 f"Received {self._incoming_dir} CXL.io (CPL/CPLD) packet"
                             )
                         )
-                        #-------------------------
+
                         if 0:
                             if cxl_io_packet.is_cpl():
                                 print('    %s type: Cpl' % bdf_str)
-                                #cpl_packet = cast(CxlIoCompletionPacket, packet)
                             else:
                                 print('    %s type: CplD' % bdf_str)
-                                #cpl_packet = cast(CxlIoCompletionWithDataPacket, packet)
-                        #print('        ID  : cplid:%x, reqid:%x' % (cpl_packet.cpl_header.cpl_id, cpl_packet.cpl_header.req_id))
-                        #-----------------------------
 
                         fifo_type = self._pop_tlp_table_entry(cxl_io_packet)
                         # Add MLD
-                        #print('    %s LD COMP : %d' % (bdf_str, (1 if self._component_type == CXL_COMPONENT_TYPE.LD else 0)))
                         if self._component_type == CXL_COMPONENT_TYPE.LD:
                             ld_id = cxl_io_packet.tlp_prefix.ld_id
                             if fifo_type == CXL_IO_FIFO_TYPE.CFG:
@@ -407,7 +405,6 @@ class CxlPacketProcessor(RunnableComponent):
     async def _process_outgoing_cfg_packets(self):
         logger.debug(self._create_message("Starting outgoing CFG FIFO processor"))
 
-        #-----------------------
         cmp_type_str = {
             CXL_COMPONENT_TYPE.P    : 'P',
             CXL_COMPONENT_TYPE.D1   : 'D1',
@@ -431,41 +428,33 @@ class CxlPacketProcessor(RunnableComponent):
             '0a' : '   Cpl', 
             '4a' : '  CplD', 
             }
-        #----------------
 
         while True:
             packet = await self._outgoing.cfg_space.get()
-            #--------------
-            #print('[%s] egress packet : %s' % (self._label, packet))
+ 
             lp = ('%s' % packet).split(' ')
+            print(lp)
             print('[%s]  egress_packet: %s %s:0.0->%s:0.0 -- %s' % (self.__h_label, 
-                                            pcie_type[lp[6]], lp[10], lp[14], packet))
-            #----------
+                                            pcie_type[lp[6], lp[10], lp[14]], packet))
 
             if self._is_disconnection_notification(packet):
                 break
 
             cxl_io_packet = cast(CxlIoBasePacket, packet)
-            #bdf_str = "[%x:%x.%x]" % (cxl_io_packet.get_bus(), cxl_io_packet.get_device(), cxl_io_packet.get_function())
             bdf_str = ''
-            #print('    %s comp_type: %s' % (bdf_str, cmp_type_str[self._component_type]))   
             if cxl_io_packet.is_cpl() or cxl_io_packet.is_cpld():
 
-                #----------
                 if 0:
                     if cxl_io_packet.is_cpl():
                         print('    %s type: Cpl' % bdf_str)
-                        #cpl_packet = cast(CxlIoCompletionPacket, packet)
                     else:
                         print('    %s type: CplD' % bdf_str)
-                #--------------
                 
                 logger.debug(
                     self._create_message(f"Received {self._outgoing_dir} CXL.io (CPL/CPLD) packet")
                 )
                 self._pop_tlp_table_entry(cxl_io_packet)
             else:
-                #print('    %s type: CfgReq' % bdf_str)
                 logger.debug(
                     self._create_message(
                         f"Received {self._outgoing_dir} CXL.io (CFG_RD/CFG_WR) packet"
