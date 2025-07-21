@@ -187,7 +187,7 @@ class CxlPacketProcessor(RunnableComponent):
     def _push_tlp_table_entry(self, cxl_io_packet: CxlIoBasePacket):
         tid = cxl_io_packet.get_transaction_id()
         ld_id = cxl_io_packet.tlp_prefix.ld_id
-        t_index = (tid<<8) | ld_id
+        t_index = (tid << 8) | ld_id
 
         if t_index in self._tlp_table:
             raise Exception(f"tid ({t_index:02x}) already exists in the TLP table")
@@ -203,7 +203,7 @@ class CxlPacketProcessor(RunnableComponent):
     def _pop_tlp_table_entry(self, cxl_io_packet: CxlIoBasePacket) -> CXL_IO_FIFO_TYPE:
         tid = cxl_io_packet.get_transaction_id()
         ld_id = cxl_io_packet.tlp_prefix.ld_id
-        t_index = (tid<<8) | ld_id
+        t_index = (tid << 8) | ld_id
 
         if t_index not in self._tlp_table:
             raise Exception(f"tid ({t_index:02x}) is not found in the TLP table")
