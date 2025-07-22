@@ -82,6 +82,16 @@ class CxlPacketProcessor(RunnableComponent):
         self._fmld = None
         self._cci_connection_for_fmld = None
 
+        label_d = {                    
+            'ClientPort0' : 'Host0',    
+            'ClientPort1' : '  MLD', 
+            'ClientPort2' : 'Host2', 
+            'SwitchPort0' : ' USP0', 
+            'SwitchPort2' : ' USP2', 
+            'SwitchPort1' : ' DSP1', 
+            }                         
+        self.__h_label = label_d[label] if label in label_d else label 
+
         logger.debug(self._create_message(f"Configured for {component_type.name}"))
         if component_type in (CXL_COMPONENT_TYPE.R, CXL_COMPONENT_TYPE.DSP):
             self._incoming = FifoGroup(
@@ -202,6 +212,8 @@ class CxlPacketProcessor(RunnableComponent):
 
     def _pop_tlp_table_entry(self, cxl_io_packet: CxlIoBasePacket) -> CXL_IO_FIFO_TYPE:
         tid = cxl_io_packet.get_transaction_id()
+        if self.__h_label.find("USP") > -1:
+            cxl_io_packet.tlp_prefix.ld_id = 0
         ld_id = cxl_io_packet.tlp_prefix.ld_id
         t_index = (tid << 8) | ld_id
 
