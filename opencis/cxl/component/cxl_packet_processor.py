@@ -82,15 +82,15 @@ class CxlPacketProcessor(RunnableComponent):
         self._fmld = None
         self._cci_connection_for_fmld = None
 
-        label_d = {                    
-            'ClientPort0' : 'Host0',    
-            'ClientPort1' : '  MLD', 
-            'ClientPort2' : 'Host2', 
-            'SwitchPort0' : ' USP0', 
-            'SwitchPort2' : ' USP2', 
-            'SwitchPort1' : ' DSP1', 
-            }                         
-        self.__h_label = label_d[label] if label in label_d else label 
+        label_d = {
+            "ClientPort0": "Host0",
+            "ClientPort1": "  MLD",
+            "ClientPort2": "Host2",
+            "SwitchPort0": " USP0",
+            "SwitchPort2": " USP2",
+            "SwitchPort1": " DSP1",
+        }
+        self.__h_label = label_d[label] if label in label_d else label
 
         logger.debug(self._create_message(f"Configured for {component_type.name}"))
         if component_type in (CXL_COMPONENT_TYPE.R, CXL_COMPONENT_TYPE.DSP):
