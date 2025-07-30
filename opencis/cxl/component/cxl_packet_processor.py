@@ -82,16 +82,6 @@ class CxlPacketProcessor(RunnableComponent):
         self._fmld = None
         self._cci_connection_for_fmld = None
 
-        label_d = {
-            "ClientPort0": "Host0",
-            "ClientPort1": "  MLD",
-            "ClientPort2": "Host2",
-            "SwitchPort0": " USP0",
-            "SwitchPort2": " USP2",
-            "SwitchPort1": " DSP1",
-        }
-        self.__h_label = label_d[label] if label in label_d else label
-
         logger.debug(self._create_message(f"Configured for {component_type.name}"))
         if component_type in (CXL_COMPONENT_TYPE.R, CXL_COMPONENT_TYPE.DSP):
             self._incoming = FifoGroup(
@@ -196,29 +186,37 @@ class CxlPacketProcessor(RunnableComponent):
 
     def _push_tlp_table_entry(self, cxl_io_packet: CxlIoBasePacket):
         tid = cxl_io_packet.get_transaction_id()
-        ld_id = cxl_io_packet.tlp_prefix.ld_id
+        # For USP and R (Root Port), always use ld_id = 0 since they don't have multiple logical devices
+        # ld_id is not passed in the TLP header for USP and R -> ld_id always 0 in TLP table
+        if self._component_type in (CXL_COMPONENT_TYPE.USP, CXL_COMPONENT_TYPE.R):
+            ld_id = 0
+        # When component type not USP or R, ld_id is passed correctly in the TLP header
+        else:
+            ld_id = cxl_io_packet.tlp_prefix.ld_id
         t_index = (tid << 8) | ld_id
 
         if t_index in self._tlp_table:
-            raise Exception(f"tid ({t_index:02x}) already exists in the TLP table")
+            raise Exception(f"t_index ({t_index:02x}) already exists in the TLP table")
         if cxl_io_packet.is_cfg():
             fifo_type = CXL_IO_FIFO_TYPE.CFG
         elif cxl_io_packet.is_mmio():
             fifo_type = CXL_IO_FIFO_TYPE.MMIO
         else:
             fmt_type_str = CXL_IO_FMT_TYPE(cxl_io_packet.cxl_io_header.fmt_type)
-            raise Exception(f"pushing tid of {fmt_type_str} type is not allowed")
+            raise Exception(f"pushing t_index of {fmt_type_str} type is not allowed")
         self._tlp_table[t_index] = fifo_type
 
     def _pop_tlp_table_entry(self, cxl_io_packet: CxlIoBasePacket) -> CXL_IO_FIFO_TYPE:
         tid = cxl_io_packet.get_transaction_id()
-        if self.__h_label.find("USP") > -1:
-            cxl_io_packet.tlp_prefix.ld_id = 0
-        ld_id = cxl_io_packet.tlp_prefix.ld_id
+        # Same reasoning as push function, push and pop must have same mechanism for no mismatch in TLP table
+        if self._component_type in (CXL_COMPONENT_TYPE.USP, CXL_COMPONENT_TYPE.R):
+            ld_id = 0
+        else:
+            ld_id = cxl_io_packet.tlp_prefix.ld_id
         t_index = (tid << 8) | ld_id
 
         if t_index not in self._tlp_table:
-            raise Exception(f"tid ({t_index:02x}) is not found in the TLP table")
+            raise Exception(f"t_index ({t_index:02x}) is not found in the TLP table")
         fifo_type = self._tlp_table[t_index]
         del self._tlp_table[t_index]
         return fifo_type
