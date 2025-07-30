@@ -186,9 +186,9 @@ class CxlPacketProcessor(RunnableComponent):
 
     def _push_tlp_table_entry(self, cxl_io_packet: CxlIoBasePacket):
         tid = cxl_io_packet.get_transaction_id()
-        # For USP and R (Root Port), always use ld_id = 0 since they don't have multiple logical
-        # devices ld_id is not passed in the TLP header for USP and R -> ld_id always 0 in TLP
-        # table
+        # Since USP and R (Root Port) are agnostic to the existence (or even the concept of)
+        # MLD, the LD-ID field is considered undefined. To ensure consistent matching of TLP
+        # entries, always set LD-ID to 0.
         if self._component_type in (CXL_COMPONENT_TYPE.USP, CXL_COMPONENT_TYPE.R):
             ld_id = 0
         # When component type not USP or R, ld_id is passed correctly in the TLP header
