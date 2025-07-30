@@ -191,7 +191,6 @@ class CxlPacketProcessor(RunnableComponent):
         # entries, always set LD-ID to 0.
         if self._component_type in (CXL_COMPONENT_TYPE.USP, CXL_COMPONENT_TYPE.R):
             ld_id = 0
-        # When component type not USP or R, ld_id is passed correctly in the TLP header
         else:
             ld_id = cxl_io_packet.tlp_prefix.ld_id
         t_index = (tid << 8) | ld_id
