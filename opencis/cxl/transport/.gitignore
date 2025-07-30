@@ -1,0 +1,6 @@
+/packet_structs*
+/build
+/.generated
+/cython_debug
+*.so
+*.c
