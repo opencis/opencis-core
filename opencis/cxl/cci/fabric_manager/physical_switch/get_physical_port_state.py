@@ -106,7 +106,6 @@ class GetPhysicalPortStateRequestPayload:
         return (
             bytes([number_of_ports])
             + bytes(self.port_id_list)
-            + bytes([0] * (255 - number_of_ports))
         )
 
     def get_pretty_print(self) -> str:

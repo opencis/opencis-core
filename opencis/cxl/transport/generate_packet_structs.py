@@ -425,8 +425,8 @@ cdef void _write_bits(unsigned char* p, int start_bit, int width,
 
 # ───── Pooling structs ────────────────────────────────────────────────
 ctypedef enum:
-    MAX_PACKET_SIZE = 200
-    POOL_SIZE = 4
+    MAX_PACKET_SIZE = 512
+    POOL_SIZE = 128
 
 
 cdef struct PoolStruct:
