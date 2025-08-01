@@ -103,10 +103,7 @@ class GetPhysicalPortStateRequestPayload:
 
     def dump(self) -> bytes:
         number_of_ports = len(self.port_id_list)
-        return (
-            bytes([number_of_ports])
-            + bytes(self.port_id_list)
-        )
+        return bytes([number_of_ports]) + bytes(self.port_id_list)
 
     def get_pretty_print(self) -> str:
         pretty_print_output = (
