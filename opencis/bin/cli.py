@@ -8,8 +8,11 @@ See LICENSE for details.
 import logging
 import multiprocessing
 import os
+import signal
+import sys
 import time
 import traceback
+from typing import List
 
 import click
 import pyshark
@@ -25,6 +28,127 @@ from opencis.bin import (
     packet_runner,
     single_logical_device as sld,
 )
+
+# Global list to track spawned processes
+_spawned_processes: List[multiprocessing.Process] = []
+_shutdown_initiated = False
+
+
+def signal_handler(signum: int, _) -> None:
+    # pylint: disable=global-statement
+    global _shutdown_initiated
+    if _shutdown_initiated:
+        return
+    _shutdown_initiated = True
+
+    signal_name = signal.Signals(signum).name
+    logger.info(f"Received {signal_name}, initiating shutdown...")
+
+    # Only the main process should manage child processes
+    if not _spawned_processes:
+        logger.info("Child process exiting...")
+        sys.exit(0)
+
+    # Send SIGTERM to all child processes and their process groups
+    for proc in _spawned_processes[:]:
+        try:
+            if proc.is_alive():
+                logger.info(f"Terminating process {proc.pid} and its group...")
+                try:
+                    # Send SIGTERM to the entire process group
+                    os.killpg(proc.pid, signal.SIGTERM)
+                except (ProcessLookupError, PermissionError) as e:
+                    logger.warning(f"Could not send signal to process group {proc.pid}: {e}")
+                    try:
+                        # Fallback to individual process
+                        proc.terminate()
+                    except Exception as e2:
+                        logger.error(f"Error terminating process {proc.pid}: {e2}")
+        except AssertionError as e:
+            if "can only test a child process" in str(e):
+                logger.debug(f"Cannot check status of process {proc.pid} - not our child")
+                # Remove from our list since we can't manage it
+                try:
+                    _spawned_processes.remove(proc)
+                except ValueError:
+                    pass
+            else:
+                logger.error(f"Error checking process {proc.pid}: {e}")
+        except Exception as e:
+            logger.error(f"Error handling process {proc.pid}: {e}")
+
+    logger.info("Waiting for processes to terminate...")
+    timeout = 10
+    start_time = time.time()
+
+    while _spawned_processes and (time.time() - start_time) < timeout:
+        for proc in _spawned_processes[:]:
+            try:
+                proc.join(timeout=0.1)
+                if not proc.is_alive():
+                    _spawned_processes.remove(proc)
+                    logger.info(f"Process {proc.pid} terminated")
+            except AssertionError as e:
+                if "can only test a child process" in str(e):
+                    logger.debug(f"Cannot join process {proc.pid} - not our child")
+                    _spawned_processes.remove(proc)
+                else:
+                    logger.error(f"Error joining process {proc.pid}: {e}")
+            except Exception as e:
+                logger.error(f"Error waiting for process {proc.pid}: {e}")
+
+        if _spawned_processes:
+            time.sleep(0.1)
+
+    # Force kill any remaining processes
+    if _spawned_processes:
+        logger.warning("Force killing remaining processes...")
+        for proc in _spawned_processes[:]:
+            try:
+                if proc.is_alive():
+                    try:
+                        # Try to kill the entire process group first
+                        os.killpg(proc.pid, signal.SIGKILL)
+                        proc.join(timeout=1)
+                        logger.info(f"Force killed process group {proc.pid}")
+                    except (ProcessLookupError, PermissionError):
+                        try:
+                            # Fallback to individual process
+                            proc.kill()
+                            proc.join(timeout=1)
+                            logger.info(f"Force killed process {proc.pid}")
+                        except Exception as e:
+                            logger.error(f"Error force killing process {proc.pid}: {e}")
+            except AssertionError as e:
+                if "can only test a child process" in str(e):
+                    logger.debug(f"Cannot force kill process {proc.pid} - not our child")
+                    _spawned_processes.remove(proc)
+                else:
+                    logger.error(f"Error force killing process {proc.pid}: {e}")
+            except Exception as e:
+                logger.error(f"Error in force kill for process {proc.pid}: {e}")
+
+    logger.info("Shutdown complete")
+    sys.exit(0)
+
+
+def setup_signal_handlers() -> None:
+    """Set up signal handlers for shutdown."""
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    logger.info("Signal handlers set up for shutdown")
+
+
+def setup_child_signal_handlers() -> None:
+    """Set up signal handlers for child processes."""
+
+    def child_signal_handler(signum: int, _) -> None:
+        signal_name = signal.Signals(signum).name
+        logger.info(f"Child process {os.getpid()} received {signal_name}, exiting...")
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, child_signal_handler)
+    signal.signal(signal.SIGINT, child_signal_handler)
 
 
 @click.group()
@@ -135,17 +259,56 @@ def start(
         spawn_process(lambda: ctx.invoke(start_capture, pcap_file=pcap_file))
         time.sleep(2)
 
+    # Set up signal handlers for shutdown
+    setup_signal_handlers()
+
     # Launch processes
     for name in comp:
         launcher = component_map.get(name)
         if launcher:
             spawn_process(launcher)
 
+    # Keep main process alive and wait for all child processes
+    try:
+        logger.info(f"Started {len(_spawned_processes)} processes. Press Ctrl+C for shutdown.")
+        wait_for_processes()
+    except KeyboardInterrupt:
+        logger.info("Received KeyboardInterrupt, initiating shutdown...")
+        signal_handler(signal.SIGINT, None)
+
 
 # helper functions
+def child_process_wrapper(target):
+    """Wrapper function that sets up child process signal handling and process group."""
+    # Create a new process group for this child process
+    os.setpgrp()
+    setup_child_signal_handlers()
+
+    target()
+
+
 def spawn_process(target):
-    proc = multiprocessing.Process(target=target)
+    """Spawn a new process and track it for proper shutdown."""
+    proc = multiprocessing.Process(target=lambda: child_process_wrapper(target))
     proc.start()
+    _spawned_processes.append(proc)
+    logger.debug(f"Spawned process {proc.pid}")
+
+
+def wait_for_processes():
+    """Wait for all spawned processes to complete."""
+    while _spawned_processes:
+        for proc in _spawned_processes[:]:
+            try:
+                proc.join(timeout=0.5)
+                if not proc.is_alive():
+                    _spawned_processes.remove(proc)
+                    logger.info(f"Process {proc.pid} completed")
+            except Exception as e:
+                logger.error(f"Error monitoring process {proc.pid}: {e}")
+
+        if _spawned_processes:
+            time.sleep(0.1)
 
 
 def start_capture(pcap_file):
@@ -156,6 +319,8 @@ def start_capture(pcap_file):
 
         capture = pyshark.LiveCapture(interface="lo", bpf_filter="tcp", output_file=pcap_file)
         capture.sniff(packet_count=0)
+    except KeyboardInterrupt:
+        logger.info("Packet capture interrupted, shutting down")
     except Exception as e:
         logger.error(f"Failed to start capture: {e}")
         traceback.print_exc()

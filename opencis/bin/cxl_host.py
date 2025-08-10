@@ -47,7 +47,16 @@ async def run_host_group(ports, ig, iw):
             )
         )
         irq_port += 1
-    await asyncio.gather(*tasks)
+    try:
+        await asyncio.gather(*tasks)
+    except Exception as e:
+        logger.error("Error while running CXL Host Group", exc_info=e)
+        # Cancel remaining tasks
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        # Wait for cancelled tasks to finish
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 def start_group(config_file: str, ig: int = 0, iw: int = 0):
@@ -62,4 +71,8 @@ def start_group(config_file: str, ig: int = 0, iw: int = 0):
     for idx, port_config in enumerate(environment.switch_config.port_configs):
         if port_config.type == PORT_TYPE.USP:
             ports.append(idx)
-    asyncio.run(run_host_group(ports, ig, iw))
+
+    try:
+        asyncio.run(run_host_group(ports, ig, iw))
+    except Exception as e:
+        logger.error("Error while running CXL Host Group", exc_info=e)

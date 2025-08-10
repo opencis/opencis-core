@@ -75,24 +75,6 @@ async def test_physical_port_manager_run_and_stop():
 
 
 @pytest.mark.asyncio
-async def test_physical_port_manager_stop_before_run():
-    # pylint: disable=duplicate-code
-    port_configs = [
-        PortConfig(PORT_TYPE.USP),
-        PortConfig(PORT_TYPE.USP),
-        PortConfig(PORT_TYPE.DSP),
-        PortConfig(PORT_TYPE.DSP),
-    ]
-    switch_connection_manager = SwitchConnectionManager(port_configs, port=0)
-    physical_port_manager = PhysicalPortManager(
-        switch_connection_manager=switch_connection_manager, port_configs=port_configs
-    )
-
-    with pytest.raises(Exception, match="Cannot stop when it is not running"):
-        await physical_port_manager.stop()
-
-
-@pytest.mark.asyncio
 async def test_physical_port_manager_run_after_run():
     # pylint: disable=duplicate-code
     port_configs = [

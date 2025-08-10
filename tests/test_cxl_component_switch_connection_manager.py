@@ -99,20 +99,6 @@ async def test_switch_connection_manager_run_and_run():
 
 
 @pytest.mark.asyncio
-async def test_switch_connection_manager_stop_before_run():
-    port_configs = [
-        PortConfig(PORT_TYPE.USP),
-        PortConfig(PORT_TYPE.USP),
-        PortConfig(PORT_TYPE.DSP),
-        PortConfig(PORT_TYPE.DSP),
-    ]
-    manager = SwitchConnectionManager(port_configs, port=0)
-
-    with pytest.raises(Exception, match="Cannot stop when it is not running"):
-        await manager.stop()
-
-
-@pytest.mark.asyncio
 async def test_switch_connection_manager_handle_connection():
     port_configs = [
         PortConfig(PORT_TYPE.USP),

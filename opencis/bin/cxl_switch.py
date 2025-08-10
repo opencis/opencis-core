@@ -30,4 +30,13 @@ def start(config_file):
         return
 
     switch = CxlSwitch(environment.switch_config, environment.logical_device_configs)
-    asyncio.run(switch.run())
+    try:
+        asyncio.run(switch.run())
+    except Exception as e:
+        logger.error("Error while running CXL Switch", exc_info=e)
+    finally:
+        # Ensure proper shutdown
+        try:
+            asyncio.run(switch.stop())
+        except Exception as e:
+            logger.error("Error while stopping CXL Switch", exc_info=e)

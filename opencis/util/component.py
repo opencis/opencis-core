@@ -83,15 +83,66 @@ class RunnableComponent(LabeledComponent):
         return task
 
     async def stop(self):
+        # During signal-based shutdown, components may be interrupted before wait_for_ready()
+        # is called. In this case, we should allow graceful shutdown without requiring
+        # wait_for_ready() to have been called first.
+        await self._condition.acquire()
+
+        # If component was never properly started (due to signal interruption),
+        # just return gracefully
+        if not self._ready_waited and self._status == COMPONENT_STATUS.STOPPED:
+            self._condition.release()
+            logger.debug(self._create_message("Component already stopped, skipping stop()"))
+            return
+
+        # If component is starting but was interrupted, allow stop without wait_for_ready()
+        if not self._ready_waited and self._status == COMPONENT_STATUS.STARTING:
+            logger.debug(
+                self._create_message("Stopping component that was interrupted during startup")
+            )
+            self._status = COMPONENT_STATUS.STOPPED
+            self._condition.notify_all()
+            self._condition.release()
+            return
+
+        # If component is stopping, allow graceful return without wait_for_ready()
+        if not self._ready_waited and self._status == COMPONENT_STATUS.STOPPING:
+            logger.debug(
+                self._create_message(
+                    "Component already stopping, allowing without wait_for_ready()"
+                )
+            )
+            self._condition.release()
+            return
+
+        # During signal interruption, components might reach RUNNING state before wait_for_ready()
+        # In this case, allow stop() but log it as a debug message
+        if not self._ready_waited and self._status == COMPONENT_STATUS.RUNNING:
+            logger.debug(
+                self._create_message(
+                    "Stopping RUNNING component without wait_for_ready() - signal interruption"
+                )
+            )
+            # Proceed with normal stop process
+            self._status = COMPONENT_STATUS.STOPPING
+            self._condition.release()
+            await self._stop()
+            await self._condition.acquire()
+            while self._status != COMPONENT_STATUS.STOPPED:
+                await self._condition.wait()
+            self._condition.release()
+            return
+
+        # For running components, require wait_for_ready() to have been called
         if not self._ready_waited:
+            self._condition.release()
             raise Exception("wait_for_ready() was not called after run()")
 
-        await self._condition.acquire()
         if self._status != COMPONENT_STATUS.RUNNING:
             self._condition.release()
             message = "Cannot stop when it is not running"
-            logger.warning(self._create_message(message))
-            raise Exception(message)
+            logger.debug(self._create_message(message))  # Changed from warning to debug
+            return
 
         logger.debug(self._create_message("Stopping"))
         self._status = COMPONENT_STATUS.STOPPING

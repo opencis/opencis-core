@@ -31,7 +31,10 @@ async def run_devices(accels: List[MyType1Accelerator | MyType2Accelerator]):
     except Exception as e:
         logger.error("Error while running Accelerator Device", exc_info=e)
     finally:
-        await asyncio.gather(*(accel.stop() for accel in accels))
+        try:
+            await asyncio.gather(*(accel.stop() for accel in accels))
+        except Exception as e:
+            logger.error("Error while stopping Accelerator Device", exc_info=e)
 
 
 def start_group(config_file, dev_type):

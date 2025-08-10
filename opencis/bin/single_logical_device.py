@@ -26,7 +26,10 @@ async def run_devices(slds: List[SingleLogicalDevice]):
     except Exception as e:
         logger.error("Error while running Single Logical Device", exc_info=e)
     finally:
-        await asyncio.gather(*(sld.stop() for sld in slds))
+        try:
+            await asyncio.gather(*(sld.stop() for sld in slds))
+        except Exception as e:
+            logger.error("Error while stopping Single Logical Device", exc_info=e)
 
 
 def start_group(config_file):

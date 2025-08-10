@@ -29,7 +29,10 @@ async def run_devices(mlds: List[MultiLogicalDevice]):
             exc_info=e,
         )
     finally:
-        await asyncio.gather(*(mld.stop() for mld in mlds))
+        try:
+            await asyncio.gather(*(mld.stop() for mld in mlds))
+        except Exception as e:
+            logger.error("Error while stopping Multi Logical Device", exc_info=e)
 
 
 def start_group(config_file):

@@ -1,3 +1,33 @@
 #!/bin/bash
+
+# Function to handle signals and forward them to all related processes
+cleanup() {
+    echo "Received signal, forwarding to child processes..."
+
+    # Kill the UV process and wait for it
+    if [[ -n $UV_PID ]]; then
+        kill -TERM $UV_PID 2>/dev/null
+    fi
+
+    # Also kill any Python processes running our CLI
+    pkill -TERM -f "python3 opencis/bin/cli.py start" 2>/dev/null
+
+    # Wait a bit for shutdown
+    sleep 1
+
+    # Force kill if still running
+    if [[ -n $UV_PID ]]; then
+        kill -KILL $UV_PID 2>/dev/null
+    fi
+    pkill -KILL -f "python3 opencis/bin/cli.py start" 2>/dev/null
+
+    exit 0
+}
+
+# Set up signal handlers
+trap cleanup SIGINT SIGTERM
+
 make packets
-uv run opencis/bin/cli.py "$@"
+uv run opencis/bin/cli.py "$@" &
+UV_PID=$!
+wait $UV_PID

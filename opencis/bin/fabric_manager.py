@@ -26,7 +26,16 @@ def start(use_test_runner):
     """Run the Fabric Manager."""
     logger.info("Starting CXL FabricManager")
     fabric_manager = CxlFabricManager(use_test_runner=use_test_runner)
-    asyncio.run(fabric_manager.run())
+    try:
+        asyncio.run(fabric_manager.run())
+    except Exception as e:
+        logger.error("Error while running CXL FabricManager", exc_info=e)
+    finally:
+        # Ensure proper shutdown
+        try:
+            asyncio.run(fabric_manager.stop())
+        except Exception as e:
+            logger.error("Error while stopping CXL FabricManager", exc_info=e)
 
 
 @fabric_manager_group.command(name="bind")
