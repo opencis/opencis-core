@@ -31,7 +31,6 @@ def start(use_test_runner):
     except Exception as e:
         logger.error("Error while running CXL FabricManager", exc_info=e)
     finally:
-        # Ensure proper shutdown
         try:
             asyncio.run(fabric_manager.stop())
         except Exception as e:

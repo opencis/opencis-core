@@ -35,7 +35,6 @@ def start(config_file):
     except Exception as e:
         logger.error("Error while running CXL Switch", exc_info=e)
     finally:
-        # Ensure proper shutdown
         try:
             asyncio.run(switch.stop())
         except Exception as e:

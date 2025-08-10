@@ -141,7 +141,7 @@ class RunnableComponent(LabeledComponent):
         if self._status != COMPONENT_STATUS.RUNNING:
             self._condition.release()
             message = "Cannot stop when it is not running"
-            logger.debug(self._create_message(message))  # Changed from warning to debug
+            logger.warning(self._create_message(message))
             return
 
         logger.debug(self._create_message("Stopping"))
