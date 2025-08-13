@@ -413,7 +413,8 @@ class CciResponsePacket(
 
     def get_cci_message(self) -> "CciMessagePacket":
         offset = self.get_byte_offset(self.cci_msg_header)
-        length = len(self.cci_msg_header) + self.get_cci_payload_length()
+        payload_data = bytes(self.payload)
+        length = len(self.cci_msg_header) + len(payload_data)
         return CciMessagePacket(self.get_bytes(offset, length))
 
 
