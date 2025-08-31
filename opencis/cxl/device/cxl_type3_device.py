@@ -116,6 +116,10 @@ class CxlType3Device(RunnableComponent):
         identity.set_total_capacity(self._memory_size)
         identity.set_volatile_only_capacity(self._memory_size)
 
+        # Default: 4KB, minimum required: 1280B
+        # See CXL r3.1 9.13.2.1
+        identity.lsa_size = 4096
+
         logger.debug(f"Initialized size at device level: 0x{identity.volatile_only_capacity:08x}")
         self._cxl_memory_device_component = CxlMemoryDeviceComponent(
             identity,
