@@ -37,6 +37,12 @@ from opencis.cxl.cci.generic.logs import GetLog, GetSupportedLogs
 from opencis.cxl.cci.memory_device.identify_memory_device import (
     IdentifyMemoryDevice,
 )
+from opencis.cxl.cci.memory_device.label_storage import (
+    GetLabelStorageArea,
+    GetLabelStorageAreaSize,
+    SetLabelStorageArea,
+)
+from opencis.cxl.cci.memory_device.security import GetSecurityState
 from opencis.cxl.component.bi_decoder import (
     CxlBIDecoderCapabilityStructureOptions,
     CxlBIDecoderCapabilityRegisterOptions,
@@ -196,6 +202,16 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
             mailbox_ready_time=0,
             type=MAILBOX_TYPE.MEMORY_DEVICE_COMMANDS,
         )
+
+        # Initialize Label Storage Area (LSA)
+        # Default: 4KB (can be adjusted by identity), minimum required: 1280B
+        # See CXL r3.1 9.13.2.1
+        lsa_size = (
+            identity.lsa_size if hasattr(identity, "lsa_size") and identity.lsa_size else 4096
+        )
+        logger.debug(f"LSA size = {lsa_size}")
+        self._lsa = bytearray(lsa_size)
+
         primary_mailbox_commands: List[CxlMailboxCommandBase] = [
             GetEventRecords(self._event_manager),
             ClearEventRecords(self._event_manager),
@@ -204,6 +220,10 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
             GetLog(self._log_manager),
             GetSupportedLogs(self._log_manager),
             IdentifyMemoryDevice(self._identity),
+            GetLabelStorageArea(self._lsa),
+            GetLabelStorageAreaSize(self._lsa),
+            SetLabelStorageArea(self._lsa),
+            GetSecurityState(),
         ]
         self._primary_mailbox = CxlMailbox(
             capabilities=primary_mailbox_capabilities, commands=primary_mailbox_commands
