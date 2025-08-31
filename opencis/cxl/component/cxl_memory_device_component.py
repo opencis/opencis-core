@@ -140,6 +140,9 @@ class MemoryDeviceIdentity(UnalignedBitStructure):
     def set_volatile_only_capacity(self, capacity: int):
         self.volatile_only_capacity = capacity // SIZE_256MB
 
+    def set_persistent_only_capacity(self, capacity: int):
+        self.persistent_only_capacity = capacity // SIZE_256MB
+
 
 class MEDIA_STATUS(IntEnum):
     NOT_READY = 0b00
