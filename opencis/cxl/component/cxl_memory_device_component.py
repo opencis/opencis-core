@@ -7,7 +7,6 @@ See LICENSE for details.
 
 from dataclasses import dataclass
 from enum import IntEnum
-import os
 import time
 from typing import TypedDict, List, Optional
 
@@ -65,28 +64,6 @@ from opencis.cxl.config_space.doe.cdat import (
 )
 
 SIZE_256MB = 256 * 1024 * 1024
-
-
-class CharDriverAccessor:
-    def __init__(self, filename: str, size: int):
-        self.filename = filename
-        self.size = size
-
-    async def write(self, offset: int, data: int, size: int):
-        # TODO: Check for OOB and use asyncio
-        data_bytes = data.to_bytes(size, "little")
-        fd = os.open(self.filename, os.O_WRONLY, 0o644)
-        os.lseek(fd, offset, os.SEEK_SET)
-        os.write(fd, data_bytes)
-        os.close(fd)
-
-    async def read(self, offset: int, size: int) -> int:
-        # TODO: Check for OOB and use asyncio
-        fd = os.open(self.filename, os.O_RDONLY)
-        os.lseek(fd, offset, os.SEEK_SET)
-        data = os.read(fd, size)
-        os.close(fd)
-        return int.from_bytes(data, "little")
 
 
 class MemoryDeviceIdentity(UnalignedBitStructure):
@@ -225,9 +202,7 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
         self._hdm_decoder_manager = DeviceHdmDecoderManager(hdm_decoder_capabilities, label=label)
         if memory_size is None:
             memory_size = self._identity.get_total_capacity() // SIZE_256MB
-        if "/dev" in memory_file:
-            self._memory_accessor = CharDriverAccessor(memory_file, memory_size)
-        elif memory_file == "":
+        if memory_file == "":
             self._memory_accessor = None
         else:
             self._memory_accessor = FileAccessor(memory_file, memory_size)
