@@ -22,13 +22,21 @@ class GetLdInfoResponsePayloadDict(TypedDict):
     memorySize: int
     ldCount: int
     qosTelemetryCapability: int
+    totalCapacity: int
+    maxCapacity: int
+    deviceCapacity: int
+    remainingCapacity: int
 
 
 @dataclass
 class GetLdInfoResponsePayload:
-    memory_size: int = field(default=0)  # 8bytes
+    memory_size: int = field(default=0)
     ld_count: int = field(default=0)  # 2bytes
     qos_telemetry_capability: int = field(default=0)  # 1byte
+    total_capacity: int = field(default=0)  # Total capacity in bytes
+    max_capacity: int = field(default=0)  # Maximum capacity in bytes
+    device_capacity: int = field(default=0)  # Device capacity in bytes
+    remaining_capacity: int = field(default=0)  # Remaining capacity in bytes
 
     @classmethod
     def parse(cls, data: bytes):
@@ -52,6 +60,10 @@ class GetLdInfoResponsePayload:
             f"- Memory Size: {self.memory_size}\n"
             f"- LD Count: {self.ld_count}\n"
             f"- QoS Telemetry Capability: {self.qos_telemetry_capability}\n"
+            f"- Total Capacity: {self.total_capacity}\n"
+            f"- Max Capacity: {self.max_capacity}\n"
+            f"- Device Capacity: {self.device_capacity}\n"
+            f"- Remaining Capacity: {self.remaining_capacity}\n"
         )
 
     def to_dict(self) -> GetLdInfoResponsePayloadDict:
@@ -59,6 +71,10 @@ class GetLdInfoResponsePayload:
             "memorySize": self.memory_size,
             "ldCount": self.ld_count,
             "qosTelemetryCapability": self.qos_telemetry_capability,
+            "totalCapacity": self.total_capacity,
+            "maxCapacity": self.max_capacity,
+            "deviceCapacity": self.device_capacity,
+            "remainingCapacity": self.remaining_capacity,
         }
 
 

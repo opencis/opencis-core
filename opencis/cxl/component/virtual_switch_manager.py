@@ -73,6 +73,24 @@ class VirtualSwitchManager(RunnableComponent):
             total_bound_vppbs += virtual_switch.get_bound_vppb_counts()
         return total_bound_vppbs
 
+    def update_ld_allocations(self, port_index: int, ld_ids: List[int]):
+        """Update LD allocations for a specific port in all virtual switches.
+
+        Args:
+            port_index: The port index to update
+            ld_ids: List of LD IDs that are allocated to this port
+        """
+        from opencis.util.logger import logger
+
+        logger.info(f"Updating LD allocations for port {port_index} with LD IDs: {ld_ids}")
+
+        for virtual_switch in self._virtual_switches:
+            virtual_switch.update_ld_allocations(port_index, ld_ids)
+
+        logger.info(
+            f"Successfully updated LD allocations across {len(self._virtual_switches)} virtual switches"
+        )
+
     def get_port(self, switch_index):
         return self._virtual_switches[switch_index].get_irq_port()
 

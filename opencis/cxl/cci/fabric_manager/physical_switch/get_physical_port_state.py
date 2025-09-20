@@ -254,10 +254,16 @@ class GetPhysicalPortStateCommand(CciForegroundCommand):
                         MultiLogicalDeviceConfig,
                     ):
                         port_info.connected_device_type = CONNECTED_DEVICE_TYPE.CXL_TYPE_3_MLD
+                        # Set supported_ld_count from the MLD config
+                        mld_config = self._device_configs[port_info.port_id - usp_count]
+                        port_info.supported_ld_count = mld_config.num_lds_supported
                     else:
                         port_info.connected_device_type = CONNECTED_DEVICE_TYPE.CXL_TYPE_3_SLD
+                        # SLD devices support only 1 LD
+                        port_info.supported_ld_count = 1
                 else:
                     port_info.connected_device_type = CONNECTED_DEVICE_TYPE.NO_DEVICE_DETECTED
+                    port_info.supported_ld_count = 0
             else:
                 port_info.current_port_configuration_state = (
                     CURRENT_PORT_CONFIGURATION_STATE.DISABLED

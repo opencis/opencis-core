@@ -71,14 +71,24 @@ class CxlPacketProcessor(RunnableComponent):
         # cxl_connection for SLD & MLD
         cxl_connection: Union[CxlConnection, List[CxlConnection]],
         component_type: CXL_COMPONENT_TYPE,
+        mld_config=None,
         label: Optional[str] = None,
     ):
         super().__init__(label)
+        logger.info(f"CxlPacketProcessor: Constructor called with mld_config: {mld_config}")
+        if mld_config:
+            logger.info(
+                f"CxlPacketProcessor: mld_config.num_lds_supported = {mld_config.num_lds_supported}"
+            )
+        else:
+            logger.info(f"CxlPacketProcessor: mld_config is None")
+
         self._reader = PacketReader(reader, label=label)
         self._writer = writer
         self._tlp_table: Dict[int, CXL_IO_FIFO_TYPE] = {}
         self._cxl_connection = cxl_connection
         self._component_type = component_type
+        self._mld_config = mld_config
         self._fmld = None
         self._cci_connection_for_fmld = None
 
@@ -143,15 +153,53 @@ class CxlPacketProcessor(RunnableComponent):
             ):
                 self._incoming.cxl_mem = self._cxl_connection.cxl_mem_fifo.host_to_target
                 self._outgoing.cxl_mem = self._cxl_connection.cxl_mem_fifo.target_to_host
-        # Add MLD
         elif component_type == CXL_COMPONENT_TYPE.LD:
-            self._cci_connection_for_fmld = CxlConnection()
-            self._ld_count = len(cxl_connection) if isinstance(cxl_connection, list) else 1
+            # Handle the case where _cxl_connection is a single object or a list
+            if self._cxl_connection is None:
+                raise Exception("CxlConnection is None - cannot initialize LD packet processor")
 
+            if isinstance(self._cxl_connection, list):
+                cxl_connections = self._cxl_connection
+                self._ld_count = len(cxl_connections)
+            else:
+                # Single CxlConnection object - this happens when ld_count=0 in SwitchConnectionClient
+                # For dynamic configurations with no initial LDs, we should start with ld_count=0
+                cxl_connections = [self._cxl_connection]
+                self._ld_count = 0  # Start with no LDs for dynamic configuration
+
+            if not cxl_connections:
+                raise Exception("No CxlConnection objects available for LD packet processor")
+
+            self._cci_connection_for_fmld = cxl_connections[0]
+
+            # Use mld_config if available, otherwise use default values
+            if self._mld_config is not None:
+                total_capacity = self._mld_config.total_capacity
+                ld_count = self._mld_config.ld_count
+                memory_sizes = self._mld_config.memory_sizes
+                num_lds_supported = self._mld_config.num_lds_supported
+                logger.info(
+                    f"CxlPacketProcessor: Using mld_config - num_lds_supported = {num_lds_supported}"
+                )
+            else:
+                total_capacity = 0
+                ld_count = 0
+                memory_sizes = None
+                num_lds_supported = 16  # Default value
+                logger.info(
+                    f"CxlPacketProcessor: mld_config is None, using default num_lds_supported = {num_lds_supported}"
+                )
+
+            logger.info(
+                f"CxlPacketProcessor: Creating FMLD with num_lds_supported = {num_lds_supported}"
+            )
             self._fmld = FMLD(
                 upstream_fifo=self._cci_connection_for_fmld.cci_fifo,
-                ld_count=self._ld_count,
+                total_capacity=total_capacity,
                 dev_type=CXL_T3_DEV_TYPE.MLD,
+                ld_count=ld_count,
+                memory_sizes=memory_sizes,
+                num_lds_supported=num_lds_supported,
             )
             self._incoming_dir = PROCESSOR_DIRECTION.HOST_TO_TARGET
             self._outgoing_dir = PROCESSOR_DIRECTION.TARGET_TO_HOST
@@ -163,13 +211,13 @@ class CxlPacketProcessor(RunnableComponent):
                     cxl_cache=None,
                     cci_fifo=None,
                 )
-                for cxl_conn in self._cxl_connection
+                for cxl_conn in cxl_connections
             ]
 
             self._outgoing = FifoGroup(
-                cfg_space=self._cxl_connection[0].cfg_fifo.target_to_host,
-                mmio=self._cxl_connection[0].mmio_fifo.target_to_host,
-                cxl_mem=self._cxl_connection[0].cxl_mem_fifo.target_to_host,
+                cfg_space=cxl_connections[0].cfg_fifo.target_to_host,
+                mmio=cxl_connections[0].mmio_fifo.target_to_host,
+                cxl_mem=cxl_connections[0].cxl_mem_fifo.target_to_host,
                 cxl_cache=None,
                 cci_fifo=None,
             )

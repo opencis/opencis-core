@@ -108,4 +108,10 @@ class CPU(RunnableComponent):
 
     async def _stop(self):
         self._app_task.cancel()
-        self._fut.set_result("CPU Done")
+        if hasattr(self, "_fut") and self._fut is not None:
+            try:
+                if not self._fut.done():
+                    self._fut.set_result("CPU Done")
+            except asyncio.InvalidStateError:
+                # Future might already be in an invalid state, ignore the error
+                pass

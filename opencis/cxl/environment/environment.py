@@ -158,6 +158,25 @@ def parse_multi_logical_device_configs(
         except KeyError as exc:
             raise ValueError("Missing 'serial_number' for 'device' entry.") from exc
 
+        # Calculate total capacity - use provided value or sum of memory sizes
+        total_capacity = 0
+        if "total_capacity" in device:
+            try:
+                total_capacity = humanfriendly.parse_size(device["total_capacity"], binary=True)
+            except humanfriendly.InvalidSize as exc:
+                raise ValueError("Invalid 'total_capacity' value") from exc
+        else:
+            # Auto-calculate as sum of individual memory sizes
+            if memory_sizes:
+                total_capacity = sum(memory_sizes)
+            else:
+                # No logical devices configured - set a default total capacity for dynamic allocation
+                # This allows the MLD to be ready for dynamic LD creation
+                total_capacity = 2 * 1024 * 1024 * 1024  # Default to 2GB
+
+        # Get num_lds_supported from config, default to 16
+        num_lds_supported = device.get("num_lds_supported", 16)
+
         multi_logical_device_configs.append(
             MultiLogicalDeviceConfig(
                 port_index=port_index,
@@ -166,6 +185,8 @@ def parse_multi_logical_device_configs(
                 ld_count=len(memory_sizes),
                 memory_sizes=memory_sizes,
                 memory_files=memory_files,
+                total_capacity=total_capacity,
+                num_lds_supported=num_lds_supported,
             )
         )
     return multi_logical_device_configs

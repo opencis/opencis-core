@@ -1,0 +1,23 @@
+port_configs:
+  - type: USP
+  - type: DSP
+  - type: USP
+virtual_switch_configs:
+  - upstream_port_index: 0
+    vppb_counts: 3
+    initial_bounds: [-1,-1,-1]
+    irq_host: "0.0.0.0"
+    irq_port: 8500
+  - upstream_port_index: 2
+    vppb_counts: 3
+    initial_bounds: [-1,-1,-1]
+    irq_host: "0.0.0.0"
+    irq_port: 8501
+devices:
+  single_logical_devices: []
+  multi_logical_devices:
+    - port_index: 1
+      serial_number: 3FB95963144632BF
+      num_lds_supported: 8
+      total_capacity: 4G
+      logical_devices: [] 

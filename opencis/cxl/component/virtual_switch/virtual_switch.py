@@ -76,7 +76,18 @@ class CxlVirtualSwitch(RunnableComponent):
         self._cxl_mem_router = None
         self._cxl_cache_router = None
         self._vppb_ld_id_map = {}
-        self._allocated_ld = allocated_ld
+
+        # Convert allocated_ld from dictionary to list of lists format
+        if allocated_ld is None:
+            self._allocated_ld = [[] for _ in range(len(physical_ports))]
+        elif isinstance(allocated_ld, dict):
+            # Convert dictionary format to list of lists
+            self._allocated_ld = [[] for _ in range(len(physical_ports))]
+            for port_index, ld_list in allocated_ld.items():
+                if port_index < len(self._allocated_ld):
+                    self._allocated_ld[port_index] = ld_list
+        else:
+            self._allocated_ld = allocated_ld
 
         self._irq_manager = IrqManager(
             device_name=self._label,
@@ -183,6 +194,13 @@ class CxlVirtualSwitch(RunnableComponent):
     async def bind_vppb(self, port_index: int, vppb_index: int, ld_id: int):
         if port_index < 0 or port_index >= len(self._physical_ports):
             raise Exception("port_index is out of bound")
+
+        # Handle case where there are no allocated LD IDs for this port (e.g., no devices configured)
+        if port_index >= len(self._allocated_ld) or not self._allocated_ld[port_index]:
+            logger.warning(
+                self._create_message(f"No allocated LD IDs for port {port_index}, skipping binding")
+            )
+            return
 
         if ld_id not in self._allocated_ld[port_index]:
             logger.error(
@@ -300,17 +318,11 @@ class CxlVirtualSwitch(RunnableComponent):
             self._create_message(f"Succcessfully unfroze physical port from vPPB {vppb_index}")
         )
 
-    async def _call_event_handler(self, vppb_id: int, binding_status: PPB_BINDING_STATUS):
-        if not self._event_handler:
-            return
-        event = SwitchUpdateEvent(vcs_id=self._id, vppb_id=vppb_id, binding_status=binding_status)
-        await self._event_handler(event)
-
     def get_vppb_counts(self) -> int:
         return self._vppb_counts
 
     def get_bound_vppb_counts(self) -> int:
-        return self._port_binder.get_bound_vppbs_count()
+        return len(self._physical_ports_vppb_map)
 
     def is_vppb_bound(self, vppb_index) -> bool:
         if vppb_index >= self._vppb_counts:
@@ -326,8 +338,54 @@ class CxlVirtualSwitch(RunnableComponent):
     def get_ld_id(self, vppb_id: int) -> int:
         return self._vppb_ld_id_map[vppb_id]
 
-    def get_irq_port(self):
+    def get_irq_port(self) -> int:
         return self._irq_manager.get_port()
 
     def register_event_handler(self, event_handler: AsyncEventHandlerType):
         self._event_handler = event_handler
+
+    def update_ld_allocations(self, port_index: int, ld_ids: List[int]):
+        """Update LD allocations for a specific port.
+
+        Args:
+            port_index: The port index to update
+            ld_ids: List of LD IDs that are allocated to this port
+        """
+        if port_index < 0 or port_index >= len(self._allocated_ld):
+            logger.error(self._create_message(f"Port index {port_index} is out of bounds"))
+            return
+
+        # For now, we'll still replace the entire list to maintain compatibility
+        # TODO: In the future, this could be enhanced to handle partial updates
+        # by comparing with the current FMLD state to determine which LDs to add/remove
+        self._allocated_ld[port_index] = ld_ids
+        logger.info(self._create_message(f"Updated LD allocations for port {port_index}: {ld_ids}"))
+
+    def sync_with_fmld_state(self, port_index: int, fmld_allocations: dict):
+        """Sync virtual switch LD allocations with FMLD state.
+
+        Args:
+            port_index: The port index to sync
+            fmld_allocations: Dictionary of LD ID -> allocation value from FMLD
+        """
+        if port_index < 0 or port_index >= len(self._allocated_ld):
+            logger.error(self._create_message(f"Port index {port_index} is out of bounds"))
+            return
+
+        # Extract only the allocated LD IDs (non-zero values)
+        allocated_ld_ids = [ld_id for ld_id, value in fmld_allocations.items() if value > 0]
+
+        self._allocated_ld[port_index] = allocated_ld_ids
+        logger.info(
+            self._create_message(
+                f"Synced LD allocations for port {port_index} with FMLD state: {allocated_ld_ids}"
+            )
+        )
+
+    async def _call_event_handler(self, vppb_index: int, binding_status: PPB_BINDING_STATUS):
+        if not self._event_handler:
+            return
+        event = SwitchUpdateEvent(
+            vcs_id=self._id, vppb_id=vppb_index, binding_status=binding_status
+        )
+        await self._event_handler(event)

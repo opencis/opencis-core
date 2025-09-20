@@ -34,4 +34,6 @@ class MultiLogicalDeviceConfig(LogicalDeviceConfig):
     memory_files: List[str]
     serial_numbers: List[str]
     ld_count: int
+    total_capacity: int  # in bytes
+    num_lds_supported: int = 16  # Maximum number of LDs supported
     device_id: int = SW_MLD_DID

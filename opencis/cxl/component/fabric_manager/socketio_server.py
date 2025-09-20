@@ -32,6 +32,9 @@ from opencis.cxl.cci.common import (
     get_opcode_string,
 )
 from opencis.cxl.transport.cci_packets import CciMessagePacket
+from opencis.cxl.cci.fabric_manager.mld_components.get_ld_allocations import (
+    GetLdAllocationsRequestPayload,
+)
 
 
 class CommandResponse(TypedDict):
@@ -146,6 +149,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
         host_fm_conn_manager: HostFMConnManager,
         host: str = "0.0.0.0",
         port: int = 8200,
+        mld_client=None,
     ):
         super().__init__()
         self._mctp_client = mctp_client
@@ -155,6 +159,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
         self._event_lock = asyncio.Lock()
         self._switch_identity = None
         self._stop_signal = False
+        self._mld_client = mld_client
 
         # Create a new Aiohttp web app
         self._app = web.Application()
@@ -175,6 +180,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
         self._register_handler("mld:get")
         self._register_handler("mld:getAllocation")
         self._register_handler("mld:setAllocation")
+        self._register_handler("background:getStatus")
         self._mctp_client.register_notification_handler(self._handle_notifications)
 
     def _register_handler(self, event):
@@ -215,6 +221,8 @@ class FabricManagerSocketIoServer(RunnableComponent):
                 response = await self._get_ld_allocation(data)
             elif event_type == "mld:setAllocation":
                 response = await self._set_ld_allocation(data)
+            elif event_type == "background:getStatus":
+                response = await self._get_background_status()
             elif event_type == "vcs:freeze":
                 response = await self._freeze_vppb(data)
             elif event_type == "vcs:unfreeze":
@@ -255,6 +263,13 @@ class FabricManagerSocketIoServer(RunnableComponent):
         (return_code, response) = await self._mctp_client.get_connected_devices()
         if response:
             return CommandResponse(error="", result=response.to_dict()["devices"])
+        # When there are no devices, return empty array instead of error
+        return CommandResponse(error="", result=[])
+
+    async def _get_background_status(self) -> CommandResponse:
+        (return_code, response) = await self._mctp_client.background_operation_status()
+        if response:
+            return CommandResponse(error="", result=response.to_dict())
         return CommandResponse(error=return_code.name)
 
     async def _bind_vppb(self, data) -> CommandResponse:
@@ -280,10 +295,17 @@ class FabricManagerSocketIoServer(RunnableComponent):
             vcs_id=data["virtualCxlSwitchId"],
             vppb_id=data["vppbId"],
         )
-        await self._host_fm_conn_manager.notify_host_unbind(
-            data["vppbId"], data["virtualCxlSwitchId"]
-        )
+        # First send the unbinding command to the switch
         (return_code, response) = await self._mctp_client.unbind_vppb(request)
+
+        # Then notify the host (even if this fails, the unbinding is already done)
+        try:
+            await self._host_fm_conn_manager.notify_host_unbind(
+                data["vppbId"], data["virtualCxlSwitchId"]
+            )
+        except Exception as e:
+            logger.warning(f"Failed to notify host about unbinding: {e}")
+
         if response is not None:
             return CommandResponse(error="", result=response.name)
         return CommandResponse(error="", result=return_code.name)
@@ -291,7 +313,63 @@ class FabricManagerSocketIoServer(RunnableComponent):
     async def _get_ld_info(self, data) -> CommandResponse:
         (return_code, response) = await self._mctp_client.get_ld_info(data["portIndex"])
         if response:
-            return CommandResponse(error="", result=response.to_dict())
+            # Get the actual memory size from the MLD Manager via socket server
+            actual_memory_size = response.memory_size  # Start with FMLD response
+            total_capacity = 4 * 1024 * 1024 * 1024  # 4GB default
+            max_capacity = total_capacity
+            device_capacity = response.memory_size  # Use FMLD response as default
+
+            if self._mld_client is not None:
+                try:
+                    await self._mld_client.connect()
+                    # Query the MLD Manager for the actual used capacity via socket server
+                    port_index = data["portIndex"]
+
+                    # Get capacity info from MLD Manager
+                    capacity_info = await self._mld_client.get_capacity_info(port_index)
+                    if capacity_info and capacity_info.get("success"):
+                        actual_memory_size = capacity_info.get("used_capacity", 0)
+                        total_capacity = capacity_info.get("total_capacity", total_capacity)
+                        max_capacity = capacity_info.get("total_capacity", max_capacity)
+                        device_capacity = actual_memory_size
+                        logger.info(
+                            f"Using MLD Manager capacity info: used={actual_memory_size} bytes, total={total_capacity} bytes"
+                        )
+                    else:
+                        logger.warning(
+                            f"Could not get capacity info from MLD Manager: {capacity_info}"
+                        )
+                        # Use FMLD response as fallback
+                        actual_memory_size = response.memory_size
+                        device_capacity = response.memory_size
+                except Exception as e:
+                    logger.warning(f"Could not get actual memory size from MLD Manager: {e}")
+                    # Use FMLD response as fallback
+                    actual_memory_size = response.memory_size
+                    device_capacity = response.memory_size
+
+            # Calculate remaining capacity
+            remaining_capacity = total_capacity - device_capacity
+
+            # Update the response with the actual memory size and capacity information
+            response_dict = response.to_dict()
+            if actual_memory_size > 0:
+                response_dict["memorySize"] = actual_memory_size
+                logger.info(
+                    f"Final memory size: {actual_memory_size} bytes ({actual_memory_size / (1024*1024):.2f} MB)"
+                )
+
+            # Add missing capacity fields
+            response_dict["totalCapacity"] = total_capacity
+            response_dict["maxCapacity"] = max_capacity
+            response_dict["deviceCapacity"] = device_capacity
+            response_dict["remainingCapacity"] = remaining_capacity
+
+            logger.info(
+                f"Added capacity information: totalCapacity={total_capacity}, deviceCapacity={device_capacity}, remainingCapacity={remaining_capacity}"
+            )
+
+            return CommandResponse(error="", result=response_dict)
         return CommandResponse(error=return_code.name)
 
     async def _get_ld_allocation(self, data) -> CommandResponse:
@@ -303,24 +381,619 @@ class FabricManagerSocketIoServer(RunnableComponent):
             request, data["portIndex"]
         )
         if response:
-            return CommandResponse(error="", result=response.to_dict())
+            # Initialize capacity variables
+            total_capacity = 4 * 1024 * 1024 * 1024  # 4GB default
+            max_capacity = total_capacity
+            device_capacity = 0
+
+            # PRIORITY 1: Calculate capacity from FMLD allocation list (CORRECT)
+            if response.ld_allocation_list:
+                # Convert allocation multipliers to memory sizes
+                granularity_size_bytes = (256 * 1024 * 1024) * (2**response.memory_granularity)
+                allocated_memory_bytes = sum(
+                    multiplier * granularity_size_bytes
+                    for multiplier in response.ld_allocation_list
+                    if multiplier > 0
+                )
+                device_capacity = allocated_memory_bytes
+                logger.info(
+                    f"Using FMLD capacity calculation: {allocated_memory_bytes} bytes (granularity: {response.memory_granularity})"
+                )
+
+            # PRIORITY 2: Use MLD Manager as fallback only if FMLD calculation failed
+            elif self._mld_client is not None:
+                try:
+                    # Get capacity info from MLD Manager (fallback only)
+                    capacity_info = await self._mld_client.get_capacity_info(data["portIndex"])
+                    if capacity_info and capacity_info.get("success"):
+                        total_capacity = capacity_info.get(
+                            "total_capacity", total_capacity
+                        )  # ← Use actual MLD capacity
+                        max_capacity = capacity_info.get(
+                            "total_capacity", max_capacity
+                        )  # ← Use actual MLD capacity
+                        device_capacity = capacity_info.get("used_capacity", 0)
+                        logger.info(
+                            f"Using MLD Manager capacity info as fallback: {device_capacity} bytes"
+                        )
+                except Exception as e:
+                    logger.warning(f"Could not get capacity info from MLD Manager as fallback: {e}")
+                    # Calculate capacity from the response data as fallback
+                    if response.ld_allocation_list:
+                        # Convert allocation multipliers to memory sizes
+                        # memory_granularity: 0=256MB, 1=512MB, 2=1GB
+                        granularity_size_bytes = (256 * 1024 * 1024) * (
+                            2**response.memory_granularity
+                        )
+                        allocated_memory_bytes = sum(
+                            multiplier * granularity_size_bytes
+                            for multiplier in response.ld_allocation_list
+                            if multiplier > 0
+                        )
+                        device_capacity = allocated_memory_bytes
+                        logger.info(
+                            f"Calculated device capacity from allocation multipliers: {allocated_memory_bytes} bytes (granularity: {response.memory_granularity})"
+                        )
+
+            # ALWAYS get the correct total capacity from MLD Manager
+            if self._mld_client is not None:
+                try:
+                    capacity_info = await self._mld_client.get_capacity_info(data["portIndex"])
+                    if capacity_info and capacity_info.get("success"):
+                        total_capacity = capacity_info.get(
+                            "total_capacity", total_capacity
+                        )  # ← Override with actual MLD capacity
+                        max_capacity = capacity_info.get(
+                            "total_capacity", max_capacity
+                        )  # ← Override with actual MLD capacity
+                        logger.info(f"Using MLD Manager total capacity: {total_capacity} bytes")
+                except Exception as e:
+                    logger.warning(f"Could not get total capacity from MLD Manager: {e}")
+
+            # Calculate remaining capacity
+            remaining_capacity = total_capacity - device_capacity
+
+            # Update response with capacity information
+            response_dict = response.to_dict()
+            response_dict["totalCapacity"] = total_capacity
+            response_dict["maxCapacity"] = max_capacity
+            response_dict["deviceCapacity"] = device_capacity
+            response_dict["remainingCapacity"] = remaining_capacity
+
+            logger.info(
+                f"Added capacity information to LD allocation response: totalCapacity={total_capacity}, deviceCapacity={device_capacity}, remainingCapacity={remaining_capacity}"
+            )
+
+            return CommandResponse(error="", result=response_dict)
         return CommandResponse(error=return_code.name)
 
     async def _set_ld_allocation(self, data) -> CommandResponse:
+        # Convert ld_allocation_list from list of dicts to list of tuples
+        # Handle both allocation format [{"range1": x, "range2": y}, ...] and deallocation format [0, 1, 0, ...]
+        ld_allocation_list = []
+        for item in data["ldAllocationList"]:
+            if isinstance(item, dict):
+                # Allocation format: {"range1": x, "range2": y}
+                ld_allocation_list.append((item["range1"], item["range2"]))
+            elif isinstance(item, int):
+                # Deallocation format: 0 = deallocate, 1 = allocate
+                ld_allocation_list.append((item, 0))
+            else:
+                logger.error(f"Invalid item format in ldAllocationList: {item}")
+                return CommandResponse(error="INVALID_ALLOCATION_FORMAT")
+
+        # FIXED LOGIC: Treat range1 as memory size, not LD ID
+        # Extract memory sizes from the allocation list
+        memory_sizes = []
+        for i, (range1, range2) in enumerate(ld_allocation_list):
+            if range1 > 0:
+                # range1 is memory size in KB, convert to bytes
+                memory_size_bytes = range1 * 1024
+                memory_sizes.append(memory_size_bytes)
+                logger.info(
+                    f"Memory size request: position {i} -> {memory_size_bytes} bytes ({range1} KB)"
+                )
+            elif range1 == 0:
+                # Skip deallocated positions
+                logger.info(f"Deallocation request: position {i} -> skip")
+
+        logger.info(f"Extracted memory sizes: {memory_sizes}")
+
+        port_index = data["portIndex"]
+
+        # Always send command to the switch via MCTP to keep allocation state synchronized
         request = SetLdAllocationsRequestPayload(
             number_of_lds=data["numberOfLds"],
             start_ld_id=data["startLdId"],
-            ld_allocation_list=data["ldAllocationList"],
+            ld_allocation_list=ld_allocation_list,
         )
-        (return_code, response) = await self._mctp_client.set_ld_alloctaion(
-            request, data["portIndex"]
-        )
-        if response:
-            return CommandResponse(
-                error="",
-                result=[response.number_of_lds, response.start_ld_id, response.ld_allocation_list],
+        (return_code, response) = await self._mctp_client.set_ld_alloctaion(request, port_index)
+
+        if not response:
+            return CommandResponse(error=return_code.name)
+
+        # Connect to MLD process if not already connected
+        try:
+            await self._mld_client.connect()
+        except Exception as e:
+            logger.warning(f"Could not connect to MLD process: {e}")
+            # Continue anyway - the switch command succeeded
+
+        # Sync MLD Manager state with switch state before any operations
+        try:
+            # Get the current switch allocation state
+            get_allocation_request = GetLdAllocationsRequestPayload(
+                start_ld_id=0, ld_allocation_list_limit=16
             )
-        return CommandResponse(error=return_code.name)
+            (return_code, current_allocation_response) = await self._mctp_client.get_ld_alloctaion(
+                get_allocation_request, port_index
+            )
+
+            if current_allocation_response:
+                # Extract LD IDs that are actually allocated in the switch
+                # FMLD allocation list format: [range1_ld0, range2_ld0, range1_ld1, range2_ld1, ...]
+                # where range1 is memory size (0=deallocated, 1=256MB, 2=512MB, etc.) and range2 is always 0
+                switch_ld_ids = []
+                for i in range(
+                    0, len(current_allocation_response.ld_allocation_list), 2
+                ):  # Step by 2
+                    ld_id = i // 2  # Convert index to LD ID
+                    range1_value = current_allocation_response.ld_allocation_list[i]
+                    if range1_value > 0:  # Non-zero range1 means allocated
+                        switch_ld_ids.append(ld_id)
+
+                logger.info(f"Switch has {len(switch_ld_ids)} LDs allocated: {switch_ld_ids}")
+
+                # Sync MLD Manager with switch state
+                sync_success = await self._mld_client.sync_with_switch_state(
+                    port_index, switch_ld_ids, current_allocation_response.ld_allocation_list
+                )
+                if sync_success:
+                    logger.info(
+                        f"Successfully synced MLD Manager with switch state for port {port_index}"
+                    )
+                else:
+                    logger.info(
+                        f"Switch has {len(switch_ld_ids)} LDs allocated after deallocation: {switch_ld_ids}"
+                    )
+                    logger.warning(
+                        f"Failed to sync MLD Manager with switch state for port {port_index}"
+                    )
+            else:
+                logger.warning(
+                    f"Could not get current switch allocation state for port {port_index}"
+                )
+                sequential_ld_ids = []
+        except Exception as e:
+            logger.warning(f"Error syncing with switch state: {e}")
+            sequential_ld_ids = []
+
+        # Handle allocation case (creating new LDs)
+        if memory_sizes:
+            # Check if this is actually a deallocation request (some range1 values are 0)
+            has_deallocation = any(range1 == 0 for range1, _ in ld_allocation_list)
+
+            if has_deallocation:
+                # This is a partial deallocation request - don't create new LDs
+                # Just let the switch handle the deallocation and sync the state
+                logger.info(
+                    f"Detected partial deallocation request for port {port_index}, skipping MLD creation"
+                )
+
+                # Sync with switch state after deallocation
+                try:
+                    # Get the current switch allocation state after deallocation
+                    get_allocation_request = GetLdAllocationsRequestPayload(
+                        start_ld_id=0, ld_allocation_list_limit=16
+                    )
+                    (return_code, current_allocation_response) = (
+                        await self._mctp_client.get_ld_alloctaion(
+                            get_allocation_request, port_index
+                        )
+                    )
+
+                    if current_allocation_response:
+                        # Extract LD IDs that are actually allocated in the switch
+                        switch_ld_ids = []
+                        for i, allocation in enumerate(
+                            current_allocation_response.ld_allocation_list
+                        ):
+                            if allocation > 0:  # Non-zero means allocated
+                                switch_ld_ids.append(i)
+
+                        # Sync MLD Manager with switch state
+                        sync_success = await self._mld_client.sync_with_switch_state(
+                            port_index,
+                            switch_ld_ids,
+                            current_allocation_response.ld_allocation_list,
+                        )
+                        if sync_success:
+                            logger.info(
+                                f"Successfully synced MLD Manager with switch state after deallocation"
+                            )
+                        else:
+                            logger.warning(
+                                f"Failed to sync MLD Manager with switch state after deallocation"
+                            )
+                    else:
+                        logger.warning(
+                            f"Could not get current switch allocation state after deallocation"
+                        )
+                except Exception as e:
+                    logger.warning(f"Error syncing with switch state after deallocation: {e}")
+
+                # Return success for deallocation
+                return CommandResponse(
+                    error="",
+                    result={
+                        "created_ld_ids": [],
+                        "deallocated_ld_ids": [],
+                        "message": f"Successfully processed partial deallocation for port {port_index}",
+                    },
+                )
+            else:
+                # This is a pure allocation request - create new LDs
+                # But first, check if we need to sync with the switch state
+                # to ensure we only create the missing LDs
+                try:
+                    # Get the current switch allocation state
+                    get_allocation_request = GetLdAllocationsRequestPayload(
+                        start_ld_id=0, ld_allocation_list_limit=16
+                    )
+                    (return_code, current_allocation_response) = (
+                        await self._mctp_client.get_ld_alloctaion(
+                            get_allocation_request, port_index
+                        )
+                    )
+
+                    if current_allocation_response:
+                        # Extract LD IDs that are actually allocated in the switch
+                        switch_ld_ids = []
+                        for i, allocation in enumerate(
+                            current_allocation_response.ld_allocation_list
+                        ):
+                            if allocation > 0:  # Non-zero means allocated
+                                switch_ld_ids.append(i)
+
+                        logger.info(
+                            f"Switch has {len(switch_ld_ids)} LDs allocated: {switch_ld_ids}"
+                        )
+
+                        # Use actual switch LD IDs directly
+                        logger.info(f"Using actual switch LD IDs: {switch_ld_ids}")
+
+                        # Sync MLD Manager with switch state first
+                        sync_success = await self._mld_client.sync_with_switch_state(
+                            port_index,
+                            switch_ld_ids,
+                            current_allocation_response.ld_allocation_list,
+                        )
+                        if sync_success:
+                            logger.info(
+                                f"Successfully synced MLD Manager with switch state for port {port_index}"
+                            )
+                        else:
+                            logger.info(
+                                f"Switch has {len(switch_ld_ids)} LDs allocated after deallocation: {switch_ld_ids}"
+                            )
+                            logger.warning(
+                                f"Failed to sync MLD Manager with switch state for port {port_index}"
+                            )
+                    else:
+                        logger.warning(
+                            f"Could not get current switch allocation state for port {port_index}"
+                        )
+                        sequential_ld_ids = []
+                except Exception as e:
+                    logger.warning(f"Error syncing with switch state: {e}")
+                    sequential_ld_ids = []
+
+                # Generate LD IDs for the new allocation request
+                # IMPORTANT: When set_ld_allocation is called with the entire allocation list,
+                # it should replace all existing LDs, not add to them
+                logger.info(
+                    f"Replacing all existing LDs with new allocation list for port {port_index}"
+                )
+
+                # First, clear all existing LDs to free up capacity using the same approach as Force Clear All LDs
+                try:
+                    logger.info(
+                        f"Force clearing all existing LDs for port {port_index} before creating new ones"
+                    )
+
+                    # Step 1: Send deallocate command to switch/FMLD (same as Force Clear)
+                    get_allocation_request = GetLdAllocationsRequestPayload(
+                        start_ld_id=0, ld_allocation_list_limit=16
+                    )
+                    (return_code, current_allocation_response) = (
+                        await self._mctp_client.get_ld_alloctaion(
+                            get_allocation_request, port_index
+                        )
+                    )
+
+                    if (
+                        current_allocation_response
+                        and current_allocation_response.number_of_lds > 0
+                    ):
+                        # Create deallocate all request with proper numberOfLds >= 1
+                        current_number_of_lds = current_allocation_response.number_of_lds
+                        logger.info(
+                            f"Current allocation state shows {current_number_of_lds} LDs to deallocate"
+                        )
+
+                        # Create allocation list with all LDs set to 0 (deallocated)
+                        deallocate_allocation_list = [(0, 0) for _ in range(current_number_of_lds)]
+
+                        deallocate_all_request = SetLdAllocationsRequestPayload(
+                            number_of_lds=current_number_of_lds,
+                            start_ld_id=0,
+                            ld_allocation_list=deallocate_allocation_list,
+                        )
+                    else:
+                        # No LDs currently allocated, but clear potential lingering LDs
+                        logger.info(
+                            f"No LDs currently allocated, but clearing potential lingering LDs"
+                        )
+                        deallocate_allocation_list = [(0, 0) for _ in range(8)]  # Clear up to 8 LDs
+
+                        deallocate_all_request = SetLdAllocationsRequestPayload(
+                            number_of_lds=8,
+                            start_ld_id=0,
+                            ld_allocation_list=deallocate_allocation_list,
+                        )
+
+                    # Send deallocate command to switch
+                    (return_code, response) = await self._mctp_client.set_ld_alloctaion(
+                        deallocate_all_request, port_index
+                    )
+
+                    if response:
+                        logger.info(
+                            f"Successfully sent deallocate all command to switch for port {port_index}"
+                        )
+                    else:
+                        logger.warning(
+                            f"Failed to send deallocate all command to switch for port {port_index}"
+                        )
+                        # Continue anyway - the MLD deallocation might still work
+
+                    # Step 2: Deallocate MLD devices with correct LD IDs (same as Force Clear)
+                    device_info = await self._mld_client.get_device_info(port_index)
+                    if device_info and isinstance(device_info, list):
+                        devices = device_info
+                        if devices:
+                            # Extract actual LD IDs from device info
+                            existing_ld_ids = []
+                            for device in devices:
+                                ld_id = device.get("ld_id")
+                                if ld_id is not None:
+                                    existing_ld_ids.append(ld_id)
+                                else:
+                                    logger.warning(f"Device missing ld_id: {device}")
+
+                            logger.info(
+                                f"Found {len(existing_ld_ids)} allocated LDs to clear: {existing_ld_ids}"
+                            )
+
+                            # Deallocate MLD devices with correct LD IDs
+                            if existing_ld_ids:
+                                clear_success = await self._mld_client.deallocate_logical_devices(
+                                    port_index=port_index,
+                                    ld_ids=existing_ld_ids,  # Use actual LD IDs, not assumed ones
+                                )
+                                if clear_success:
+                                    logger.info(
+                                        f"Successfully cleared {len(existing_ld_ids)} existing LDs"
+                                    )
+                                else:
+                                    logger.warning(
+                                        f"Failed to clear existing LDs, but continuing with allocation"
+                                    )
+                            else:
+                                logger.info("No existing LDs found to clear")
+                        else:
+                            logger.info("No devices found to clear")
+                    else:
+                        logger.warning(
+                            "Could not get device info for clearing, but continuing with allocation"
+                        )
+
+                except Exception as e:
+                    logger.warning(
+                        f"Error clearing existing LDs: {e}, but continuing with allocation"
+                    )
+
+                # Now create all the new LDs from the allocation list
+                new_ld_ids = list(range(len(memory_sizes)))
+                logger.info(
+                    f"Creating {len(new_ld_ids)} new LDs to replace existing ones: {new_ld_ids}"
+                )
+
+                success = await self._mld_client.create_logical_devices(
+                    port_index=port_index, ld_ids=new_ld_ids, memory_sizes=memory_sizes
+                )
+
+                if not success:
+                    logger.error(
+                        f"Failed to create logical devices dynamically for port {port_index}"
+                    )
+                    return CommandResponse(
+                        error="DYNAMIC_LD_CREATION_FAILED",
+                        result={
+                            "message": f"Switch command succeeded but dynamic LD creation failed for port {port_index}"
+                        },
+                    )
+
+                # Note: success is already checked in the if/else blocks above
+                logger.info(
+                    f"Successfully created {len(new_ld_ids)} logical devices dynamically: {new_ld_ids}"
+                )
+
+                # After successfully creating MLD devices, update FMLD with the new allocations
+                try:
+                    logger.info(f"Updating FMLD with new LD allocations for port {port_index}")
+
+                    # Create the allocation list for the new LDs
+                    new_allocation_list = []
+                    for memory_size in memory_sizes:
+                        # Convert bytes to KB (the format FMLD expects)
+                        memory_kb = memory_size // 1024
+                        new_allocation_list.append((memory_kb, 0))  # (range1, range2)
+
+                    # Send the new allocation to FMLD
+                    set_allocation_request = SetLdAllocationsRequestPayload(
+                        number_of_lds=len(memory_sizes),
+                        start_ld_id=0,
+                        ld_allocation_list=new_allocation_list,
+                    )
+
+                    (return_code, response) = await self._mctp_client.set_ld_alloctaion(
+                        set_allocation_request, port_index
+                    )
+
+                    if response:
+                        logger.info(
+                            f"Successfully updated FMLD with new LD allocations for port {port_index}"
+                        )
+                    else:
+                        logger.warning(
+                            f"Failed to update FMLD with new LD allocations for port {port_index}"
+                        )
+
+                except Exception as e:
+                    logger.warning(f"Error updating FMLD with new allocations: {e}")
+
+                # Prepare response for allocation
+                return CommandResponse(
+                    error="",
+                    result={
+                        "created_ld_ids": new_ld_ids,
+                        "deallocated_ld_ids": [],
+                        "message": f"Successfully created {len(new_ld_ids)} new LDs",
+                    },
+                )
+
+        # Handle deallocation case (no memory sizes provided)
+        else:
+            # Deallocate all existing LDs for this port
+            try:
+                logger.info(f"Deallocating all existing LDs for port {port_index}")
+                # Get device info to see which LDs are currently allocated
+                device_info = await self._mld_client.get_device_info(port_index)
+                if device_info and isinstance(device_info, list):
+                    devices = device_info
+                    # Extract LD IDs from device serial numbers (they contain LD IDs)
+                    existing_ld_ids = []
+                    for device in devices:
+                        serial_number = device.get("serial_number", "")
+                        # Serial numbers are in format '000000000000000X' where X is the LD ID in hex
+                        try:
+                            ld_id_hex = serial_number[-1]
+                            ld_id = int(ld_id_hex, 16)  # Convert from hex to int
+                            existing_ld_ids.append(ld_id)
+                        except (ValueError, IndexError):
+                            logger.warning(
+                                f"Could not parse LD ID from serial number: {serial_number}"
+                            )
+
+                    logger.info(f"Found {len(existing_ld_ids)} allocated LDs: {existing_ld_ids}")
+                else:
+                    # Fallback: use empty list if no device info available
+                    existing_ld_ids = []
+                    logger.warning(f"Could not get device info, using empty LD IDs list")
+            except Exception as e:
+                logger.warning(f"Error getting device info for deallocation: {e}")
+                # Fallback: use empty list if error occurs
+                existing_ld_ids = []
+                logger.info(f"Using empty LD IDs list due to error")
+
+            # Deallocate all found LDs from MLD Manager
+            if existing_ld_ids:
+                success = await self._mld_client.deallocate_logical_devices(
+                    port_index=port_index, ld_ids=existing_ld_ids
+                )
+
+                if success:
+                    logger.info(
+                        f"Successfully deallocated all LDs for port {port_index} from both switch and MLD"
+                    )
+
+                    # Sync with switch state after deallocation to ensure FMLD state is cleared
+                    try:
+                        # Get the current switch allocation state after deallocation
+                        get_allocation_request = GetLdAllocationsRequestPayload(
+                            start_ld_id=0, ld_allocation_list_limit=16
+                        )
+                        (return_code, current_allocation_response) = (
+                            await self._mctp_client.get_ld_alloctaion(
+                                get_allocation_request, port_index
+                            )
+                        )
+
+                        if current_allocation_response:
+                            # Extract LD IDs that are actually allocated in the switch
+                            switch_ld_ids = []
+                            for i, allocation in enumerate(
+                                current_allocation_response.ld_allocation_list
+                            ):
+                                if allocation > 0:  # Non-zero means allocated
+                                    switch_ld_ids.append(i)
+
+                            logger.info(
+                                f"Switch has {len(switch_ld_ids)} LDs allocated after deallocation: {switch_ld_ids}"
+                            )
+
+                            # Sync MLD Manager with switch state
+                            sync_success = await self._mld_client.sync_with_switch_state(
+                                port_index,
+                                switch_ld_ids,
+                                current_allocation_response.ld_allocation_list,
+                            )
+                            if sync_success:
+                                logger.info(
+                                    f"Successfully synced MLD Manager with switch state after deallocation"
+                                )
+                            else:
+                                logger.warning(
+                                    f"Failed to sync MLD Manager with switch state after deallocation"
+                                )
+                        else:
+                            logger.warning(
+                                f"Could not get current switch allocation state after deallocation"
+                            )
+                    except Exception as e:
+                        logger.warning(f"Error syncing with switch state after deallocation: {e}")
+
+                    return CommandResponse(
+                        error="",
+                        result={
+                            "created_ld_ids": [],
+                            "deallocated_ld_ids": existing_ld_ids,
+                            "message": f"Successfully deallocated all LDs for port {port_index}",
+                        },
+                    )
+                else:
+                    logger.warning(
+                        f"Switch deallocation succeeded but MLD deallocation failed for port {port_index}"
+                    )
+                    return CommandResponse(
+                        error="",
+                        result={
+                            "created_ld_ids": [],
+                            "deallocated_ld_ids": [],
+                            "message": f"Switch deallocation succeeded but MLD deallocation failed for port {port_index}",
+                        },
+                    )
+            else:
+                logger.info(f"No LDs found to deallocate from MLD Manager for port {port_index}")
+                return CommandResponse(
+                    error="",
+                    result={
+                        "created_ld_ids": [],
+                        "deallocated_ld_ids": [],
+                        "message": f"No LDs found to deallocate for port {port_index}",
+                    },
+                )
 
     async def _freeze_vppb(self, data) -> CommandResponse:
         request = FreezeVppbRequestPayload(
@@ -363,10 +1036,132 @@ class FabricManagerSocketIoServer(RunnableComponent):
         )
         await self._change_status_to_running()
 
+        # Call Get LD Info for all MLD ports at startup to inform UI about supported LD counts
+        await self._startup_get_ld_info_calls()
+
         # wait until stopped
         self._fut = asyncio.Future()
-        await self._fut
+        try:
+            await self._fut
+        except asyncio.CancelledError:
+            # Handle cancellation gracefully
+            logger.debug(self._create_message("SocketIO server cancelled"))
+        except Exception as e:
+            logger.debug(self._create_message(f"SocketIO server error: {e}"))
 
     async def _stop(self):
-        self._fut.set_result("Done")
-        await self._runner.cleanup()
+        logger.debug(self._create_message("Starting SocketIO server shutdown"))
+
+        # Safely handle the future during shutdown
+        if hasattr(self, "_fut") and self._fut is not None:
+            logger.debug(
+                self._create_message(
+                    f"Future state: done={self._fut.done()}, cancelled={self._fut.cancelled()}"
+                )
+            )
+            try:
+                if not self._fut.done():
+                    # Try to cancel the future instead of setting result
+                    logger.debug(self._create_message("Cancelling future"))
+                    self._fut.cancel()
+                else:
+                    logger.debug(self._create_message("Future already done"))
+            except Exception as e:
+                # Catch any unexpected errors during shutdown
+                logger.debug(self._create_message(f"Error cancelling future during shutdown: {e}"))
+        else:
+            logger.debug(self._create_message("No future to cancel"))
+
+        # Always cleanup the runner
+        try:
+            logger.debug(self._create_message("Cleaning up runner"))
+            await self._runner.cleanup()
+            logger.debug(self._create_message("Runner cleanup completed"))
+        except Exception as e:
+            logger.debug(self._create_message(f"Error during runner cleanup: {e}"))
+
+        logger.debug(self._create_message("SocketIO server shutdown completed"))
+
+    async def _startup_get_ld_info_calls(self):
+        """Call Get LD Info for all MLD ports at startup to inform UI about supported LD counts."""
+        try:
+            logger.info(self._create_message("Starting Get LD Info calls for all MLD ports..."))
+
+            # Get all MLD port indices from the MCTP client's device configs
+            # We need to find all ports that have MLD devices
+            mld_port_indices = []
+
+            # Try to get port indices from the MCTP client's device configs
+            if hasattr(self._mctp_client, "_device_configs"):
+                for device_config in self._mctp_client._device_configs:
+                    if hasattr(device_config, "port_index"):
+                        mld_port_indices.append(device_config.port_index)
+                        logger.info(
+                            self._create_message(f"Found MLD port: {device_config.port_index}")
+                        )
+
+            # If we couldn't get port indices from device configs, try common port indices
+            if not mld_port_indices:
+                logger.info(
+                    self._create_message(
+                        "No MLD ports found in device configs, trying common port indices..."
+                    )
+                )
+                # Common port indices for MLD devices (typically 1, 2, etc.)
+                mld_port_indices = [1, 2, 3, 4, 5, 6, 7, 8]
+
+            # Call Get LD Info for each MLD port
+            for port_index in mld_port_indices:
+                try:
+                    logger.info(
+                        self._create_message(f"Calling Get LD Info for port {port_index}...")
+                    )
+
+                    # Call the internal _get_ld_info method
+                    response = await self._get_ld_info({"portIndex": port_index})
+
+                    # Check if response is a CommandResponse object
+                    if hasattr(response, "error") and hasattr(response, "result"):
+                        if response.error == "":
+                            # Success - log the response
+                            result = response.result
+                            if result:
+                                ld_count = result.get("ldCount", 0)
+                                memory_size = result.get("memorySize", 0)
+                                logger.info(
+                                    self._create_message(
+                                        f"Port {port_index}: LD Count = {ld_count}, Memory Size = {memory_size} bytes"
+                                    )
+                                )
+                            else:
+                                logger.warning(
+                                    self._create_message(
+                                        f"Port {port_index}: No result in response"
+                                    )
+                                )
+                        else:
+                            logger.warning(
+                                self._create_message(
+                                    f"Port {port_index}: Get LD Info failed - {response.error}"
+                                )
+                            )
+                    else:
+                        # Response is not a CommandResponse object (might be a dict or other type)
+                        logger.warning(
+                            self._create_message(
+                                f"Port {port_index}: Unexpected response type: {type(response)}"
+                            )
+                        )
+
+                except Exception as e:
+                    logger.warning(
+                        self._create_message(f"Port {port_index}: Get LD Info error - {e}")
+                    )
+                    # Continue with other ports even if one fails
+                    continue
+
+            logger.info(self._create_message("Completed startup Get LD Info calls"))
+
+        except Exception as e:
+            logger.error(self._create_message(f"Error during startup Get LD Info calls: {e}"))
+            # Don't fail the entire startup process if this fails

@@ -36,17 +36,42 @@ class CxlFabricManager(RunnableComponent):
         socketio_port: int = 8200,
         host_fm_conn_port: int = 8700,
         use_test_runner: bool = False,
+        config_file: str = None,  # Add config file parameter
     ):
         super().__init__()
         self._connection_manager = MctpConnectionManager(mctp_host, mctp_port)
 
         self._api_client = MctpCciApiClient(self._connection_manager.get_mctp_connection())
+
+        # Load device configs from config file if provided
+        self._device_configs = []
+        if config_file:
+            try:
+                from opencis.cxl.environment.environment import parse_cxl_environment
+
+                env = parse_cxl_environment(config_file)
+                self._device_configs = env.multi_logical_device_configs
+                # Make device configs available to the API client
+                self._api_client._device_configs = self._device_configs
+            except Exception as e:
+                logger.warning(f"Could not load device configs from {config_file}: {e}")
+
         self._host_fm_conn_server = ShortMsgConn(
             "FM_Server", port=host_fm_conn_port, server=True, msg_width=16, msg_type=HostFMMsg
         )
         self._host_fm_conn_manager = HostFMConnManager(self._api_client, self._host_fm_conn_server)
+
+        # Initialize MLD client for cross-process communication
+        from opencis.cxl.component.mld_client import mld_client
+
+        self._mld_client = mld_client
+
         self._socketio_server = FabricManagerSocketIoServer(
-            self._api_client, self._host_fm_conn_manager, socketio_host, socketio_port
+            self._api_client,
+            self._host_fm_conn_manager,
+            socketio_host,
+            socketio_port,
+            self._mld_client,
         )
 
         self._host_fm_conn_server.register_general_handler(HostFMMsg.CONFIRM, self._host_callback())
@@ -116,6 +141,13 @@ class CxlFabricManager(RunnableComponent):
         await gather(*tasks)
 
     async def _stop(self):
+        # Disconnect from MLD process
+        if hasattr(self, "_mld_client") and self._mld_client:
+            try:
+                await self._mld_client.disconnect()
+            except Exception as e:
+                logger.warning(f"Error disconnecting from MLD process: {e}")
+
         await self._host_fm_conn_server.stop()
         await self._connection_manager.stop()
         await self._socketio_server.stop()

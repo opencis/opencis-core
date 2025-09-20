@@ -74,7 +74,13 @@ class HostMgrConnServer(RunnableComponent):
         await asyncio.gather(*tasks)
 
     async def _stop(self):
-        self._fut.set_result("Host Done")
+        if hasattr(self, "_fut") and self._fut is not None:
+            try:
+                if not self._fut.done():
+                    self._fut.set_result("Host Done")
+            except asyncio.InvalidStateError:
+                # Future might already be in an invalid state, ignore the error
+                pass
         self._host_server.close()
         await self._host_server.wait_closed()
 
@@ -205,7 +211,13 @@ class UtilConnServer(RunnableComponent):
         await asyncio.gather(*tasks)
 
     async def _stop(self):
-        self._fut.set_result("Host Done")
+        if hasattr(self, "_fut") and self._fut is not None:
+            try:
+                if not self._fut.done():
+                    self._fut.set_result("Host Done")
+            except asyncio.InvalidStateError:
+                # Future might already be in an invalid state, ignore the error
+                pass
         self._util_server.close()
         await self._util_server.wait_closed()
 

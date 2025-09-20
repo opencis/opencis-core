@@ -343,18 +343,40 @@ class SetLdAllocationsRequestPacket(CciRequestPacket):
     def create(
         cls, number_of_lds: int, start_ld_id: int, ld_allocations: dict[int, int]
     ) -> "SetLdAllocationsRequestPacket":
+        packet = super().create_packet(CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS)
+
+        if number_of_lds == 0:
+            # Handle deallocate all case
+            allocated_ld_list_bytes = b"\x00" * 16  # Minimum data for dynamic field
+            dynamic_widths = {"ld_allocation_list": len(allocated_ld_list_bytes) * 8}
+            packet.init_cci_payload(dynamic_widths)
+            packet.payload.number_of_lds = 0
+            packet.payload.start_ld_id = start_ld_id
+            packet.payload.reserved = 0
+            packet.payload.ld_allocation_list = allocated_ld_list_bytes
+            packet.set_data(bytes(packet.payload))
+            packet.system_header.payload_length = len(packet)
+            return packet
+
         if number_of_lds < 1:
             raise ValueError("Number of LDs must be greater than 0")
 
-        packet = super().create_packet(CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS)
         allocated_ld_list_bytes = bytes()
         allocated_ld_length = 0
         for i in range(number_of_lds):
-            if ld_allocations.get(start_ld_id + i) == 1:
+            ld_value = ld_allocations.get(start_ld_id + i, 0)
+            if ld_value == 1:
+                # Allocate: range1 = 1, range2 = 0
                 allocated_ld_list_bytes += b"\x01" + b"\x00" * 7 + b"\x00" * 8
                 allocated_ld_length += 1
-            elif ld_allocations.get(start_ld_id + i) == 0:
-                break
+            elif ld_value == 0:
+                # Deallocate: range1 = 0, range2 = 0
+                allocated_ld_list_bytes += b"\x00" + b"\x00" * 7 + b"\x00" * 8
+                allocated_ld_length += 1
+            else:
+                # Invalid value, treat as deallocate
+                allocated_ld_list_bytes += b"\x00" + b"\x00" * 7 + b"\x00" * 8
+                allocated_ld_length += 1
 
         dynamic_widths = {"ld_allocation_list": len(allocated_ld_list_bytes) * 8}
         packet.init_cci_payload(dynamic_widths)
@@ -364,6 +386,50 @@ class SetLdAllocationsRequestPacket(CciRequestPacket):
         packet.payload.ld_allocation_list = allocated_ld_list_bytes
         packet.set_data(bytes(packet.payload))
 
+        packet.system_header.payload_length = len(packet)
+        return packet
+
+    @classmethod
+    def create_from_cci_message(
+        cls, cci_message: CciMessagePacket
+    ) -> "SetLdAllocationsRequestPacket":
+        packet = cls.create_packet(CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS)
+
+        # Get the data from the CCI message
+        data = cci_message.get_data()
+
+        # Parse the header fields
+        number_of_lds = int.from_bytes(data[:1], "little")
+        start_ld_id = int.from_bytes(data[1:2], "little")
+
+        # Calculate the dynamic field width based on number_of_lds
+        # Each LD allocation entry is 16 bytes (8 bytes for range1 + 8 bytes for range2)
+        ld_allocation_list_length = number_of_lds * 16
+
+        # Ensure minimum width for dynamic field (even when number_of_lds = 0)
+        min_width = 16 * 8  # Minimum 16 bytes (128 bits) for dynamic field
+        dynamic_width = max(ld_allocation_list_length * 8, min_width)
+        dynamic_widths = {"ld_allocation_list": dynamic_width}
+
+        packet.init_cci_payload(dynamic_widths)
+
+        # Set the header fields
+        cci_msg_header_offset = packet.get_byte_offset(packet.cci_msg_header)
+        packet.set_bytes(cci_msg_header_offset, bytes(cci_message))
+
+        # Set the payload fields
+        packet.payload.number_of_lds = number_of_lds
+        packet.payload.start_ld_id = start_ld_id
+        packet.payload.reserved = 0
+
+        # Set the LD allocation list data
+        if number_of_lds > 0 and len(data) >= 4 + ld_allocation_list_length:
+            packet.payload.ld_allocation_list = data[4 : 4 + ld_allocation_list_length]
+        else:
+            # Handle empty allocation list case - provide minimum data
+            packet.payload.ld_allocation_list = b"\x00" * 16
+
+        packet.set_data(data)
         packet.system_header.payload_length = len(packet)
         return packet
 
@@ -482,12 +548,20 @@ class GetLdAllocationsResponsePacket(CciResponsePacket):
 
         allocated_ld_list_bytes = bytes()
         allocated_ld_length = 0
-        for i in range(ld_length):
-            if ld_allocations.get(start_ld_id + i) == 1:
-                allocated_ld_list_bytes += b"\x01" + b"\x00" * 7 + b"\x00" * 8
-                allocated_ld_length += 1
-            elif ld_allocations.get(start_ld_id + i) == 0:
-                break
+
+        # IMPORTANT: Maintain the full allocation list structure including deallocated LDs
+        # This ensures that when an LD is deallocated, all other LDs keep their positions
+        # Sort by LD ID to ensure consistent ordering
+        for ld_id in sorted(ld_allocations.keys()):
+            allocation_multiplier = ld_allocations[ld_id]
+            # Include ALL LDs in the response, even deallocated ones (value 0)
+            # This preserves the position structure for the UI
+            allocated_ld_list_bytes += allocation_multiplier.to_bytes(8, "little") + b"\x00" * 8
+            allocated_ld_length += 1
+
+        # Ensure we have at least some data for the dynamic field
+        if len(allocated_ld_list_bytes) == 0:
+            allocated_ld_list_bytes = b"\x00" * 16  # Add some default data
 
         dynamic_widths = {"ld_allocation_list": len(allocated_ld_list_bytes) * 8}
         packet.init_cci_payload(dynamic_widths)
@@ -527,12 +601,22 @@ class SetLdAllocationsResponsePacket(CciResponsePacket):
 
         allocated_ld_list_bytes = bytearray()
         allocated_ld_length = 0
-        for i, _ in enumerate(ld_allocations):
-            if ld_allocations.get(start_ld_id + i) == 1:
-                allocated_ld_list_bytes += b"\x01" + b"\x00" * 7 + b"\x00" * 8
+
+        for i in range(number_of_lds):
+            ld_id = start_ld_id + i
+            allocation_multiplier = ld_allocations.get(ld_id, 0)
+            if allocation_multiplier > 0:
+                # Use the actual allocation multiplier value
+                allocated_ld_list_bytes += allocation_multiplier.to_bytes(8, "little") + b"\x00" * 8
                 allocated_ld_length += 1
-            elif ld_allocations.get(start_ld_id + i) == 0:
-                break
+            elif allocation_multiplier == 0:
+                # Deallocated LD - add zeros
+                allocated_ld_list_bytes += b"\x00" * 16
+                allocated_ld_length += 1
+
+        # Ensure we have at least some data for the dynamic field
+        if len(allocated_ld_list_bytes) == 0:
+            allocated_ld_list_bytes = b"\x00" * 16  # Add some default data
 
         dynamic_widths = {"ld_allocation_list": len(allocated_ld_list_bytes) * 8}
         packet.init_cci_payload(dynamic_widths)
@@ -540,6 +624,7 @@ class SetLdAllocationsResponsePacket(CciResponsePacket):
         packet.payload.start_ld_id = start_ld_id
         packet.payload.reserved = 0
         packet.payload.ld_allocation_list = bytes(allocated_ld_list_bytes)
+
         packet.set_data(bytes(packet.payload))
 
         packet.system_header.payload_length = len(packet)

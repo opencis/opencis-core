@@ -10,6 +10,8 @@ devices:
   multi_logical_devices:
     - port_index: 1
       serial_number: 3FB95963144632BF
+      num_lds_supported: 4
+      total_capacity: 2G
       logical_devices:
       - memory_size: 256M
         ld_id: 0
@@ -21,6 +23,8 @@ devices:
         ld_id: 3
     - port_index: 2
       serial_number: 8A440DABC4DBEAFB
+      num_lds_supported: 4
+      total_capacity: 2G
       logical_devices:
       - memory_size: 512M
         ld_id: 0

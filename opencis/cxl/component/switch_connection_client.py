@@ -35,6 +35,7 @@ class SwitchConnectionClient(RunnableComponent):
         port_index: int,
         component_type: CXL_COMPONENT_TYPE,
         ld_count: int = 0,
+        mld_config=None,
         host: str = "0.0.0.0",
         port: int = 8000,
         retry: bool = True,
@@ -46,6 +47,7 @@ class SwitchConnectionClient(RunnableComponent):
         self._port = port
         self._port_index = port_index
         self._component_type = component_type
+        self._mld_config = mld_config
         if ld_count != 0:
             self._cxl_connection = [CxlConnection() for _ in range(ld_count)]
         else:
@@ -132,11 +134,22 @@ class SwitchConnectionClient(RunnableComponent):
         _, local_port = writer.get_extra_info("sockname")
         logger.info(self._create_message(f"Connected to switch using local port {local_port}"))
 
+        logger.info(
+            f"SwitchConnectionClient: Creating CxlPacketProcessor with mld_config: {self._mld_config}"
+        )
+        if self._mld_config:
+            logger.info(
+                f"SwitchConnectionClient: mld_config.num_lds_supported = {self._mld_config.num_lds_supported}"
+            )
+        else:
+            logger.info(f"SwitchConnectionClient: mld_config is None")
+
         self._packet_processor = CxlPacketProcessor(
             reader,
             writer,
             self._cxl_connection,
             self._component_type,
+            mld_config=self._mld_config,
             label=f"ClientPort{self._port_index}",
         )
         tasks = [asyncio.create_task(self._packet_processor.run())]

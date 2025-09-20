@@ -97,7 +97,7 @@ class PhysicalPortManager(RunnableComponent):
                 hdm_decoder_count = usp.get_hdm_decoder_count()
         return hdm_decoder_count
 
-    def get_connected_devices(self) -> List[MemoryDeviceInfo]:
+    async def get_connected_devices(self) -> List[MemoryDeviceInfo]:
         if self._device_configs is None:
             return []
 
@@ -110,21 +110,77 @@ class PhysicalPortManager(RunnableComponent):
 
         connected_devices = []
         switch_ports = self._switch_connection_manager.get_switch_ports()
+
+        # Debug logging
+        from opencis.util.logger import logger
+
+        logger.info(f"[PhysicalPortManager] Checking for connected devices...")
+        logger.info(f"[PhysicalPortManager] Device configs: {self._device_configs}")
+
         for port_index, switch_port in enumerate(switch_ports):
+            logger.info(
+                f"[PhysicalPortManager] Checking port {port_index}, type: {switch_port.port_config.type}"
+            )
             if switch_port.port_config.type != PORT_TYPE.DSP:
+                logger.info(f"[PhysicalPortManager] Port {port_index} is not DSP, skipping")
                 continue
             if port_index not in device_configs_by_port_id:
                 raise Exception(f"Device config for port {port_index} is not found")
             switch_config = device_configs_by_port_id[port_index]
             switch_port = switch_ports[port_index]
+            logger.info(
+                f"[PhysicalPortManager] Port {port_index} connected: {switch_port.connected}"
+            )
             if switch_port.connected:
                 if isinstance(switch_config, SingleLogicalDeviceConfig):
                     serial_number = switch_config.serial_number
                     total_capacity = switch_config.memory_size
                 elif isinstance(switch_config, MultiLogicalDeviceConfig):
-                    # Use the first serial number for now
-                    serial_number = switch_config.serial_numbers[0]
-                    total_capacity = sum(switch_config.memory_sizes)
+                    # For MLD configs, we need to check if there are any devices (static or dynamic)
+                    if switch_config.ld_list:
+                        # Use static configuration
+                        if switch_config.serial_numbers:
+                            serial_number = switch_config.serial_numbers[0]
+                        else:
+                            serial_number = "0000000000000000"
+
+                        # Use total_capacity field instead of calculating from memory_sizes
+                        total_capacity = switch_config.total_capacity
+                        logger.info(
+                            f"[PhysicalPortManager] Port {port_index}: Using static config, capacity={total_capacity}, serial={serial_number}"
+                        )
+                    else:
+                        # No static devices configured - try to get dynamic device info from MLD process
+                        try:
+                            from opencis.cxl.component.mld_client import mld_client
+
+                            # Ensure we're connected to the MLD process
+                            if not hasattr(mld_client, "_connected") or not mld_client._connected:
+                                await mld_client.connect()
+
+                            # Query for dynamic device information
+                            dynamic_devices = await mld_client.get_device_info(port_index)
+                            if dynamic_devices and len(dynamic_devices) > 0:
+                                # Use dynamic device information
+                                total_capacity = sum(
+                                    device["memory_size"] for device in dynamic_devices
+                                )
+                                serial_number = dynamic_devices[0]["serial_number"]
+                                logger.info(
+                                    f"[PhysicalPortManager] Port {port_index}: Using dynamic devices, capacity={total_capacity}, serial={serial_number}"
+                                )
+                            else:
+                                # No dynamic devices either - skip this port
+                                logger.info(
+                                    f"[PhysicalPortManager] Port {port_index}: No devices found (static or dynamic)"
+                                )
+                                continue
+                        except Exception as e:
+                            logger.warning(
+                                f"[PhysicalPortManager] Port {port_index}: Failed to query MLD process: {e}"
+                            )
+                            # Skip this port if we can't query the MLD process
+                            continue
                 else:
                     raise Exception(f"Invalid device config type: {type(switch_config)}")
 
@@ -138,6 +194,9 @@ class PhysicalPortManager(RunnableComponent):
                     total_capacity=total_capacity,
                 )
                 connected_devices.append(device_info)
+                logger.info(f"[PhysicalPortManager] Added device: {device_info}")
+
+        logger.info(f"[PhysicalPortManager] Final connected devices list: {connected_devices}")
         return connected_devices
 
     async def _run(self):

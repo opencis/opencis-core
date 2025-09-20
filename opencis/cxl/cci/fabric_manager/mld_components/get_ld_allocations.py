@@ -61,6 +61,10 @@ class GetLdAllocationsResponsePayloadDict(TypedDict):
     startLdId: int
     ldAllocationListLength: int
     ldAllocationList: List[int]
+    totalCapacity: int
+    maxCapacity: int
+    deviceCapacity: int
+    remainingCapacity: int
 
 
 @dataclass
@@ -69,7 +73,11 @@ class GetLdAllocationsResponsePayload:
     memory_granularity: int = field(default=0)  # 1byte
     start_ld_id: int = field(default=0)  # 1byte
     ld_allocation_list_length: int = field(default=0)  # 1byte
-    ld_allocation_list: bytes = field(default=b"")
+    ld_allocation_list: List[int] = field(default_factory=list)
+    total_capacity: int = field(default=0)  # Total capacity in bytes
+    max_capacity: int = field(default=0)  # Maximum capacity in bytes
+    device_capacity: int = field(default=0)  # Device capacity in bytes
+    remaining_capacity: int = field(default=0)  # Remaining capacity in bytes
 
     @classmethod
     def parse(cls, data: bytes):
@@ -98,7 +106,9 @@ class GetLdAllocationsResponsePayload:
         data[1] = self.memory_granularity
         data[2] = self.start_ld_id
         data[3] = self.ld_allocation_list_length
-        data += self.ld_allocation_list
+        # Convert list of integers to bytes
+        for value in self.ld_allocation_list:
+            data.extend(value.to_bytes(8, "little"))
         return bytes(data)
 
     def get_pretty_print(self):
@@ -108,6 +118,10 @@ class GetLdAllocationsResponsePayload:
             f"- Start LD ID: {self.start_ld_id}\n"
             f"- LD Allocation List Length: {self.ld_allocation_list_length}\n"
             f"- LD Allocation List: {self.ld_allocation_list}\n"
+            f"- Total Capacity: {self.total_capacity}\n"
+            f"- Max Capacity: {self.max_capacity}\n"
+            f"- Device Capacity: {self.device_capacity}\n"
+            f"- Remaining Capacity: {self.remaining_capacity}\n"
         )
 
     def to_dict(self) -> GetLdAllocationsResponsePayloadDict:
@@ -117,6 +131,10 @@ class GetLdAllocationsResponsePayload:
             "startLdId": self.start_ld_id,
             "ldAllocationListLength": self.ld_allocation_list_length,
             "ldAllocationList": self.ld_allocation_list,
+            "totalCapacity": self.total_capacity,
+            "maxCapacity": self.max_capacity,
+            "deviceCapacity": self.device_capacity,
+            "remainingCapacity": self.remaining_capacity,
         }
 
 

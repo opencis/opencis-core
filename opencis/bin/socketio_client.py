@@ -129,7 +129,7 @@ async def get_ld_info(port_index: int):
 
 async def get_ld_allocation(port_index: int, start_ld_id: int, ld_allocation_list_limit: int):
     await sio.connect("http://0.0.0.0:8200")
-    await send(
+    result = await send(
         "mld:getAllocation",
         {
             "portIndex": port_index,
@@ -138,10 +138,11 @@ async def get_ld_allocation(port_index: int, start_ld_id: int, ld_allocation_lis
         },
     )
     await sio.disconnect()
+    return result
 
 
 async def set_ld_allocation(
-    port_index: int, number_of_lds: int, start_ld_id: int, ld_allocation_list: int
+    port_index: int, number_of_lds: int, start_ld_id: int, ld_allocation_list: list
 ):
     await sio.connect("http://0.0.0.0:8200")
     await send(
@@ -153,6 +154,12 @@ async def set_ld_allocation(
             "ldAllocationList": ld_allocation_list,
         },
     )
+    await sio.disconnect()
+
+
+async def get_background_status():
+    await sio.connect("http://0.0.0.0:8200")
+    await send("background:getStatus", {})
     await sio.disconnect()
 
 

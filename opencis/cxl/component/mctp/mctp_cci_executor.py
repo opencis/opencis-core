@@ -29,9 +29,12 @@ from opencis.cxl.transport.cci_packets import (
     GetLdAllocationsRequestPacket,
     SetLdAllocationsRequestPacket,
 )
+from opencis.cxl.cci.fabric_manager.mld_components.set_ld_allocations import (
+    SetLdAllocationsRequestPayload,
+)
 from opencis.cxl.transport.packet_constants import CCI_MCTP_MESSAGE_CATEGORY
 
-from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE, get_opcode_string
+from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE, CCI_RETURN_CODE, get_opcode_string
 from opencis.util.logger import logger
 
 
@@ -41,6 +44,7 @@ class MctpCciExecutor(RunnableComponent):
         mctp_connection: MctpConnection,
         switch_connection_manager: SwitchConnectionManager,
         port_configs: List[PortConfig],
+        virtual_switch_manager=None,
         label: Optional[str] = None,
     ):
         super().__init__(label)
@@ -48,6 +52,7 @@ class MctpCciExecutor(RunnableComponent):
         self._mctp_connection = mctp_connection
         self._cci_executor = CciExecutor(label="MCTP")
         self._switch_connection_manager = switch_connection_manager
+        self._virtual_switch_manager = virtual_switch_manager
         self._downstream_port_connections = {}
 
         for port_index, port_config in enumerate(port_configs):
@@ -103,6 +108,24 @@ class MctpCciExecutor(RunnableComponent):
                 message_tag = cci_message.cci_msg_header.message_tag
                 self._message_tag_list[message_tag] = port_index
 
+                # Check if the port_index exists in downstream port connections
+                if port_index not in self._downstream_port_connections:
+                    logger.error(
+                        self._create_message(
+                            f"Port index {port_index} is not a valid downstream port. "
+                            f"Available downstream ports: {list(self._downstream_port_connections.keys())}"
+                        )
+                    )
+                    # Send error response
+                    error_response = CciResponse(
+                        return_code=CCI_RETURN_CODE.INVALID_INPUT,
+                        payload=b"Invalid port index",
+                        vendor_specific_status=0,
+                        bo_flag=False,
+                    )
+                    await self._send_response(error_response, message_tag)
+                    continue
+
                 packet = None
                 match command_opcode:
                     case CCI_FM_API_COMMAND_OPCODE.GET_LD_INFO:
@@ -111,6 +134,53 @@ class MctpCciExecutor(RunnableComponent):
                         packet = GetLdAllocationsRequestPacket.create_from_cci_message(cci_message)
                     case CCI_FM_API_COMMAND_OPCODE.SET_LD_ALLOCATIONS:
                         packet = SetLdAllocationsRequestPacket.create_from_cci_message(cci_message)
+
+                        # Also update the virtual switch manager with the new LD allocations
+                        # This ensures that binding/unbinding will work for dynamically created LDs
+                        try:
+                            # Extract LD IDs from the request payload
+                            request_payload = SetLdAllocationsRequestPayload.parse(
+                                cci_message.get_data()
+                            )
+                            logger.info(f"Parsed SET_LD_ALLOCATIONS request: {request_payload}")
+
+                            # Update virtual switch manager with the new LD allocations
+                            if self._virtual_switch_manager is not None:
+                                if request_payload.number_of_lds == 0:
+                                    # This is a "deallocate all" request - completely clear all LD allocations
+                                    # This ensures proper state synchronization with MLD Manager and Virtual Switch
+                                    self._virtual_switch_manager.update_ld_allocations(
+                                        port_index, []
+                                    )
+                                else:
+                                    # Extract allocated LD IDs from the request
+                                    allocated_ld_ids = []
+                                    for i in range(request_payload.number_of_lds):
+                                        ld_id = request_payload.start_ld_id + i
+                                        # Check if this LD is allocated (range1 > 0)
+                                        if i < len(request_payload.ld_allocation_list):
+                                            range1 = request_payload.ld_allocation_list[i][
+                                                0
+                                            ]  # (range1, range2)
+                                            if range1 > 0:
+                                                allocated_ld_ids.append(ld_id)
+
+                                    logger.info(
+                                        f"Updating virtual switch manager with allocated LD IDs: {allocated_ld_ids}"
+                                    )
+                                    self._virtual_switch_manager.update_ld_allocations(
+                                        port_index, allocated_ld_ids
+                                    )
+                            else:
+                                logger.warning(
+                                    "Virtual switch manager not available for LD allocation update"
+                                )
+                        except Exception as e:
+                            logger.warning(f"Failed to update virtual switch manager: {e}")
+                            import traceback
+
+                            logger.warning(f"Traceback: {traceback.format_exc()}")
+
                     case _:
                         break
 

@@ -1121,4 +1121,10 @@ class CxlRootPortDevice(RunnableComponent):
         await self._run_fut
 
     async def _stop(self):
-        self._run_fut.set_result(0)
+        if hasattr(self, "_run_fut") and self._run_fut is not None:
+            try:
+                if not self._run_fut.done():
+                    self._run_fut.set_result(0)
+            except asyncio.InvalidStateError:
+                # Future might already be in an invalid state, ignore the error
+                pass

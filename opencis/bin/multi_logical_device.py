@@ -22,6 +22,11 @@ def mld_group():
 
 async def run_devices(mlds: List[MultiLogicalDevice]):
     try:
+        # Start the MLD manager socket server
+        from opencis.cxl.component.mld_manager import mld_manager
+
+        await mld_manager.start_socket_server()
+
         await asyncio.gather(*(mld.run() for mld in mlds))
     except Exception as e:
         logger.error(
@@ -30,6 +35,11 @@ async def run_devices(mlds: List[MultiLogicalDevice]):
         )
     finally:
         try:
+            # Stop the socket server
+            from opencis.cxl.component.mld_manager import mld_manager
+
+            await mld_manager.stop_socket_server()
+
             await asyncio.gather(*(mld.stop() for mld in mlds))
         except Exception as e:
             logger.error("Error while stopping Multi Logical Device", exc_info=e)
@@ -39,17 +49,60 @@ def start_group(config_file):
     logger.info(f"Starting CXL Multi Logical Device Group - Config: {config_file}")
     cxl_env = parse_cxl_environment(config_file)
     mlds = []
+
+    # Import the MLD manager
+    from opencis.cxl.component.mld_manager import mld_manager
+
     for device_config in cxl_env.multi_logical_device_configs:
-        mld = MultiLogicalDevice(
-            port_index=device_config.port_index,
-            memory_sizes=device_config.memory_sizes,
-            memory_files=device_config.memory_files,
-            serial_numbers=device_config.serial_numbers,
-            host=cxl_env.switch_config.host,
-            port=cxl_env.switch_config.port,
-        )
+        # Always create MLD instances, even with empty logical devices
+        # This allows for dynamic LD creation at runtime
+        if not device_config.ld_list:
+            logger.info(
+                f"Creating MLD instance for port {device_config.port_index} with empty logical devices (ready for dynamic allocation)"
+            )
+
+        # Use device_config directly - it's already a MultiLogicalDeviceConfig
+        mld = MultiLogicalDevice(device_config)
+
+        # Register the MLD instance with the global manager
+        mld_manager.register_mld(device_config.port_index, mld)
+
         mlds.append(mld)
-    asyncio.run(run_devices(mlds))
+
+    # Always start the MLD manager socket server, even if there are no MLD instances
+    # This is needed for dynamic LD creation
+    if mlds:
+        asyncio.run(run_devices(mlds))
+    else:
+        # Start just the socket server without any MLD instances
+        logger.info(
+            "No MLD instances to start, but starting MLD manager socket server for dynamic LD creation"
+        )
+
+        async def run_socket_server_only():
+            try:
+                # Start the MLD manager socket server
+                from opencis.cxl.component.mld_manager import mld_manager
+
+                await mld_manager.start_socket_server()
+
+                # Keep the server running
+                while True:
+                    await asyncio.sleep(1)
+            except Exception as e:
+                logger.error("Error running MLD manager socket server", exc_info=e)
+            finally:
+                try:
+                    # Stop the socket server
+                    from opencis.cxl.component.mld_manager import mld_manager
+
+                    await mld_manager.stop_socket_server()
+                except Exception as e:
+                    logger.error("Error stopping MLD manager socket server", exc_info=e)
+
+        asyncio.run(run_socket_server_only())
+
+    return mlds
 
 
 @mld_group.command(name="start")
@@ -61,5 +114,17 @@ def start(port, memfile, memsize):
     if memfile is None:
         memfile = f"mld-mem{port}.bin"
     memsize = humanfriendly.parse_size(memsize, binary=True)
-    mld = MultiLogicalDevice(port, memsize, memfile, serial_numbers=[])
+
+    from opencis.apps.multi_logical_device import MultiLogicalDeviceConfig
+
+    mld_config = MultiLogicalDeviceConfig(
+        port_index=port,
+        memory_sizes=[memsize],
+        memory_files=[memfile],
+        serial_numbers=[],
+        total_capacity=memsize,
+        ld_count=1,
+    )
+
+    mld = MultiLogicalDevice(mld_config)
     asyncio.run(mld.run())

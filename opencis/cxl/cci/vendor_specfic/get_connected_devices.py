@@ -149,7 +149,7 @@ class GetConnectedDevicesCommand(CciForegroundCommand):
         self._physical_port_manager = physical_port_manager
 
     async def _execute(self, _: CciRequest) -> CciResponse:
-        connected_devices = self._physical_port_manager.get_connected_devices()
+        connected_devices = await self._physical_port_manager.get_connected_devices()
         device_info_list = []
         for device in connected_devices:
             device_info = DeviceInfo(

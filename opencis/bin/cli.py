@@ -245,7 +245,7 @@ def start(
         )
 
     component_map = {
-        "fm": lambda: ctx.invoke(fabric_manager.start),
+        "fm": lambda: ctx.invoke(fabric_manager.start, config_file=config_file),
         "switch": lambda: ctx.invoke(cxl_switch.start, config_file=config_file),
         "sld-group": lambda: ctx.invoke(sld.start_group, config_file=config_file),
         "mld-group": lambda: ctx.invoke(mld.start_group, config_file=config_file),
