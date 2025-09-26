@@ -121,6 +121,7 @@ class CxlType3Device(RunnableComponent):
             identity,
             decoder_count=self._decoder_count,
             memory_file=self._memory_file,
+            memory_size=self._memory_size,
             label=self._label,
         )
 
