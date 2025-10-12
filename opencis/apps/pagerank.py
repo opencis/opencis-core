@@ -16,8 +16,6 @@ import json
 import os
 import struct
 
-import torch
-from PIL import Image
 from tqdm.auto import tqdm
 
 from opencis.util.logger import logger
@@ -132,7 +130,7 @@ class MyType1Accelerator(RunnableComponent):
         irq_port: int = 8500,
         device_id: int = 0,
         total_devs: int = 1,
-        cache_friendly=False
+        cache_friendly=False,
     ):
         label = f"Port{port_index}"
         super().__init__(label)
@@ -192,7 +190,7 @@ class MyType1Accelerator(RunnableComponent):
                     else:
                         self._twitter_user_mapping[idFrom].append(idTo)
                     pbar.update()
-        max_id += 1 # id may start from 0
+        max_id += 1  # id may start from 0
         return max_id
 
     async def _run_app(self, _):
@@ -221,7 +219,6 @@ class MyType1Accelerator(RunnableComponent):
                 desc=f"Dev {self._device_id} Iteration",
                 position=2 * self._device_id,
                 leave=False,
-                disable=True
             ) as pbar:
                 while iteration_count < MAX_ITER:
                     iteration_count += 1
@@ -230,13 +227,21 @@ class MyType1Accelerator(RunnableComponent):
                         desc=f"Iteration Progress",
                         position=(2 * self._device_id) + 1,
                         leave=False,
-                        disable=True
                     ) as pbar2:
-                        print(f"Dev {self._device_id} {await old_dict.getAllElements()}")
+                        # print(f"Dev {self._device_id} {await old_dict.getAllElements()}")
                         for page in corpus:
-                            if page % self._total_devs != self._device_id:
-                                await sleep(0)
-                                continue
+                            if self._cache_friendly:
+                                if (
+                                    old_dict.getAddr(page) // 64
+                                ) % self._total_devs != self._device_id:
+                                    await sleep(0)
+                                    pbar2.update()
+                                    continue
+                            else:
+                                if page % self._total_devs != self._device_id:
+                                    await sleep(0)
+                                    pbar2.update()
+                                    continue
                             temp = 0
                             for linking_page in corpus:
                                 # check if page links to our page
@@ -247,29 +252,9 @@ class MyType1Accelerator(RunnableComponent):
                                     temp += (await old_dict[linking_page]) / len(corpus)
                             temp *= self._damping_factor
                             temp += (1 - self._damping_factor) / total_users
-                            pbar2.update()
-                            
-                            print(f"Dev {self._device_id} page {page} temp = {temp}")
                             await old_dict.setitem(page, temp)
-                            print(f"Dev {self._device_id} readback {await old_dict.getAllElements()}")
-                            # print(f"Interim value: page = {page}, temp = {temp}")
-                            # if self._cache_friendly:
-                            #     if (old_dict.getAddr(page) // 64) % self._total_devs == self._device_id:
-                            #         await sleep(0)
-                            #         await old_dict.setitem(page, temp)
-                            # else:
-                            #     if page % self._total_devs == self._device_id:
-                            #         await sleep(0)
-                            #         await old_dict.setitem(page, temp)
-                        # print(f"Dev {self._device_id} Value at this iteration: ")
-                        # print(await old_dict.getAllElements())
+                            pbar2.update()
                     pbar.update()
-                    # print(old_dict.getAllElements())
-                # difference = max([abs(new_dict[x] - old_dict[x]) for x in old_dict])
-                # if difference < 0.000000000000001:
-                #     break
-                # else:
-                #     old_dict = new_dict.copy()
 
             await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
         except CancelledError:

@@ -204,6 +204,9 @@ class CacheCoherencyBridge(RunnableComponent):
                         # print("RdOwn 3")
                         packet = await self._cxl_channel.d2h_data.get()
                         data = packet.data
+                        # Need to keep a copy of the new data in DRAM
+                        mem_packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, 64, data)
+                        await self._memory_producer_fifos.request.put(mem_packet)
                         # print("RdOwn 4")
                     else:
                         # print("RdOwn 5")
@@ -317,6 +320,8 @@ class CacheCoherencyBridge(RunnableComponent):
                         return
                     packet = await self._cxl_channel.d2h_data.get()
                     data = packet.data
+                    mem_packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, 64, data)
+                    await self._memory_producer_fifos.request.put(mem_packet)
                 else:
                     cache_packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_DATA, addr)
                     await self._upstream_coh_bridge_to_cache_fifo.request.put(cache_packet)
@@ -459,7 +464,10 @@ class CacheCoherencyBridge(RunnableComponent):
                 if self._cxl_channel.d2h_data.empty():
                     return
                 packet = await self._cxl_channel.d2h_data.get()
+                addr = self._cur_state.packet.addr
                 data = packet.data
+                mem_packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, 64, data)
+                await self._memory_producer_fifos.request.put(mem_packet)
             else:  # Unsupported for now
                 assert 0
             cache_packet = CacheResponse(self._cur_state.cache_rsp, data)

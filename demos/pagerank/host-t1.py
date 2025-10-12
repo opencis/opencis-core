@@ -135,7 +135,9 @@ async def check_training_finished_type1(dev_id: int):
 async def do_img_classification_type1():
     global pageRank
     print("Done calculating PageRank")
-    print(await pageRank.getAllElements())
+    results = await pageRank.getAllElements()
+    print(f"Results sum: {sum(results)}")
+    # print(await pageRank.getAllElements())
     stop_signal.set()
 
 
@@ -159,7 +161,7 @@ def read_file(path):
                 max_id = idFrom
             if idTo > max_id:
                 max_id = idTo
-    max_id += 1 # id may start from 0
+    max_id += 1  # id may start from 0
     return mapping, max_id
 
 
