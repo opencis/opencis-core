@@ -8,7 +8,7 @@ See LICENSE for details.
 from dataclasses import dataclass, field
 from asyncio import create_task, gather, Queue, sleep
 from itertools import cycle
-from typing import cast
+from typing import Dict, List, cast
 from enum import Enum, auto
 
 from opencis.util.logger import logger
@@ -88,8 +88,10 @@ class CacheCoherencyBridge(RunnableComponent):
             cache_rsp=CACHE_RESPONSE_STATUS.RSP_I,
             cache_list=[],
             birsp_sched=False,
+            cxl_rsp=None,
         )
         self._sf_device = [set() for _ in range(self._num_cache_devices)]
+        self._pending_addr: List[int] = []
 
         # emulated .cache d2h channels
         self._cxl_channel = CacheCoherencyBridgeCxlChannel()
@@ -123,7 +125,9 @@ class CacheCoherencyBridge(RunnableComponent):
         # invalidate all cachelines
         for _, cache_id in enumerate(cache_list):
             opcode = CXL_CACHE_H2DREQ_OPCODE.SNP_INV
-            cxl_packet = CxlCacheCacheH2DReqPacket.create(addr, cache_id, opcode)
+            cxl_packet = CxlCacheCacheH2DReqPacket.create(
+                addr, cache_id, opcode, self.get_next_uqid()
+            )
             await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_packet)
 
     async def _snoop_read_latest_data(
@@ -133,7 +137,7 @@ class CacheCoherencyBridge(RunnableComponent):
 
         cache_id = cache_list[0]
         self._cur_state.cache_rsp = CACHE_RESPONSE_STATUS.OK
-        cxl_packet = CxlCacheCacheH2DReqPacket.create(addr, cache_id, opcode)
+        cxl_packet = CxlCacheCacheH2DReqPacket.create(addr, cache_id, opcode, self.get_next_uqid())
         await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_packet)
 
     async def _sync_memory_read(self, addr: int) -> int:
@@ -149,39 +153,101 @@ class CacheCoherencyBridge(RunnableComponent):
             return
 
         addr = d2hreq_packet.get_address()
+        # print(
+        #     f"Host received {CXL_CACHE_D2HREQ_OPCODE(d2hreq_packet.d2hreq_header.cache_opcode).name}!!!!"
+        # )
+        # while addr in self._pending_addr:
+        #     print(
+        #         f"Deferring {CXL_CACHE_D2HREQ_OPCODE(d2hreq_packet.d2hreq_header.cache_opcode).name} request @ 0x{addr:08x}"
+        #     )
+        #     await sleep(0)
+        # print(
+        #     f"Resuming {CXL_CACHE_D2HREQ_OPCODE(d2hreq_packet.d2hreq_header.cache_opcode).name} request @ 0x{addr:08x}"
+        # )
+        self._pending_addr.append(addr)
         cache_id = d2hreq_packet.d2hreq_header.cache_id
         cqid = d2hreq_packet.d2hreq_header.cqid
         sf_update_list = []
 
-        if d2hreq_packet.d2hreq_header.cache_opcode == CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_OWN_NO_DATA:
+        if d2hreq_packet.d2hreq_header.cache_opcode in (
+            CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_OWN_NO_DATA,
+            CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_OWN,
+        ):
+            remote = True
             if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_START:
                 self._cur_state.cache_list = self._snoop_filter_find_cache_list(addr, cache_id)
                 # device cache snoop filter miss
                 if not self._cur_state.cache_list:
+                    # print("Local cache")
+                    remote = False
                     self._cur_state.state = COH_STATE_MACHINE.COH_STATE_DONE
                 # snoop needs to wait until all invalid requests are finished
                 else:
+                    # print("Remote cache")
                     await self._snoop_invalidate_caches(addr, self._cur_state.cache_list)
                     self._cur_state.state = COH_STATE_MACHINE.COH_STATE_WAIT
 
             # invalidate host cache and return to the target device
             if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_DONE:
+                if d2hreq_packet.d2hreq_header.cache_opcode == CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_OWN:
+                    # print("RdOwn 1")
+                    # Return data for RdOwn
+                    # print(f"cache rsp: {self._cur_state.cache_rsp}")
+                    if remote and self._cur_state.cxl_rsp in (
+                        CXL_CACHE_D2HRSP_OPCODE.RSP_I_FWD_M,
+                        CXL_CACHE_D2HRSP_OPCODE.RSP_S_FWD_M,
+                        CXL_CACHE_D2HRSP_OPCODE.RSP_V_FWD_V,
+                    ):
+                        # print("RdOwn 2")
+                        while self._cxl_channel.d2h_data.empty():
+                            await sleep(0)
+                        # print("RdOwn 3")
+                        packet = await self._cxl_channel.d2h_data.get()
+                        data = packet.data
+                        # print("RdOwn 4")
+                    else:
+                        # print("RdOwn 5")
+                        cache_packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_INV, addr)
+                        # print("RdOwn 6")
+                        await self._upstream_coh_bridge_to_cache_fifo.request.put(cache_packet)
+                        packet = await self._upstream_coh_bridge_to_cache_fifo.response.get()
+                        # print("RdOwn 7")
+                        if packet.status == CACHE_RESPONSE_STATUS.RSP_MISS:
+                            # print(f"RdOwn 8, addr: 0x{addr:08x}")
+                            data = await self._sync_memory_read(addr)
+                        else:
+                            # print("RdOwn 9")
+                            data = packet.data
+                    # print("RdOwn 10")
                 cache_packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_INV, addr)
                 await self._upstream_coh_bridge_to_cache_fifo.request.put(cache_packet)
                 packet = await self._upstream_coh_bridge_to_cache_fifo.response.get()
 
                 cxl_packet = CxlCacheCacheH2DRspPacket.create(
-                    cache_id, CXL_CACHE_H2DRSP_OPCODE.GO, CXL_CACHE_H2DRSP_CACHE_STATE.EXCLUSIVE
+                    cache_id,
+                    CXL_CACHE_H2DRSP_OPCODE.GO,
+                    CXL_CACHE_H2DRSP_CACHE_STATE.EXCLUSIVE,
+                    cqid,
                 )
                 sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_IN)
                 await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_packet)
+
+                if d2hreq_packet.d2hreq_header.cache_opcode == CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_OWN:
+                    # print("RdOwn 11")
+                    cxl_data_packet = CxlCacheCacheH2DDataPacket.create(cache_id, data, cqid)
+                    # print("RdOwn 12")
+                    # print(f"Data: 0x{data:0128x}")
+                    await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_data_packet)
+                    # print("RdOwn 13")
+
                 self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
+
         elif d2hreq_packet.d2hreq_header.cache_opcode == CXL_CACHE_D2HREQ_OPCODE.CACHE_CLEAN_EVICT:
             if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_START:
                 cxl_packet = CxlCacheCacheH2DRspPacket.create(
                     cache_id,
                     CXL_CACHE_H2DRSP_OPCODE.GO_WRITE_PULL_DROP,
-                    self.get_next_uqid(),  # fake UQID allocation
+                    self.get_next_uqid(),
                     cqid=cqid,
                 )
                 await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_packet)
@@ -214,7 +280,7 @@ class CacheCoherencyBridge(RunnableComponent):
                 cxl_packet = CxlCacheCacheH2DRspPacket.create(
                     cache_id,
                     CXL_CACHE_H2DRSP_OPCODE.GO_WRITE_PULL,
-                    self.get_next_uqid(),  # fake UQID allocation
+                    self.get_next_uqid(),
                     cqid=cqid,
                 )
                 await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_packet)
@@ -262,7 +328,7 @@ class CacheCoherencyBridge(RunnableComponent):
                         data = packet.data
 
                 cxl_packet = CxlCacheCacheH2DRspPacket.create(
-                    cache_id, CXL_CACHE_H2DRSP_OPCODE.GO, CXL_CACHE_H2DRSP_CACHE_STATE.SHARED
+                    cache_id, CXL_CACHE_H2DRSP_OPCODE.GO, CXL_CACHE_H2DRSP_CACHE_STATE.SHARED, cqid
                 )
                 sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_IN)
                 await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_packet)
@@ -274,10 +340,15 @@ class CacheCoherencyBridge(RunnableComponent):
         if sf_update_list:
             self._snoop_filter_update(addr, cache_id, sf_update_list)
 
+        self._pending_addr.remove(addr)
+        # print(
+        #     f"Finished {CXL_CACHE_D2HREQ_OPCODE(d2hreq_packet.d2hreq_header.cache_opcode).name} @ 0x{addr:08x}"
+        # )
+
     # .cache d2h rsp handler
     async def _process_cxl_d2h_rsp_packet(self, d2hrsp_packet: CxlCacheD2HRspPacket):
         sf_update_list = []
-
+        self._cur_state.cxl_rsp = d2hrsp_packet.d2hrsp_header.cache_opcode
         if d2hrsp_packet.d2hrsp_header.cache_opcode < CXL_CACHE_D2HRSP_OPCODE.RSP_S_FWD_M:
             if d2hrsp_packet.d2hrsp_header.cache_opcode in (
                 CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_I,
@@ -336,7 +407,11 @@ class CacheCoherencyBridge(RunnableComponent):
                 # host can access without sending any transaction to the devices whatsoever
                 self._cur_state.cache_list = self._snoop_filter_find_cache_list(addr)
                 if not self._cur_state.cache_list:
-                    if cache_packet.type == CACHE_REQUEST_TYPE.SNP_INV:
+                    if cache_packet.type in (
+                        CACHE_REQUEST_TYPE.SNP_INV,
+                        CACHE_REQUEST_TYPE.RD_OWN,
+                        CACHE_REQUEST_TYPE.RD_OWN_NO_DATA,
+                    ):
                         status = CACHE_RESPONSE_STATUS.RSP_I
                         cache_packet = CacheResponse(status)
                     else:

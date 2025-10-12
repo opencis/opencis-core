@@ -109,6 +109,8 @@ class CxlType1Device(RunnableComponent):
             device_id=config.device_id,
         )
 
+        self._device_id = config.device_id
+
         cache_num_assoc = 4
         cache_controller_config = CacheControllerConfig(
             component_name=config.device_name,
@@ -222,9 +224,11 @@ class CxlType1Device(RunnableComponent):
 
     async def cxl_cache_writeline(self, addr: int, data: int, cqid: Optional[int] = None):
         logger.debug(f"Beware: cqid {cqid} is not currently implemented.")
+        # print(f"Dev {self._device_id} writing...")
         await self._cache_controller.cache_coherent_store(addr, 64, data)
+        # print(f"Dev {self._device_id} finished writing!")
 
-    async def cxl_cache_read(self, address, size) -> bytes:
+    async def cxl_cache_read(self, address: int, size: int) -> bytes:
         end = address + size
         result = b""
         for cacheline_offset in range(address, address + size, 64):
@@ -234,7 +238,12 @@ class CxlType1Device(RunnableComponent):
             result += chunk_data[:chunk_size]
         return result
 
-    async def cxl_cache_write(self, address, size, value):
+    async def cxl_partial_write(self, address: int, size: int, value: int):
+        # print(f"Dev {self._device_id} Begin cxl_partial_write")
+        await self._cache_controller.cache_coherent_partial_store(address, size, value)
+        # print(f"Dev {self._device_id} End cxl_partial_write")
+
+    async def cxl_cache_write(self, address: int, size: int, value: int):
         if address % 64 != 0 or size % 64 != 0:
             raise Exception(f"Size {size} and address 0x{address:x} must be aligned to 64!")
 

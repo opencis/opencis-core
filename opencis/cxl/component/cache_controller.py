@@ -6,11 +6,14 @@ See LICENSE for details.
 """
 
 from typing import Optional, Tuple, List
-from asyncio import create_task, gather
+from asyncio import create_task, gather, sleep
 from dataclasses import dataclass
 from enum import Enum, auto
 from math import log2
 
+from click import pause
+
+from opencis.cxl.transport.transaction import CXL_CACHE_D2HRSP_OPCODE
 from opencis.util.logger import logger
 from opencis.util.component import RunnableComponent
 from opencis.cxl.transport.memory_fifo import (
@@ -26,6 +29,9 @@ from opencis.cxl.transport.cache_fifo import (
     CacheResponse,
     CACHE_RESPONSE_STATUS,
 )
+
+
+MAX_INT = pow(2, (8 * 64)) - 1
 
 
 class MEM_ADDR_TYPE(Enum):
@@ -60,6 +66,7 @@ class CohStateMachine:
     state: COH_STATE_MACHINE
     packet: None
     cache_rsp: CACHE_RESPONSE_STATUS
+    cxl_rsp: CXL_CACHE_D2HRSP_OPCODE
     cache_list: list
     birsp_sched: bool
 
@@ -254,7 +261,7 @@ class CacheController(RunnableComponent):
         elif packet.status == CACHE_RESPONSE_STATUS.RSP_E:
             cache_state = CacheState.CACHE_EXCLUSIVE
         elif packet.status == CACHE_RESPONSE_STATUS.RSP_I:
-            cache_state = CacheState.CACHE_EXCLUSIVE
+            cache_state = CacheState.CACHE_INVALID
         elif packet.status == CACHE_RESPONSE_STATUS.RSP_V:
             cache_state = CacheState.CACHE_INVALID
         elif packet.status == CACHE_RESPONSE_STATUS.RSP_M:
@@ -294,7 +301,7 @@ class CacheController(RunnableComponent):
         await cache_fifo.response.get()
 
     # For request: coherency tasks from cache controller to coh module
-    async def _cache_to_coh_state_lookup(self, addr: int) -> None:
+    async def _cache_to_coh_state_lookup(self, addr: int, op=CACHE_REQUEST_TYPE.SNP_INV):
         if self._processor_to_cache_fifo is None:
             # device-side cache controller
             cache_fifo = self._cache_to_coh_agent_fifo
@@ -309,10 +316,14 @@ class CacheController(RunnableComponent):
                 # no need to send SNP_INV
                 return
 
-        packet = CacheRequest(CACHE_REQUEST_TYPE.SNP_INV, addr)
+        packet = CacheRequest(op, addr)
         await cache_fifo.request.put(packet)
+        # print("Received Response Packet!!!")
         packet = await cache_fifo.response.get()
-        assert packet.status == CACHE_RESPONSE_STATUS.RSP_I
+        # # print(f"Packet received data: {packet.data:0128x}")
+        # assert packet.status == CACHE_RESPONSE_STATUS.RSP_I
+
+        return packet.status, packet.data
 
     # For response: coherency tasks from coh module to cache controller
     async def _coh_to_cache_state_lookup(
@@ -326,10 +337,14 @@ class CacheController(RunnableComponent):
         prev_state = None
         if cache_blk is not None:
             prev_state = self._cache_check_block_state(set, cache_blk)
+            # print(f"state lookup for {self._component_name}")
+            # while prev_state == CacheState.CACHE_WAITING:
+            #     await sleep(0)
             data = self._cache_data_read(set, cache_blk)
             if type == CACHE_REQUEST_TYPE.SNP_DATA:
                 self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_SHARED)
             elif type == CACHE_REQUEST_TYPE.SNP_INV:
+                # print(f"{self._component_name} Invalidating...")
                 self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_INVALID)
             elif type == CACHE_REQUEST_TYPE.SNP_CUR:
                 pass
@@ -378,27 +393,89 @@ class CacheController(RunnableComponent):
 
         return data
 
+    async def cache_coherent_partial_store(self, addr: int, size: int, data: int):
+        # # print(f"{self._component_name} start cache_coherent_partial_store 1")
+        # mask_offset = (64 - (addr % 64) - size) * 8
+        mask_offset = (addr % 64) * 8
+        # # print(f"{self._component_name} start cache_coherent_partial_store 2")
+
+        mask = (pow(2, (size * 8)) - 1) << mask_offset
+        # print(f"size = {size}, mask_offset = {mask_offset}, mask = {mask:0128x}")
+        # # print(f"{self._component_name} start cache_coherent_partial_store 3")
+        data = (data << mask_offset) & mask
+        # # print(f"{self._component_name} start cache_coherent_partial_store 4")
+        aligned_addr = addr - (addr % 64)
+        # # print(f"{self._component_name} start cache_coherent_partial_store 5")
+        await self.cache_coherent_store(aligned_addr, 64, data, mask)
+        # # print(f"{self._component_name} Finished cache_coherent_partial_store")
+        # Allows partial store to a cache block
+
     # cache access for write
-    async def cache_coherent_store(self, addr: int, size: int, data: int) -> None:
+    async def cache_coherent_store(
+        self, addr: int, size: int, data: int, mask: int = MAX_INT
+    ) -> None:
+        revert_mask = MAX_INT - mask
+        # print(
+        #     f"Dev {self._component_name} Doing cache_coherent_store at 0x{addr:08x}, data: 0x{data:0128x}"
+        # )
         assert size == self._cache_blk_size
+
+        request_opcode = CACHE_REQUEST_TYPE.RD_OWN
+        if mask == MAX_INT:
+            # RD_OWN for partial cache line updates
+            # RD_OWN_NO_DATA for full updates (overwriting anyway)
+            # See 3.2.4.2.10 (Note)
+            request_opcode = CACHE_REQUEST_TYPE.RD_OWN_NO_DATA
 
         tag = self._cache_extract_tag(addr)
         set = self._cache_extract_set(addr)
 
         cache_blk = self._cache_find_valid_block(tag, set)
+        remote_data = None
         if cache_blk is not None:
+            # print("Cache hit")
             # cache hit
             cache_state = self._cache_extract_block_state(set, cache_blk)
             assert cache_state != CacheState.CACHE_INVALID
 
+            # Set cache state to WAITING
+            # Cache lines in this state should ignore all responses
+            # Until we solve it here
+
+            # self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_WAITING)
             if cache_state == CacheState.CACHE_SHARED:
                 # can be real shared or exclusive-shared
-                await self._cache_to_coh_state_lookup(addr)
+                # print(f"{self._component_name} getting new state")
+                new_state, remote_data = await self._cache_to_coh_state_lookup(addr, request_opcode)
+                if remote_data is not None:
+                    self._cache_data_write(set, cache_blk, remote_data)
+                else:
+                    remote_data = self._cache_data_read(set, cache_blk)
+
+                cache_state = self._cache_extract_block_state(set, cache_blk)
+                # print(f"{self._component_name} Returned cache state: {new_state}")
+                # print(f"Middle cache state: {cache_state}")
                 self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_EXCLUSIVE)
+            else:
+                if mask != MAX_INT:
+                    remote_data = self._cache_data_read(set, cache_blk)
+
+            # Update data base on mask
 
             self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_MODIFIED)
+            cache_state = self._cache_extract_block_state(set, cache_blk)
+
+            if remote_data is not None:
+                # print(f"remote data: 0x{remote_data:0128x}")
+                # print(f"mask: {mask:0128x}")
+                # print(f"revert mask: {revert_mask:0128x}")
+                # print(f"masked: {(remote_data & revert_mask):0128x}")
+                data = (remote_data & revert_mask) | (data & mask)
+            # print(f"new data: 0x{data:0128x}")
+
             self._cache_data_write(set, cache_blk, data)
         else:
+            # print("Cache miss")
             # cache miss
             cache_blk = self._cache_find_invalid_block(set)
 
@@ -413,12 +490,18 @@ class CacheController(RunnableComponent):
                 self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_INVALID)
 
             # coherency check whenever inserting a cache block
-            # always snoop_invalidate for now
-            await self._cache_to_coh_state_lookup(addr)
+            new_state, remote_data = await self._cache_to_coh_state_lookup(addr, request_opcode)
 
             # todo: read memory if partial update is supported
             self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_MODIFIED)
+            if remote_data is not None:
+                data = (remote_data & revert_mask) | (data & mask)
+                # print(f"old remote data: 0x{remote_data:0128x}")
+            # print(f"new data: 0x{data:0128x}")
             self._cache_data_write(set, cache_blk, data)
+        # print(
+        #     f"Dev {self._component_name} Finished cache_coherent_store at 0x{addr:08x}, data: 0x{data:0128x}"
+        # )
 
     async def _uncached_load(self, addr: int, size: int) -> int:
         packet = CacheRequest(CACHE_REQUEST_TYPE.UNCACHED_READ, addr, size)
@@ -473,17 +556,15 @@ class CacheController(RunnableComponent):
             packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_MISS, data)
         elif packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
             rsp_status = CACHE_RESPONSE_STATUS.RSP_S
-            if prev_state == CacheState.CACHE_MODIFIED:
-                rsp_status = CACHE_RESPONSE_STATUS.RSP_M
-            elif prev_state == CacheState.CACHE_EXCLUSIVE:
-                rsp_status = CACHE_RESPONSE_STATUS.RSP_E
-            packet = CacheResponse(rsp_status, data)
+            packet = CacheResponse(rsp_status, data, prev_state)
         elif packet.type == CACHE_REQUEST_TYPE.SNP_INV:
-            packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I, data)
+            packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I, data, prev_state)
         elif packet.type == CACHE_REQUEST_TYPE.SNP_CUR:
-            packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_V, data)
+            packet = CacheResponse(prev_state, data, prev_state)
         elif packet.type == CACHE_REQUEST_TYPE.WRITE_BACK:
-            packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_V, data)
+            # 3.2.4.2.14 ~ 3.2.4.2.16
+            # guarantee to the Host that the device no longer contains any cached copies of this line
+            packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I, data, prev_state)
         else:
             assert False
         await cache_fifo.response.put(packet)

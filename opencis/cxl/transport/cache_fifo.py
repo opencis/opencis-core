@@ -16,6 +16,8 @@ class CACHE_REQUEST_TYPE(Enum):
     SNP_DATA = auto()
     SNP_INV = auto()
     SNP_CUR = auto()
+    RD_OWN = auto()
+    RD_OWN_NO_DATA = auto()
     WRITE_BACK = auto()
     WRITE_BACK_CLEAN = auto()
     UNCACHED_WRITE = auto()
@@ -47,7 +49,8 @@ class CACHE_RESPONSE_STATUS(Enum):
 @dataclass
 class CacheResponse:
     status: CACHE_RESPONSE_STATUS
-    data: int = 0
+    data: int = None
+    prev_status: CACHE_RESPONSE_STATUS = CACHE_RESPONSE_STATUS.FAILED
 
 
 @dataclass

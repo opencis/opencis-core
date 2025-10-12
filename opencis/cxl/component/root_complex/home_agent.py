@@ -89,6 +89,7 @@ class HomeAgent(RunnableComponent):
             cache_rsp=CXL_MEM_M2SBIRSP_OPCODE.BIRSP_I,
             cache_list=[],
             birsp_sched=False,
+            cxl_rsp=None,
         )
 
         # emulated .mem s2m channels

@@ -22,7 +22,7 @@ from PIL import Image
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import transforms, datasets
-from torchvision.models import efficientnet_v2_s, EfficientNet_V2_S_Weights
+from torchvision.models import resnet50, ResNet50_Weights
 from torchinfo import summary
 from tqdm.auto import tqdm
 
@@ -97,12 +97,12 @@ class MyType1Accelerator(RunnableComponent):
             target_is_directory=True,
         )
         # Model setup
-        self._model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
+        self._model = resnet50(weights=ResNet50_Weights.DEFAULT)
 
         # Reset the classification head and freeze params
-        self._model.classifier[1] = nn.Linear(in_features=1280, out_features=10, bias=True)
-        for p in self._model.features.parameters():
-            p.requires_grad = False
+        # self._model.classifier[1] = nn.Linear(in_features=1280, out_features=10, bias=True)
+        # for p in self._model.features.parameters():
+        #     p.requires_grad = False
         summary(self._model, input_size=(1, 3, 160, 160))
 
         self._transform = transforms.Compose(
@@ -263,6 +263,37 @@ class MyType1Accelerator(RunnableComponent):
 
         logger.info(self._create_message(f"Dev {self._device_id} Finished writing file"))
 
+    async def _get_train_image(self) -> None:
+        return
+        # We are just transmitting the images here.
+        # No need to really use these data
+        # as we are reading from the disk directly
+        zip_addr_mmio_addr = 0x1830
+        zip_size_mmio_addr = 0x1838
+        zip_addr = await self._cxl_type1_device.read_mmio(zip_addr_mmio_addr, 8)
+        zip_size = await self._cxl_type1_device.read_mmio(zip_size_mmio_addr, 8)
+
+        zip_end = zip_addr + zip_size
+
+        zipbuf = BytesIO()
+        # cacheline = await self._cxl_type1_device.cxl_cache_read(zip_addr, zip_end)
+        with tqdm(
+            total=zip_size,
+            desc=f"Dev {self._device_id} Reading Training Pic",
+            unit="iB",
+            unit_scale=True,
+            unit_divisor=1024,
+            position=self._device_id,
+            leave=False,
+        ) as pbar:
+            for cacheline_offset in range(zip_addr, zip_end, 64):
+                cacheline = await self._cxl_type1_device.cxl_cache_readline(cacheline_offset)
+                chunk_size = min(64, (zip_end - cacheline_offset))
+                chunk_data = cacheline.to_bytes(64, "little")
+                data = chunk_data[:chunk_size]
+                zipbuf.write(data)
+                pbar.update(chunk_size)
+
     async def _get_test_image(self) -> Image.Image:
 
         image_addr_mmio_addr = 0x1810
@@ -346,6 +377,7 @@ class MyType1Accelerator(RunnableComponent):
             #     f"{self.original_base_folder}{os.path.sep}noisy_imagenette.csv",
             #     f"{self.accel_dirname}{os.path.sep}noisy_imagenette.csv",
             # )
+            await self._get_train_image()
 
             logger.info(self._create_message("Begin Model Training"))
             epochs = 1
@@ -492,11 +524,12 @@ class MyType2Accelerator(RunnableComponent):
         self._cxl_type2_device = CxlType2Device(self._device_config)
 
         # Model setup
-        self._model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
+        self._model = resnet50(weights=ResNet50_Weights.DEFAULT)
 
-        self._model.classifier[1] = nn.Linear(in_features=1280, out_features=10, bias=True)
-        for p in self._model.features.parameters():
-            p.requires_grad = False
+        # Reset the classification head and freeze params
+        # self._model.classifier[1] = nn.Linear(in_features=1280, out_features=10, bias=True)
+        # for p in self._model.features.parameters():
+        #     p.requires_grad = False
         summary(self._model, input_size=(1, 3, 160, 160))
 
         self._transform = transforms.Compose(

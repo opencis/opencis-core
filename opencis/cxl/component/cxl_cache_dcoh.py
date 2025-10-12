@@ -48,6 +48,7 @@ from opencis.cxl.transport.cache_fifo import (
     CACHE_RESPONSE_STATUS,
 )
 from opencis.cxl.component.cache_controller import (
+    CacheState,
     CohStateMachine,
     COH_STATE_MACHINE,
 )
@@ -89,7 +90,10 @@ class CxlCacheDcoh(PacketProcessor):
                 device_id,
             ],
             birsp_sched=False,
+            cxl_rsp=None,
         )
+
+        self._device_id = device_id
 
         # emulated .cache d2h channels
         self._cxl_channel = CacheDcohCxlChannel()
@@ -97,6 +101,7 @@ class CxlCacheDcoh(PacketProcessor):
         self.device_entries: dict[int, Future] = (
             {}
         )  # maps CQID -> received future packets associated with CQID
+        self.sent_d2h_req: dict[int, CxlCacheCacheD2HReqPacket] = {}
         self.device_entry_lock = Lock()  # locks the above mapping
 
         self._cqid_gen = cycle(range(0, 4096))
@@ -308,6 +313,7 @@ class CxlCacheDcoh(PacketProcessor):
 
         data_read = False
         addr = h2dreq_packet.get_address()
+        uqid = h2dreq_packet.h2dreq_header.uqid
 
         if h2dreq_packet.h2dreq_header.cache_opcode == CXL_CACHE_H2DREQ_OPCODE.SNP_DATA:
             type = CACHE_REQUEST_TYPE.SNP_DATA
@@ -316,20 +322,46 @@ class CxlCacheDcoh(PacketProcessor):
         elif h2dreq_packet.h2dreq_header.cache_opcode == CXL_CACHE_H2DREQ_OPCODE.SNP_CUR:
             type = CACHE_REQUEST_TYPE.SNP_CUR
 
-        cache_packet = CacheRequest(type, addr)
-        await self._coh_agent_to_cache_fifo.request.put(cache_packet)
+        cache_packet_req = CacheRequest(type, addr)
+        # print(f"Dev {self._device_id} checking cache state...")
+        await self._coh_agent_to_cache_fifo.request.put(cache_packet_req)
         cache_packet = await self._coh_agent_to_cache_fifo.response.get()
+        # print(f"Dev {self._device_id} received cache state!")
+        prev_state = cache_packet.prev_status
 
         if cache_packet.status == CACHE_RESPONSE_STATUS.RSP_MISS:
             opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_I
 
         elif cache_packet.status == CACHE_RESPONSE_STATUS.RSP_I:
             if type == CACHE_REQUEST_TYPE.SNP_INV:
-                opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_SE
+                if prev_state == CacheState.CACHE_MODIFIED:
+                    data_read = True
+                    opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_I_FWD_M
+                elif prev_state == CacheState.CACHE_INVALID:
+                    opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_I
+                elif prev_state in (CacheState.CACHE_SHARED, CacheState.CACHE_EXCLUSIVE):
+                    # print(f"Prev state: {prev_state}")
+                    opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_SE
+                else:
+                    raise Exception(f"Not handled!! Prev: {prev_state}, cur: {cache_packet.status}")
+                # print(
+                #     f"Dev {self._device_id}: I guess I am here 0!!, status is {cache_packet.status.name}, opcode: {CXL_CACHE_D2HRSP_OPCODE(opcode).name}, data: {cache_packet.data:0128x}"
+                # )
         elif cache_packet.status in (CACHE_RESPONSE_STATUS.RSP_E, CACHE_RESPONSE_STATUS.RSP_S):
             # Use RSP_S_HIT_SE if data is clean
             if type == CACHE_REQUEST_TYPE.SNP_DATA:
-                opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_S_HIT_SE
+                # print(
+                #     f"Dev {self._device_id}: I guess I am here 1!!, status is {cache_packet.status.name}"
+                # )
+                if cache_packet.prev_status == CacheState.CACHE_MODIFIED:
+                    data_read = True
+                    opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_S_FWD_M
+                elif cache_packet.prev_status in (
+                    CacheState.CACHE_SHARED,
+                    CacheState.CACHE_EXCLUSIVE,
+                ):
+                    opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_S_HIT_SE
+                # print(f"Returning {CXL_CACHE_D2HRSP_OPCODE(opcode).name}")
             elif type == CACHE_REQUEST_TYPE.SNP_CUR:
                 if cache_packet.status == CACHE_RESPONSE_STATUS.RSP_E:
                     data_read = True
@@ -337,19 +369,24 @@ class CxlCacheDcoh(PacketProcessor):
                 else:
                     opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_V_HIT_V
         elif cache_packet.status in (CACHE_RESPONSE_STATUS.RSP_M, CACHE_RESPONSE_STATUS.RSP_V):
+            # print(
+            #     f"Dev {self._device_id}: I guess I am here 2!!, status is {cache_packet.status.name}"
+            # )
             data_read = True
             if type == CACHE_REQUEST_TYPE.SNP_DATA:
                 opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_S_FWD_M
             elif type == CACHE_REQUEST_TYPE.SNP_CUR:
                 opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_V_FWD_V
+            elif type == CACHE_REQUEST_TYPE.SNP_INV:
+                opcode = CXL_CACHE_D2HRSP_OPCODE.RSP_I_FWD_M
         else:
             raise Exception(f"Received unexpected packet: {h2dreq_packet.get_type()}")
 
-        cxl_packet = CxlCacheCacheD2HRspPacket.create(0, opcode)
+        cxl_packet = CxlCacheCacheD2HRspPacket.create(uqid, opcode)
         await self._upstream_fifo.target_to_host.put(cxl_packet)
 
         if data_read is True:
-            cxl_packet = CxlCacheCacheD2HDataPacket.create(0, cache_packet.data)
+            cxl_packet = CxlCacheCacheD2HDataPacket.create(uqid, cache_packet.data)
             await self._upstream_fifo.target_to_host.put(cxl_packet)
 
     # .cache h2d rsp handler
@@ -360,7 +397,7 @@ class CxlCacheDcoh(PacketProcessor):
         # Forward packet to listening tracket entry
 
         # TODO: implement cqid logic here
-        # cqid = h2drsp_packet.h2drsp_header.cqid
+        cqid = h2drsp_packet.h2drsp_header.cqid
         # async with self.device_entry_lock:
         #     if cqid in self.device_entries:
         #         self.device_entries[cqid].set_result(h2drsp_packet)
@@ -369,11 +406,20 @@ class CxlCacheDcoh(PacketProcessor):
         # Handle H2DRSP without matching CQID
 
         if h2drsp_packet.h2drsp_header.cache_opcode == CXL_CACHE_H2DRSP_OPCODE.GO:
-            if h2drsp_packet.h2drsp_header.rsp_data in (
-                CXL_CACHE_H2DRSP_CACHE_STATE.EXCLUSIVE,
-                CXL_CACHE_H2DRSP_CACHE_STATE.INVALID,
-            ):
-                cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I)
+            if h2drsp_packet.h2drsp_header.rsp_data == CXL_CACHE_H2DRSP_CACHE_STATE.EXCLUSIVE:
+                cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_E)
+                if (
+                    self.sent_d2h_req[cqid].d2hreq_header.cache_opcode
+                    == CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_OWN
+                ):
+                    # print("Doing this")
+                    while self._cxl_channel.h2d_data.empty():
+                        # print("Waiting for H2D DATA")
+                        await sleep(0)
+                    packet = await self._cxl_channel.h2d_data.get()
+                    # print(f"Received H2D Data: 0x{packet.data:0128x}")
+                    cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_E, packet.data)
+
                 await self._cache_to_coh_agent_fifo.response.put(cache_packet)
 
             elif h2drsp_packet.h2drsp_header.rsp_data == CXL_CACHE_H2DRSP_CACHE_STATE.SHARED:
@@ -382,10 +428,12 @@ class CxlCacheDcoh(PacketProcessor):
                 await self._cache_to_coh_agent_fifo.response.put(cache_packet)
 
             elif h2drsp_packet.h2drsp_header.rsp_data == CXL_CACHE_H2DRSP_CACHE_STATE.INVALID:
-                pass
+                cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I)
+                await self._cache_to_coh_agent_fifo.response.put(cache_packet)
 
         elif h2drsp_packet.h2drsp_header.cache_opcode == CXL_CACHE_H2DRSP_OPCODE.GO_WRITE_PULL:
-            cxl_packet = CxlCacheCacheD2HDataPacket.create(0, self._cur_state.packet.data)
+            uqid = h2drsp_packet.h2drsp_header.rsp_data
+            cxl_packet = CxlCacheCacheD2HDataPacket.create(uqid, self._cur_state.packet.data)
             await self._upstream_fifo.target_to_host.put(cxl_packet)
             cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.OK)
             await self._cache_to_coh_agent_fifo.response.put(cache_packet)
@@ -396,12 +444,12 @@ class CxlCacheDcoh(PacketProcessor):
     #     Forward packet to listening tracker entry
     #     TODO: migrate this to _process_cxl_h2d_rsp_packet
     #     cqid = h2ddata_packet.h2ddata_header.cqid
-    #     print(f"getting cqid {cqid}")
+    #     # print(f"getting cqid {cqid}")
     #     async with self.device_entry_lock:
     #         if cqid in self.device_entries:
-    #             print("Setting result")
+    #             # print("Setting result")
     #             self.device_entries[cqid].set_result(h2ddata_packet)
-    #     # print("Back here")
+    #     # # print("Back here")
     #     self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
 
     # .cache d2h device req handler
@@ -411,27 +459,43 @@ class CxlCacheDcoh(PacketProcessor):
 
         if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_START:
             addr = cache_packet.addr
-
+            cqid = await self.get_next_cqid()
             if cache_packet.type == CACHE_REQUEST_TYPE.WRITE_BACK:
                 cxl_packet = CxlCacheCacheD2HReqPacket.create(
-                    addr, self._cur_state.cache_list[0], CXL_CACHE_D2HREQ_OPCODE.CACHE_DIRTY_EVICT
+                    addr,
+                    self._cur_state.cache_list[0],
+                    CXL_CACHE_D2HREQ_OPCODE.CACHE_DIRTY_EVICT,
+                    cqid,
                 )
             elif cache_packet.type == CACHE_REQUEST_TYPE.WRITE_BACK_CLEAN:
                 cxl_packet = CxlCacheCacheD2HReqPacket.create(
                     addr,
                     self._cur_state.cache_list[0],
                     CXL_CACHE_D2HREQ_OPCODE.CACHE_CLEAN_EVICT_NO_DATA,
+                    cqid,
                 )
             elif cache_packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
                 cxl_packet = CxlCacheCacheD2HReqPacket.create(
-                    addr, self._cur_state.cache_list[0], CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_SHARED
+                    addr,
+                    self._cur_state.cache_list[0],
+                    CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_SHARED,
+                    cqid,
                 )
-            elif cache_packet.type == CACHE_REQUEST_TYPE.SNP_INV:
+            elif cache_packet.type == CACHE_REQUEST_TYPE.RD_OWN_NO_DATA:
                 cxl_packet = CxlCacheCacheD2HReqPacket.create(
                     addr,
                     self._cur_state.cache_list[0],
                     CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_OWN_NO_DATA,
+                    cqid,
                 )
+            elif cache_packet.type == CACHE_REQUEST_TYPE.RD_OWN:
+                cxl_packet = CxlCacheCacheD2HReqPacket.create(
+                    addr,
+                    self._cur_state.cache_list[0],
+                    CXL_CACHE_D2HREQ_OPCODE.CACHE_RD_OWN,
+                    cqid,
+                )
+            self.sent_d2h_req[cqid] = cxl_packet
             await self._upstream_fifo.target_to_host.put(cxl_packet)
             self._cur_state.state = COH_STATE_MACHINE.COH_STATE_WAIT
 
@@ -489,20 +553,29 @@ class CxlCacheDcoh(PacketProcessor):
             if not self._cxl_channel.h2d_req.empty():
                 packet = await self._cxl_channel.h2d_req.get()
                 # corner case handling
-                if (
-                    self._cur_state.state != COH_STATE_MACHINE.COH_STATE_INIT
-                    and packet.get_address() == self._cur_state.packet.addr
-                ):
-                    assert self._cur_state.packet.type in (
-                        CACHE_REQUEST_TYPE.WRITE_BACK,
-                        CACHE_REQUEST_TYPE.WRITE_BACK_CLEAN,
-                    )
-                    if packet.h2dreq_header.cache_opcode == CXL_CACHE_H2DREQ_OPCODE.SNP_INV:
-                        cxl_packet = CxlCacheCacheD2HRspPacket.create(
-                            0, CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_I
-                        )
-                        await self._upstream_fifo.target_to_host.put(cxl_packet)
-                        continue
+                # if (
+                #     self._cur_state.state != COH_STATE_MACHINE.COH_STATE_INIT
+                #     and packet.get_address() == self._cur_state.packet.addr
+                # ):
+                # # print(f"State: {self._cur_state.state}")
+                # # print(f"_cur_state.packet.type: {self._cur_state.packet.type}")
+                # # print(
+                #     f"packet.h2dreq_header.cache_opcode: {CXL_CACHE_H2DREQ_OPCODE(packet.h2dreq_header.cache_opcode).name}"
+                # )
+                # assert self._cur_state.packet.type in (
+                #     CACHE_REQUEST_TYPE.WRITE_BACK,
+                #     CACHE_REQUEST_TYPE.WRITE_BACK_CLEAN,
+                # )
+                # if packet.h2dreq_header.cache_opcode == CXL_CACHE_H2DREQ_OPCODE.SNP_INV:
+                #     cxl_packet = CxlCacheCacheD2HRspPacket.create(
+                #         0, CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_I
+                #     )
+                #     await self._upstream_fifo.target_to_host.put(cxl_packet)
+                #     continue
+
+                # if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_WAIT:
+                #     await sleep(0)
+
                 await self._process_cxl_h2d_req_packet(packet)
 
     # pylint: disable=duplicate-code

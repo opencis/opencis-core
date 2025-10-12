@@ -275,15 +275,46 @@ async def my_img_classification_app(**kwargs):
         csv_data_int,
         prog_bar=True,
     )
+    logger.info("Getting all pics...")
+    PIC_DATA_MEM_OFFSET = CSV_DATA_MEM_OFFSET + csv_data_len_rounded
+    logger.info(f"Saving at 0x{PIC_DATA_MEM_OFFSET:08x}")
+    image_files = glob.glob(f"{config.train_data_path}/**/*.JPEG", recursive=True)
+    all_image_data = []
+    all_image_size = 0
+    for image in image_files:
+        with open(image, "rb") as f:
+            image_data = f.read()
+            all_image_data.append(image_data)
+    all_image_data_bin = b"".join(all_image_data)
+    all_image_size = len(all_image_data_bin)
+    image_data_len_rounded = (((all_image_size - 1) // 64) + 1) * 64
+
+    # await cpu.store_bin(
+    #     to_sys_mem_addr(PIC_DATA_MEM_OFFSET),
+    #     image_data_len_rounded,
+    #     all_image_data_bin,
+    #     prog_bar=True,
+    # )
+
+    logger.info(f"Done reading all pictures. Total size: {all_image_size} bytes")
+
     for dev_id in range(config.accel_count):
         await cpu.store(to_accel_mmio_addr(dev_id, 0x1800), 8, CSV_DATA_MEM_OFFSET)
         await cpu.store(to_accel_mmio_addr(dev_id, 0x1808), 8, csv_data_len)
+        await cpu.store(to_accel_mmio_addr(dev_id, 0x1830), 8, PIC_DATA_MEM_OFFSET)
+        await cpu.store(to_accel_mmio_addr(dev_id, 0x1838), 8, all_image_size)
         while True:
             csv_data_mem_loc_rb = await cpu.load(to_accel_mmio_addr(dev_id, 0x1800), 8)
             csv_data_len_rb = await cpu.load(to_accel_mmio_addr(dev_id, 0x1808), 8)
+            image_data_mem_loc_rb = await cpu.load(to_accel_mmio_addr(dev_id, 0x1830), 8)
+            image_data_len_rb = await cpu.load(to_accel_mmio_addr(dev_id, 0x1838), 8)
 
             if csv_data_mem_loc_rb == CSV_DATA_MEM_OFFSET and csv_data_len_rb == csv_data_len:
-                break
+                if (
+                    image_data_mem_loc_rb == PIC_DATA_MEM_OFFSET
+                    and image_data_len_rb == all_image_size
+                ):
+                    break
             await asyncio.sleep(0.1)
 
         host_irq_handler.register_interrupt_handler(
@@ -345,7 +376,7 @@ async def main():
 
     cxl_host_config = CxlHostConfig(
         port_index=0,
-        sys_mem_size=(2 * MB),
+        sys_mem_size=(200 * MB),
         sys_sw_app=my_sys_sw_app,
         user_app=my_img_classification_app,
         host_name="ImageHostType1",
