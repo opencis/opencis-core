@@ -7,13 +7,9 @@ See LICENSE for details.
 
 # pylint: disable=unused-import
 from asyncio import CancelledError, gather, create_task, Event, sleep
-import glob
-from io import BytesIO
 import traceback
 from typing import Awaitable, Dict, List, Tuple, cast, Callable
 import shutil
-import json
-import os
 import struct
 
 from tqdm.auto import tqdm
@@ -169,7 +165,6 @@ class MyType1Accelerator(RunnableComponent):
         
 
         self._cache_friendly = cache_friendly
-        # self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self.set_go_signal)
         self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self.set_go_signal)
         if self._cache_friendly == 2:
             pass
