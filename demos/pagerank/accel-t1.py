@@ -44,7 +44,7 @@ async def main():
     sw_portno = int(sys.argv[1])
     portidx = int(sys.argv[2])
     total_devs = int(sys.argv[3])
-    cache_friendly = bool(int(sys.argv[4]))
+    cache_friendly = int(int(sys.argv[4]))
 
     logger.debug(f"[ACCEL] listening on port {sw_portno} and physical port {portidx}")
 

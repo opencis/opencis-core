@@ -3,4 +3,5 @@ __pycache__
 .coverage*
 *.bin
 *.patch
-./demos/pagerank/*.txt
+demos/pagerank/*.txt
+.gitignore

@@ -44,6 +44,8 @@ class AccelInfo:
     hpa_base_addr: Dict[int, int] = field(default_factory=dict)
     mmio_base_addr: Dict[int, int] = field(default_factory=dict)
     training_done: Dict[int, bool] = field(default_factory=dict)
+    one_iter_done: Dict[int, bool] = field(default_factory=dict)
+    total_iters_done: int = 0
 
 
 accel_info = AccelInfo()
@@ -60,7 +62,7 @@ host = None
 host_task = None
 START_ADDR = 0x1810
 pageRank = CustomList(0, START_ADDR)
-
+pageRankSecondBuffer = CustomList(0, START_ADDR)
 
 async def my_sys_sw_app(**kwargs):
     cxl_memory_hub = kwargs["cxl_memory_hub"]
@@ -126,18 +128,25 @@ def to_accel_mmio_addr(dev_id: int, addr: int) -> int:
     return accel_info.mmio_base_addr[dev_id] + addr
 
 
-async def check_training_finished_type1(dev_id: int):
+async def barrier_one_iter_finished_type1(dev_id: int):
+    accel_info.one_iter_done[dev_id] = True
+    if len(accel_info.one_iter_done) == config.accel_count:
+        accel_info.one_iter_done = {}
+        for dev_id in range(config.accel_count):
+            await host_irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
+
+async def check_final_iter_ready(dev_id: int):
     accel_info.training_done[dev_id] = True
     if len(accel_info.training_done) == config.accel_count:
-        await do_img_classification_type1()
+        await check_final_results()
 
-
-async def do_img_classification_type1():
-    global pageRank
+async def check_final_results():
+    global pageRank, pageRankSecondBuffer
     print("Done calculating PageRank")
     results = await pageRank.getAllElements()
     print(f"Results sum: {sum(results)}")
     # print(await pageRank.getAllElements())
+    # print(await pageRankSecondBuffer.getAllElements())
     stop_signal.set()
 
 
@@ -166,7 +175,7 @@ def read_file(path):
 
 
 async def my_img_classification_app(**kwargs):
-    global cpu, pageRank
+    global cpu, pageRank, pageRankSecondBuffer
     cpu = kwargs["cpu"]
 
     global mem_hub
@@ -177,11 +186,15 @@ async def my_img_classification_app(**kwargs):
     await start_signal.wait()
     logger.info("Host main process running!")
 
+    # corpus, total_users = read_file("./links-anon-sampled-condensed-100000.txt")
     corpus, total_users = read_file("./links-anon-4.txt")
     print(f"Total users: {total_users}")
     pageRank = CustomList(total_users, START_ADDR)
     pageRank.setReadFunc(cpu.load_bytes)
     pageRank.setWriteFunc(cpu.store)
+    pageRankSecondBuffer = CustomList(total_users, pageRank.getEndingAddr())
+    pageRankSecondBuffer.setReadFunc(cpu.load_bytes)
+    pageRankSecondBuffer.setWriteFunc(cpu.store)
     print("File finished reading")
 
     # assigning each page a rank of 1/n, where n is total number of pages in the corpus
@@ -197,7 +210,10 @@ async def my_img_classification_app(**kwargs):
 
     for dev_id in range(config.accel_count):
         host_irq_handler.register_interrupt_handler(
-            Irq.ACCEL_TRAINING_FINISHED, check_training_finished_type1, dev_id
+            Irq.ACCEL_TRAINING_FINISHED, barrier_one_iter_finished_type1, dev_id
+        )
+        host_irq_handler.register_interrupt_handler(
+            Irq.ACCEL_VALIDATION_FINISHED, check_final_iter_ready, dev_id
         )
     for dev_id in range(config.accel_count):
         await host_irq_handler.send_irq_request(Irq.HOST_READY, dev_id)

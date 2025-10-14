@@ -83,14 +83,16 @@ def main():
         "-f",
         "--cache-friendly",
         dest="cf",
-        action="store_true",
+        default="0",
+        action="store",
         help="Cache Friendliness Enabled.",
+        metavar="CACHE_FRIENDLINESS",
     )
 
     args = vars(parser.parse_args())
     num_accels = args["na"]
     accel_type = args["at"]
-    cache_friendly = "1" if args["cf"] else "0"
+    cache_friendly = args["cf"]
     sw_port = "22500"
 
     host_file = f"./host-t{accel_type}.py"

@@ -48,6 +48,9 @@ class CustomList:
     def getNumElmts(self) -> int:
         return self._numElmts
 
+    def getEndingAddr(self) -> int:
+        return self.getAddr(self._numElmts - 1) + self._numWidth
+
     async def __getitem__(self, i: int) -> float:
         assert i < self._numElmts
         addr = self.getAddr(i)
@@ -130,10 +133,11 @@ class MyType1Accelerator(RunnableComponent):
         irq_port: int = 8500,
         device_id: int = 0,
         total_devs: int = 1,
-        cache_friendly=False,
+        cache_friendly: int = 0,
     ):
         label = f"Port{port_index}"
         super().__init__(label)
+        # self._train_data_path = "./links-anon-sampled-condensed-100000.txt"
         self._train_data_path = "./links-anon-4.txt"
         self._total_devs = total_devs
 
@@ -160,8 +164,21 @@ class MyType1Accelerator(RunnableComponent):
         self._stop_signal = Event()
         self._stop_flag = False
 
-        self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app)
+        self._iter_go_signal = Event()
+        self._iter_go_signal.set()
+        
+
         self._cache_friendly = cache_friendly
+        # self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self.set_go_signal)
+        self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self.set_go_signal)
+        if self._cache_friendly == 2:
+            pass
+            # self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app_most_friendly)
+        else:
+            self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app)
+    
+    async def set_go_signal(self, _):
+        self._iter_go_signal.set()
 
     def set_stop_flag(self):
         self._stop_flag = True
@@ -195,7 +212,7 @@ class MyType1Accelerator(RunnableComponent):
 
     async def _run_app(self, _):
         try:
-            logger.info(f"Cache friendly? {self._cache_friendly}")
+            logger.info(f"Cache friendly level: {self._cache_friendly}")
             logger.info(f"Dev {self._device_id} Reading file...")
             total_users = self._read_file()
             old_dict = CustomList(total_users, 0x1810)
@@ -208,9 +225,14 @@ class MyType1Accelerator(RunnableComponent):
             old_dict = CustomList(total_users, 0x1810)
             old_dict.setReadFunc(self._cxl_type1_device.cxl_cache_read)
             old_dict.setWriteFunc(self._cxl_type1_device.cxl_partial_write)
+            new_dict = CustomList(total_users, old_dict.getEndingAddr())
+            new_dict.setReadFunc(self._cxl_type1_device.cxl_cache_read)
+            new_dict.setWriteFunc(self._cxl_type1_device.cxl_partial_write)
             logger.info(f"Dev {self._device_id} starting...")
 
             iteration_count = 0
+            # MAX_ITER should be an even number
+            # so the final result will be at the first buffer
             MAX_ITER = 10
 
             # repeatedly calculating new rank values basing on all of the current rank values
@@ -219,29 +241,34 @@ class MyType1Accelerator(RunnableComponent):
                 desc=f"Dev {self._device_id} Iteration",
                 position=2 * self._device_id,
                 leave=False,
+                disable=True
             ) as pbar:
                 while iteration_count < MAX_ITER:
-                    iteration_count += 1
                     with tqdm(
                         total=len(corpus),
                         desc=f"Iteration Progress",
                         position=(2 * self._device_id) + 1,
                         leave=False,
+                        disable=True
                     ) as pbar2:
-                        # print(f"Dev {self._device_id} {await old_dict.getAllElements()}")
+                        if iteration_count != 0:
+                            await self._iter_go_signal.wait()
+                        iteration_count += 1
                         for page in corpus:
-                            if self._cache_friendly:
+                            if self._cache_friendly == 1:
                                 if (
                                     old_dict.getAddr(page) // 64
                                 ) % self._total_devs != self._device_id:
                                     await sleep(0)
                                     pbar2.update()
                                     continue
-                            else:
+                            elif self._cache_friendly == 0:
                                 if page % self._total_devs != self._device_id:
                                     await sleep(0)
                                     pbar2.update()
                                     continue
+                            else:
+                                raise Exception("Illegal cache friendly level! (can be 0, 1, or 2)")
                             temp = 0
                             for linking_page in corpus:
                                 # check if page links to our page
@@ -252,11 +279,17 @@ class MyType1Accelerator(RunnableComponent):
                                     temp += (await old_dict[linking_page]) / len(corpus)
                             temp *= self._damping_factor
                             temp += (1 - self._damping_factor) / total_users
-                            await old_dict.setitem(page, temp)
+                            await new_dict.setitem(page, temp)
                             pbar2.update()
+                        new_dict_temp = new_dict
+                        new_dict = old_dict
+                        old_dict = new_dict_temp
+                        
                     pbar.update()
-
-            await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
+                    await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
+                    self._iter_go_signal.clear()
+                    await sleep(0)
+            await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
         except CancelledError:
             logger.error(self._create_message(f"Runapp Cancelled: {traceback.format_exc()}"))
             return
