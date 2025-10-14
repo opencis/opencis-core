@@ -236,7 +236,6 @@ class MyType1Accelerator(RunnableComponent):
                 desc=f"Dev {self._device_id} Iteration",
                 position=2 * self._device_id,
                 leave=False,
-                disable=True
             ) as pbar:
                 while iteration_count < MAX_ITER:
                     with tqdm(
@@ -244,7 +243,6 @@ class MyType1Accelerator(RunnableComponent):
                         desc=f"Iteration Progress",
                         position=(2 * self._device_id) + 1,
                         leave=False,
-                        disable=True
                     ) as pbar2:
                         if iteration_count != 0:
                             await self._iter_go_signal.wait()
