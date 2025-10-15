@@ -239,7 +239,7 @@ class MyType1Accelerator(RunnableComponent):
             iteration_count = 0
             # MAX_ITER should be an even number
             # so the final result will be at the first buffer
-            MAX_ITER = 10
+            MAX_ITER = 5
 
             # repeatedly calculating new rank values basing on all of the current rank values
             with tqdm(
@@ -268,7 +268,7 @@ class MyType1Accelerator(RunnableComponent):
                                 ) % self._total_devs != self._device_id:
                                     # print(f"Dev {self._device_id} skipping {page}")
                                     await sleep(0)
-                                    pbar2.update()
+                                    pbar2.update(8)
                                     continue
                             # elif self._cache_friendly == 0:
                             #     if page % self._total_devs != self._device_id:
@@ -283,19 +283,20 @@ class MyType1Accelerator(RunnableComponent):
                             for linking_page in corpus:
                                 # check if page links to our page
                                 for i in range(8):
-                                    if page + i in corpus[linking_page]:
-                                        temp[i] += await old_dict[linking_page] / len(
-                                            corpus[linking_page]
-                                        )
-                                    # if page has no links, interpret it as having one link for every other page
-                                    if len(corpus[linking_page]) == 0:
-                                        temp[i] += (await old_dict[linking_page]) / len(corpus)
+                                    if page + i in corpus and page + i < total_users:
+                                        if page + i in corpus[linking_page]:
+                                            temp[i] += await old_dict[linking_page] / len(
+                                                corpus[linking_page]
+                                            )
+                                        # if page has no links, interpret it as having one link for every other page
+                                        if len(corpus[linking_page]) == 0:
+                                            temp[i] += (await old_dict[linking_page]) / len(corpus)
                             for i in range(8):
-                                temp[i] *= self._damping_factor
-                                temp[i] += (1 - self._damping_factor) / total_users
-                                if page + i < total_users and page + i in corpus:
+                                if page + i in corpus and page + i < total_users:
+                                    temp[i] *= self._damping_factor
+                                    temp[i] += (1 - self._damping_factor) / total_users
                                     await new_dict.setitem(page + i, temp[i])
-                            pbar2.update()
+                            pbar2.update(8)
                         new_dict_temp = new_dict
                         new_dict = old_dict
                         old_dict = new_dict_temp
