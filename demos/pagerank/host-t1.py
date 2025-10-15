@@ -60,9 +60,10 @@ start_signal = None
 stop_signal = None
 host = None
 host_task = None
-START_ADDR = 0x1810
+START_ADDR = 0x1800
 pageRank = CustomList(0, START_ADDR)
 pageRankSecondBuffer = CustomList(0, START_ADDR)
+
 
 async def my_sys_sw_app(**kwargs):
     cxl_memory_hub = kwargs["cxl_memory_hub"]
@@ -135,10 +136,12 @@ async def barrier_one_iter_finished_type1(dev_id: int):
         for dev_id in range(config.accel_count):
             await host_irq_handler.send_irq_request(Irq.HOST_SENT, dev_id)
 
+
 async def check_final_iter_ready(dev_id: int):
     accel_info.training_done[dev_id] = True
     if len(accel_info.training_done) == config.accel_count:
         await check_final_results()
+
 
 async def check_final_results():
     global pageRank, pageRankSecondBuffer

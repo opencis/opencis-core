@@ -165,7 +165,6 @@ class MyType1Accelerator(RunnableComponent):
         self._iter_go_signal.set()
 
         self._jacobi = jacobi
-        
 
         self._cache_friendly = cache_friendly
         self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self.set_go_signal)
@@ -174,7 +173,7 @@ class MyType1Accelerator(RunnableComponent):
             # self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app_most_friendly)
         else:
             self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app)
-    
+
     async def set_go_signal(self, _):
         self._iter_go_signal.set()
 
@@ -214,14 +213,110 @@ class MyType1Accelerator(RunnableComponent):
             logger.info(f"Method: {"Jacobi" if self._jacobi else "Gauss-Seigel"}")
             logger.info(f"Dev {self._device_id} Reading file...")
             total_users = self._read_file()
-            old_dict = CustomList(total_users, 0x1810)
+            old_dict = CustomList(total_users, 0x1800)
             old_dict.setNumElmts(total_users)
             print(
                 f"Dev {self._device_id} Mapping created. Total users: {total_users}, Memory required: {total_users * old_dict.getnumWidth()} bytes."
             )
             corpus = self._twitter_user_mapping
             # print(corpus)
-            old_dict = CustomList(total_users, 0x1810)
+            old_dict = CustomList(total_users, 0x1800)
+            old_dict.setReadFunc(self._cxl_type1_device.cxl_cache_read)
+            old_dict.setWriteFunc(self._cxl_type1_device.cxl_partial_write)
+
+            new_dict = old_dict
+            # Jacobi method uses two arrays and exchange the two arrays after each iteration
+            # Gauss-Seigel method uses one single array and do in-place updates
+            if self._jacobi:
+                new_dict = CustomList(total_users, old_dict.getEndingAddr())
+                new_dict.setReadFunc(self._cxl_type1_device.cxl_cache_read)
+                new_dict.setWriteFunc(self._cxl_type1_device.cxl_partial_write)
+            logger.info(f"Dev {self._device_id} starting...")
+
+            iteration_count = 0
+            # MAX_ITER should be an even number
+            # so the final result will be at the first buffer
+            MAX_ITER = 10
+
+            # repeatedly calculating new rank values basing on all of the current rank values
+            with tqdm(
+                total=MAX_ITER,
+                desc=f"Dev {self._device_id} Iteration",
+                position=2 * self._device_id,
+                leave=False,
+            ) as pbar:
+                while iteration_count < MAX_ITER:
+                    with tqdm(
+                        total=len(corpus),
+                        desc=f"Iteration Progress",
+                        position=(2 * self._device_id) + 1,
+                        leave=False,
+                    ) as pbar2:
+                        if iteration_count != 0:
+                            await self._iter_go_signal.wait()
+                        iteration_count += 1
+                        for page in corpus:
+                            if self._cache_friendly == 1:
+                                if (
+                                    old_dict.getAddr(page) // 64
+                                ) % self._total_devs != self._device_id:
+                                    await sleep(0)
+                                    pbar2.update()
+                                    continue
+                            elif self._cache_friendly == 0:
+                                if page % self._total_devs != self._device_id:
+                                    await sleep(0)
+                                    pbar2.update()
+                                    continue
+                            else:
+                                raise Exception("Illegal cache friendly level! (can be 0, 1, or 2)")
+                            temp = [0, 0, 0, 0, 0, 0, 0, 0]
+
+                            for linking_page in corpus:
+                                # check if page links to our page
+                                for i in range(8):
+                                    if page + i in corpus[linking_page]:
+                                        temp[i] += await old_dict[linking_page] / len(
+                                            corpus[linking_page]
+                                        )
+                                    # if page has no links, interpret it as having one link for every other page
+                                    if len(corpus[linking_page]) == 0:
+                                        temp[i] += (await old_dict[linking_page]) / len(corpus)
+                            for i in range(8):
+                                temp[i] *= self._damping_factor
+                                temp[i] += (1 - self._damping_factor) / total_users
+                                if page + i < total_users:
+                                    await new_dict.setitem(page + i, temp[i])
+                            pbar2.update()
+                        new_dict_temp = new_dict
+                        new_dict = old_dict
+                        old_dict = new_dict_temp
+
+                    pbar.update()
+                    await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
+                    self._iter_go_signal.clear()
+                    await sleep(0)
+            await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
+        except CancelledError:
+            logger.error(self._create_message(f"Runapp Cancelled: {traceback.format_exc()}"))
+            return
+        except Exception as e:
+            print(e)
+
+    async def _run_app_old(self, _):
+        try:
+            logger.info(f"Cache friendly level: {self._cache_friendly}")
+            logger.info(f"Method: {"Jacobi" if self._jacobi else "Gauss-Seigel"}")
+            logger.info(f"Dev {self._device_id} Reading file...")
+            total_users = self._read_file()
+            old_dict = CustomList(total_users, 0x1800)
+            old_dict.setNumElmts(total_users)
+            print(
+                f"Dev {self._device_id} Mapping created. Total users: {total_users}, Memory required: {total_users * old_dict.getnumWidth()} bytes."
+            )
+            corpus = self._twitter_user_mapping
+            # print(corpus)
+            old_dict = CustomList(total_users, 0x1800)
             old_dict.setReadFunc(self._cxl_type1_device.cxl_cache_read)
             old_dict.setWriteFunc(self._cxl_type1_device.cxl_partial_write)
 
@@ -286,7 +381,7 @@ class MyType1Accelerator(RunnableComponent):
                         new_dict_temp = new_dict
                         new_dict = old_dict
                         old_dict = new_dict_temp
-                        
+
                     pbar.update()
                     await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
                     self._iter_go_signal.clear()
