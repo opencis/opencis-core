@@ -130,11 +130,12 @@ class MyType1Accelerator(RunnableComponent):
         device_id: int = 0,
         total_devs: int = 1,
         cache_friendly: int = 0,
+        jacobi: int = 0,
     ):
         label = f"Port{port_index}"
         super().__init__(label)
-        # self._train_data_path = "./links-anon-sampled-condensed-100000.txt"
-        self._train_data_path = "./links-anon-4.txt"
+        self._train_data_path = "./links-anon-sampled-condensed-350000.txt"
+        # self._train_data_path = "./links-anon-4.txt"
         self._total_devs = total_devs
 
         self._sw_conn_client = SwitchConnectionClient(
@@ -162,6 +163,8 @@ class MyType1Accelerator(RunnableComponent):
 
         self._iter_go_signal = Event()
         self._iter_go_signal.set()
+
+        self._jacobi = jacobi
         
 
         self._cache_friendly = cache_friendly
@@ -208,6 +211,7 @@ class MyType1Accelerator(RunnableComponent):
     async def _run_app(self, _):
         try:
             logger.info(f"Cache friendly level: {self._cache_friendly}")
+            logger.info(f"Method: {"Jacobi" if self._jacobi else "Gauss-Seigel"}")
             logger.info(f"Dev {self._device_id} Reading file...")
             total_users = self._read_file()
             old_dict = CustomList(total_users, 0x1810)
@@ -220,9 +224,14 @@ class MyType1Accelerator(RunnableComponent):
             old_dict = CustomList(total_users, 0x1810)
             old_dict.setReadFunc(self._cxl_type1_device.cxl_cache_read)
             old_dict.setWriteFunc(self._cxl_type1_device.cxl_partial_write)
-            new_dict = CustomList(total_users, old_dict.getEndingAddr())
-            new_dict.setReadFunc(self._cxl_type1_device.cxl_cache_read)
-            new_dict.setWriteFunc(self._cxl_type1_device.cxl_partial_write)
+
+            new_dict = old_dict
+            # Jacobi method uses two arrays and exchange the two arrays after each iteration
+            # Gauss-Seigel method uses one single array and do in-place updates
+            if self._jacobi:
+                new_dict = CustomList(total_users, old_dict.getEndingAddr())
+                new_dict.setReadFunc(self._cxl_type1_device.cxl_cache_read)
+                new_dict.setWriteFunc(self._cxl_type1_device.cxl_partial_write)
             logger.info(f"Dev {self._device_id} starting...")
 
             iteration_count = 0

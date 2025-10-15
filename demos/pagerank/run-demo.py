@@ -89,10 +89,19 @@ def main():
         metavar="CACHE_FRIENDLINESS",
     )
 
+    parser.add_argument(
+        "-j",
+        "--jacobi",
+        dest="ja",
+        action="store_true",
+        help="Use Jacobi method (out-of-place updates for new PageRank scores) instead of Gauss-Seigel method (in-place updates).",
+    )
+
     args = vars(parser.parse_args())
     num_accels = args["na"]
     accel_type = args["at"]
     cache_friendly = args["cf"]
+    jacobi = str(int(args["ja"]))
     sw_port = "22500"
 
     host_file = f"./host-t{accel_type}.py"
@@ -104,7 +113,7 @@ def main():
         ("host", host_file, (sw_port, num_accels)),
     ]
     for i in range(int(num_accels)):
-        RUN_LIST.append((f"accel{i + 1}", accel_file, (sw_port, f"{i + 1}", num_accels, cache_friendly)))
+        RUN_LIST.append((f"accel{i + 1}", accel_file, (sw_port, f"{i + 1}", num_accels, cache_friendly, jacobi)))
     signal(SIGCONT, run_next_app)
     signal(SIGINT, clean_shutdown)
 

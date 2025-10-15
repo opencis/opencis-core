@@ -87,8 +87,14 @@ class CxlType1Device(RunnableComponent):
         self._memory_size = 0
         self._cxl_cache_device_component = None
         self._upstream_connection = config.transport_connection
+        # This is the count broadcasted to host
         self._cache_line_count = config.cache_line_count
         self._cache_line_size = config.cache_line_size
+        # Real total cache size
+        total_cache_size = self._cache_line_count * self._cache_line_size
+        # Real number of cache lines:
+        self._real_number_of_cache_lines = (total_cache_size // 64)
+
         self._cxl_io_manager = CxlIoManager(
             self._upstream_connection.mmio_fifo,
             None,
@@ -112,13 +118,14 @@ class CxlType1Device(RunnableComponent):
         self._device_id = config.device_id
 
         cache_num_assoc = 4
+        
         cache_controller_config = CacheControllerConfig(
             component_name=config.device_name,
             processor_to_cache_fifo=None,
             cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
             coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
             cache_num_assoc=cache_num_assoc,
-            cache_num_set=self._cache_line_count // cache_num_assoc,
+            cache_num_set=self._real_number_of_cache_lines // cache_num_assoc,
         )
         self._cache_controller = CacheController(cache_controller_config)
 

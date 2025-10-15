@@ -95,7 +95,7 @@ class CxlMemoryHub(RunnableComponent):
             cache_to_coh_bridge_fifo=cache_to_coh_bridge_fifo,
             coh_bridge_to_cache_fifo=coh_bridge_to_cache_fifo,
             cache_num_assoc=4,
-            cache_num_set=8,
+            cache_num_set=8192,
         )
         self._cache_controller = CacheController(cache_controller_config)
         self._irq_handler = config.irq_handler

@@ -186,8 +186,8 @@ async def my_img_classification_app(**kwargs):
     await start_signal.wait()
     logger.info("Host main process running!")
 
-    # corpus, total_users = read_file("./links-anon-sampled-condensed-100000.txt")
-    corpus, total_users = read_file("./links-anon-4.txt")
+    corpus, total_users = read_file("./links-anon-sampled-condensed-350000.txt")
+    # corpus, total_users = read_file("./links-anon-4.txt")
     print(f"Total users: {total_users}")
     pageRank = CustomList(total_users, START_ADDR)
     pageRank.setReadFunc(cpu.load_bytes)
