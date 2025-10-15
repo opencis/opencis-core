@@ -113,7 +113,9 @@ def main():
         ("host", host_file, (sw_port, num_accels)),
     ]
     for i in range(int(num_accels)):
-        RUN_LIST.append((f"accel{i + 1}", accel_file, (sw_port, f"{i + 1}", num_accels, cache_friendly, jacobi)))
+        RUN_LIST.append(
+            (f"accel{i + 1}", accel_file, (sw_port, f"{i + 1}", num_accels, cache_friendly, jacobi))
+        )
     signal(SIGCONT, run_next_app)
     signal(SIGINT, clean_shutdown)
 

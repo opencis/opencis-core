@@ -136,6 +136,8 @@ class MyType1Accelerator(RunnableComponent):
         super().__init__(label)
         self._train_data_path = "./links-anon-sampled-condensed-350000.txt"
         # self._train_data_path = "./links-anon-4.txt"
+        # self._train_data_path = "./links-anon-sampled-condensed-short.txt"
+
         self._total_devs = total_devs
 
         self._sw_conn_client = SwitchConnectionClient(
@@ -208,6 +210,7 @@ class MyType1Accelerator(RunnableComponent):
         return max_id
 
     async def _run_app(self, _):
+        # Loop unrolling
         try:
             logger.info(f"Cache friendly level: {self._cache_friendly}")
             logger.info(f"Method: {"Jacobi" if self._jacobi else "Gauss-Seigel"}")
@@ -244,32 +247,37 @@ class MyType1Accelerator(RunnableComponent):
                 desc=f"Dev {self._device_id} Iteration",
                 position=2 * self._device_id,
                 leave=False,
+                disable=True,
             ) as pbar:
                 while iteration_count < MAX_ITER:
                     with tqdm(
-                        total=len(corpus),
+                        total=total_users,
                         desc=f"Iteration Progress",
                         position=(2 * self._device_id) + 1,
                         leave=False,
+                        disable=True,
                     ) as pbar2:
                         if iteration_count != 0:
                             await self._iter_go_signal.wait()
                         iteration_count += 1
-                        for page in corpus:
+                        for page in range(0, total_users, 8):
+                            # print(f"Dev {self._device_id} now page {page}")
                             if self._cache_friendly == 1:
                                 if (
                                     old_dict.getAddr(page) // 64
                                 ) % self._total_devs != self._device_id:
+                                    # print(f"Dev {self._device_id} skipping {page}")
                                     await sleep(0)
                                     pbar2.update()
                                     continue
-                            elif self._cache_friendly == 0:
-                                if page % self._total_devs != self._device_id:
-                                    await sleep(0)
-                                    pbar2.update()
-                                    continue
-                            else:
-                                raise Exception("Illegal cache friendly level! (can be 0, 1, or 2)")
+                            # elif self._cache_friendly == 0:
+                            #     if page % self._total_devs != self._device_id:
+                            #         await sleep(0)
+                            #         pbar2.update()
+                            #         continue
+                            # else:
+                            #     raise Exception("Illegal cache friendly level! (can be 0, 1, or 2)")
+
                             temp = [0, 0, 0, 0, 0, 0, 0, 0]
 
                             for linking_page in corpus:
@@ -285,7 +293,7 @@ class MyType1Accelerator(RunnableComponent):
                             for i in range(8):
                                 temp[i] *= self._damping_factor
                                 temp[i] += (1 - self._damping_factor) / total_users
-                                if page + i < total_users:
+                                if page + i < total_users and page + i in corpus:
                                     await new_dict.setitem(page + i, temp[i])
                             pbar2.update()
                         new_dict_temp = new_dict
@@ -303,7 +311,8 @@ class MyType1Accelerator(RunnableComponent):
         except Exception as e:
             print(e)
 
-    async def _run_app_old(self, _):
+    async def _run_app_2(self, _):
+        # Normal
         try:
             logger.info(f"Cache friendly level: {self._cache_friendly}")
             logger.info(f"Method: {"Jacobi" if self._jacobi else "Gauss-Seigel"}")
