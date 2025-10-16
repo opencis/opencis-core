@@ -10,8 +10,8 @@ from asyncio import (
     create_task,
     gather,
 )
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import List, Optional
 
 from opencis.cxl.component.cxl_io_callback_data import CxlIoCallbackData
 from opencis.cxl.config_space.dvsec.cxl_devices import (
@@ -68,7 +68,10 @@ from opencis.util.number_const import KB, MB
 class CxlType1DeviceConfig:
     device_name: str
     transport_connection: CxlConnection
-    cache_line_count: int = 32
+    # Total cache size: cache_line_count * cache_line_size
+    # First int in cache_line_count is L1 cache, next is L2, ...
+    # e.g., [8, 32] -> 8x64KB = 512KB L1 Cache, 32x64KB = 2MB L2 Cache
+    cache_line_count: List[int] = field(default_factory=list)
     cache_line_size: int = 64 * KB
     device_id: int = 0
 
@@ -90,10 +93,13 @@ class CxlType1Device(RunnableComponent):
         # This is the count broadcasted to host
         self._cache_line_count = config.cache_line_count
         self._cache_line_size = config.cache_line_size
-        # Real total cache size
-        total_cache_size = self._cache_line_count * self._cache_line_size
         # Real number of cache lines:
-        self._real_number_of_cache_lines = (total_cache_size // 64)
+        self._real_number_of_cache_lines = [
+            (cnt * self._cache_line_size) // 64 for cnt in self._cache_line_count
+        ]
+        self._cache_num_assoc = [4, 4]
+
+        assert len(self._cache_num_assoc) == len(self._real_number_of_cache_lines)
 
         self._cxl_io_manager = CxlIoManager(
             self._upstream_connection.mmio_fifo,
@@ -117,15 +123,16 @@ class CxlType1Device(RunnableComponent):
 
         self._device_id = config.device_id
 
-        cache_num_assoc = 4
-        
         cache_controller_config = CacheControllerConfig(
             component_name=config.device_name,
             processor_to_cache_fifo=None,
             cache_to_coh_agent_fifo=cache_to_coh_agent_fifo,
             coh_agent_to_cache_fifo=coh_agent_to_cache_fifo,
-            cache_num_assoc=cache_num_assoc,
-            cache_num_set=self._real_number_of_cache_lines // cache_num_assoc,
+            cache_num_assoc=self._cache_num_assoc,
+            cache_num_set=[
+                self._real_number_of_cache_lines[i] // self._cache_num_assoc[i]
+                for i in range(len(self._real_number_of_cache_lines))
+            ],
         )
         self._cache_controller = CacheController(cache_controller_config)
 

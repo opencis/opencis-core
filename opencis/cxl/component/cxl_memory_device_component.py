@@ -232,16 +232,16 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
         else:
             self._memory_accessor = FileAccessor(memory_file, memory_size)
 
-        self._cache_info: List[CXLCacheCacheLineInfo] = []
-        self._cache_lines = cache_lines
-        self._cache_line_size = cache_line_size
-        for i in range(self._cache_lines):
-            self._cache_info.append(
-                CXLCacheCacheLineInfo(
-                    cache_id=i,
-                    last_access_time=time.time(),
-                )
-            )
+        # self._cache_info: List[CXLCacheCacheLineInfo] = []
+        # self._cache_lines = cache_lines
+        # self._cache_line_size = cache_line_size
+        # for i in range(self._cache_lines):
+        #     self._cache_info.append(
+        #         CXLCacheCacheLineInfo(
+        #             cache_id=i,
+        #             last_access_time=time.time(),
+        #         )
+        #     )
 
     def get_primary_mailbox(self) -> Optional[CxlMailbox]:
         return self._primary_mailbox
@@ -360,8 +360,8 @@ class CxlMemoryDeviceComponent(CxlDeviceComponent):
         await self._memory_accessor.write(dpa, data, size)
 
     # TODO: check OOB write for cache (should <= self._cache_line_size)
-    async def write_cache(self, cache_id: int, data: int):
-        self._cache_info[cache_id].write(data)
+    # async def write_cache(self, cache_id: int, data: int):
+    #     self._cache_info[cache_id].write(data)
 
-    async def read_cache(self, cache_id: int) -> int:
-        return self._cache_info[cache_id].read()
+    # async def read_cache(self, cache_id: int) -> int:
+    #     return self._cache_info[cache_id].read()

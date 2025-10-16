@@ -148,6 +148,7 @@ class MyType1Accelerator(RunnableComponent):
                 transport_connection=self._sw_conn_client.get_cxl_connection(),
                 device_name=label,
                 device_id=device_id,
+                cache_line_count=[2048, 8192],
             )
         )
         self._wait_tasks = []

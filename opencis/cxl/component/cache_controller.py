@@ -5,11 +5,13 @@ This software is licensed under the terms of the Revised BSD License.
 See LICENSE for details.
 """
 
+import time
 from typing import Optional, Tuple, List
 from asyncio import create_task, gather, sleep
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 from math import log2
+import copy
 
 from click import pause
 
@@ -87,7 +89,7 @@ class CacheState(Enum):
 class CacheBlock:
     state: CacheState = CacheState.CACHE_INVALID
     tag: int = 0
-    priority: int = 0
+    priority: float = 0
     data: int = 0
 
 
@@ -104,8 +106,8 @@ class CacheControllerConfig:
     coh_agent_to_cache_fifo: CacheFifoPair
     cache_to_coh_bridge_fifo: CacheFifoPair = None
     coh_bridge_to_cache_fifo: CacheFifoPair = None
-    cache_num_assoc: Optional[int] = 4
-    cache_num_set: Optional[int] = 8
+    cache_num_assoc: List[int] = field(default_factory=list)
+    cache_num_set: List[int] = field(default_factory=list)
 
 
 class CacheController(RunnableComponent):
@@ -113,16 +115,23 @@ class CacheController(RunnableComponent):
         self._component_name = config.component_name
         super().__init__(lambda class_name: f"{config.component_name}:{class_name}")
 
+        # General, 64-byte cache lines for all cache levels
         self._cache_blk_bit = 6
         self._cache_blk_size = 1 << self._cache_blk_bit
 
         self._cache_assoc_size = config.cache_num_assoc
-        self._cache_assoc_bit = int(log2(self._cache_assoc_size))
-        assert self._cache_assoc_size == (1 << self._cache_assoc_bit)
+        self._cache_assoc_bit = [int(log2(s)) for s in self._cache_assoc_size]
+        for i in range(len(self._cache_assoc_bit)):
+            assert self._cache_assoc_size[i] == (1 << self._cache_assoc_bit[i])
 
         self._cache_set_size = config.cache_num_set
-        self._cache_set_bit = int(log2(self._cache_set_size))
-        assert self._cache_set_size == (1 << self._cache_set_bit)
+        self._cache_set_bit = [int(log2(s)) for s in self._cache_set_size]
+        for i in range(len(self._cache_set_bit)):
+            assert self._cache_set_size[i] == (1 << self._cache_set_bit[i])
+
+        assert len(self._cache_assoc_size) == len(self._cache_set_size)
+
+        self._total_cache_level = len(self._cache_assoc_size)
 
         # cache controller connections within CXL complex host module
         self._processor_to_cache_fifo = config.processor_to_cache_fifo
@@ -138,16 +147,26 @@ class CacheController(RunnableComponent):
 
     def init_cache(self) -> None:
         # simple cache structure
+        # L1 cache
         self._cache = [
-            [CacheBlock() for assoc in range(self._cache_assoc_size)]
-            for set in range(self._cache_set_size)
+            [
+                [CacheBlock() for assoc in range(self._cache_assoc_size[i])]
+                for set in range(self._cache_set_size[i])
+            ]
+            for i in range(len(self._cache_assoc_size))
         ]
         # for cache block eviction algorithm
-        self._setcnt = [SetCounter() for set in range(self._cache_set_size)]
+        self._setcnt = [
+            [SetCounter() for set in range(self._cache_set_size[i])]
+            for i in range(len(self._cache_set_size))
+        ]
 
         self._blk_mask = self._cache_blk_size - 1
-        self._set_mask = (self._cache_set_size - 1) << self._cache_blk_bit
-        self._tag_mask = ~(self._set_mask | self._blk_mask)
+        self._set_mask = [
+            (self._cache_set_size[i] - 1) << self._cache_blk_bit
+            for i in range(len(self._cache_set_size))
+        ]
+        self._tag_mask = [~(self._set_mask[i] | self._blk_mask) for i in range(len(self._set_mask))]
 
     def get_memory_ranges(self):
         return self._memory_ranges
@@ -188,70 +207,129 @@ class CacheController(RunnableComponent):
             return MEM_ADDR_TYPE.OOB
         return r.addr_type
 
-    def _cache_priority_update(self, set: int, blk: int) -> None:
-        self._cache[set][blk].priority = self._setcnt[set].counter
-        self._setcnt[set].counter += 1
+    def _cache_priority_update(self, level: int, set: int, blk: int) -> None:
+        # self._cache[level][set][blk].priority = self._setcnt[level][set].counter
+        # self._setcnt[level][set].counter += 1
+        # Now use LRU, used to be LFU - easier for promote/demote
+        self._cache[level][set][blk].priority = float(time.time())
 
-    def _cache_extract_tag(self, addr: int) -> int:
-        return (addr & self._tag_mask) >> (self._cache_set_bit + self._cache_blk_bit)
+    def _cache_extract_tag(self, level: int, addr: int) -> int:
+        return (addr & self._tag_mask[level]) >> (self._cache_set_bit[level] + self._cache_blk_bit)
 
-    def _cache_extract_set(self, addr: int) -> int:
-        return (addr & self._set_mask) >> self._cache_blk_bit
+    def _cache_extract_set(self, level: int, addr: int) -> int:
+        return (addr & self._set_mask[level]) >> self._cache_blk_bit
 
-    def _cache_extract_block_state(self, set: int, blk: int) -> CacheState:
-        return self._cache[set][blk].state
+    def _cache_extract_block_state(self, level: int, set: int, blk: int) -> CacheState:
+        return self._cache[level][set][blk].state
 
-    def _cache_assem_addr(self, set: int, blk: int) -> int:
-        tag = self._cache[set][blk].tag
-        assert self._cache[set][blk].state != CacheState.CACHE_INVALID
+    def _cache_assem_addr(self, level: int, set: int, blk: int) -> int:
+        tag = self._cache[level][set][blk].tag
+        assert self._cache[level][set][blk].state != CacheState.CACHE_INVALID
 
-        return tag << (self._cache_set_bit + self._cache_blk_bit) | set << self._cache_blk_bit
+        return (
+            tag << (self._cache_set_bit[level] + self._cache_blk_bit) | set << self._cache_blk_bit
+        )
 
-    def _cache_update_block_state(self, tag: int, set: int, blk: int, state: CacheState) -> None:
+    def _cache_update_block_state(
+        self, level: int, tag: int, set: int, blk: int, state: CacheState
+    ) -> None:
         if state != CacheState.CACHE_INVALID:
-            self._cache_priority_update(set, blk)
+            self._cache_priority_update(level, set, blk)
 
-        self._cache[set][blk].tag = tag
-        self._cache[set][blk].state = state
+        self._cache[level][set][blk].tag = tag
+        self._cache[level][set][blk].state = state
 
-    def _cache_find_replace_block(self, set: int) -> Tuple[int, CacheState]:
-        min_priority = self._cache[set][0].priority
+    def _cache_find_replace_block(self, level: int, set: int) -> Tuple[int, CacheState]:
+        min_priority = self._cache[level][set][0].priority
         min_idx = 0
 
-        for idx in range(1, self._cache_assoc_size):
-            if self._cache[set][idx].priority < min_priority:
-                min_priority = self._cache[set][idx].priority
+        for idx in range(1, self._cache_assoc_size[level]):
+            if self._cache[level][set][idx].priority < min_priority:
+                min_priority = self._cache[level][set][idx].priority
                 min_idx = idx
 
-        return min_idx, self._cache[set][min_idx].state
+        return min_idx, self._cache[level][set][min_idx].state
 
-    def _cache_find_invalid_block(self, set: int) -> int:
-        for blk in range(self._cache_assoc_size):
-            if self._cache[set][blk].state == CacheState.CACHE_INVALID:
+    def _cache_find_invalid_block(self, level: int, set: int) -> int:
+        for blk in range(self._cache_assoc_size[level]):
+            if self._cache[level][set][blk].state == CacheState.CACHE_INVALID:
                 return blk
 
         return None
 
-    def _cache_find_valid_block(self, tag: int, set: int) -> int:
-        for blk in range(self._cache_assoc_size):
-            if (self._cache[set][blk].tag == tag) and (
-                self._cache[set][blk].state != CacheState.CACHE_INVALID
+    def _cache_find_valid_block(self, level: int, tag: int, set: int) -> int:
+        for blk in range(self._cache_assoc_size[level]):
+            if (self._cache[level][set][blk].tag == tag) and (
+                self._cache[level][set][blk].state != CacheState.CACHE_INVALID
             ):
                 return blk
 
         return None
 
-    def _cache_check_block_state(self, set: int, blk: int) -> CacheState:
-        return self._cache[set][blk].state
+    def _cache_check_block_state(self, level: int, set: int, blk: int) -> CacheState:
+        return self._cache[level][set][blk].state
 
-    def _cache_data_read(self, set: int, blk: int) -> int:
-        self._cache_priority_update(set, blk)
+    def _cache_data_read(self, level: int, set: int, blk: int) -> int:
+        self._cache_priority_update(level, set, blk)
 
-        return self._cache[set][blk].data
+        return self._cache[level][set][blk].data
 
-    def _cache_data_write(self, set: int, blk: int, data: int) -> None:
-        self._cache_priority_update(set, blk)
-        self._cache[set][blk].data = data
+    def _cache_data_write(self, level: int, set: int, blk: int, data: int) -> None:
+        self._cache_priority_update(level, set, blk)
+        self._cache[level][set][blk].data = data
+
+    async def _cache_data_promote_to_l1(self, addr: int, level: int, blk: int):
+        if level == 0:
+            return blk
+        set_l1 = self._cache_extract_set(0, addr)
+        set_level = self._cache_extract_set(level, addr)
+
+        # Invalid original data so we have free space in that level
+        # Reduce possible memory write backs
+        source_info = copy.deepcopy(self._cache[level][set_level][blk])
+        self._cache_update_block_state(level, 0, set_level, blk, CacheState.CACHE_INVALID)
+
+        target = self._cache_find_invalid_block(0, set_l1)
+        if target is None:
+            await self._cache_data_demote(0, addr)
+            target = self._cache_find_invalid_block(0, set_l1)
+            assert target is not None
+        self._cache[0][set_l1][target] = source_info
+        # Update tag
+        tag = self._cache_extract_tag(0, addr)
+        self._cache[0][set_l1][target].tag = tag
+        self._cache_update_block_state(level, 0, set_level, blk, CacheState.CACHE_INVALID)
+        return target
+
+    async def _cache_data_demote(self, level: int, addr: int):
+        set_level = self._cache_extract_set(level, addr)
+        if level >= self._total_cache_level:
+            raise Exception(f"No {level + 1} level cache!")
+        cache_blk = self._cache_find_invalid_block(level, set_level)
+        if cache_blk is not None:
+            return cache_blk
+
+        cache_blk, prev_state = self._cache_find_replace_block(level, set_level)
+        assem_addr = self._cache_assem_addr(level, set_level, cache_blk)
+        cached_data = self._cache_data_read(level, set_level, cache_blk)
+
+        if level + 1 == self._total_cache_level:
+            # cacheline flush to secure space
+            await self._memory_store(assem_addr, 64, prev_state, cached_data)
+        else:
+            set_level_plus_one = self._cache_extract_set(level + 1, addr)
+            await self._cache_data_demote(level + 1, addr)
+            target = self._cache_find_invalid_block(level + 1, set_level_plus_one)
+            assert target is not None
+
+            self._cache[level + 1][set_level_plus_one][target] = copy.deepcopy(
+                self._cache[level][set_level][cache_blk]
+            )
+            # Update tag
+            tag = self._cache_extract_tag(level + 1, addr)
+            self._cache[level + 1][set_level_plus_one][target].tag = tag
+        self._cache_update_block_state(level, 0, set_level, cache_blk, CacheState.CACHE_INVALID)
+        return cache_blk
 
     def _cache_rsp_state_lookup(self, packet: CacheResponse) -> CacheState:
         if packet.status == CACHE_RESPONSE_STATUS.OK:
@@ -328,55 +406,59 @@ class CacheController(RunnableComponent):
     # For response: coherency tasks from coh module to cache controller
     async def _coh_to_cache_state_lookup(
         self, type: CACHE_REQUEST_TYPE, addr: int
-    ) -> Tuple[int, int, CacheState]:
+    ) -> Tuple[int, int, CacheState, int]:
         data = 0
-        tag = self._cache_extract_tag(addr)
-        set = self._cache_extract_set(addr)
+        level = 0
 
-        cache_blk = self._cache_find_valid_block(tag, set)
+        for l in range(self._total_cache_level):
+            level = l
+            tag = self._cache_extract_tag(level, addr)
+            set = self._cache_extract_set(level, addr)
+
+            cache_blk = self._cache_find_valid_block(level, tag, set)
+
         prev_state = None
         if cache_blk is not None:
-            prev_state = self._cache_check_block_state(set, cache_blk)
+            prev_state = self._cache_check_block_state(level, set, cache_blk)
             # print(f"state lookup for {self._component_name}")
             # while prev_state == CacheState.CACHE_WAITING:
             #     await sleep(0)
-            data = self._cache_data_read(set, cache_blk)
+            data = self._cache_data_read(level, set, cache_blk)
             if type == CACHE_REQUEST_TYPE.SNP_DATA:
-                self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_SHARED)
+                self._cache_update_block_state(level, tag, set, cache_blk, CacheState.CACHE_SHARED)
             elif type == CACHE_REQUEST_TYPE.SNP_INV:
                 # print(f"{self._component_name} Invalidating...")
-                self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_INVALID)
+                self._cache_update_block_state(level, tag, set, cache_blk, CacheState.CACHE_INVALID)
             elif type == CACHE_REQUEST_TYPE.SNP_CUR:
                 pass
             elif type == CACHE_REQUEST_TYPE.WRITE_BACK:
-                assert self._cache_extract_block_state(set, cache_blk) == CacheState.CACHE_SHARED
+                assert (
+                    self._cache_extract_block_state(level, set, cache_blk)
+                    == CacheState.CACHE_SHARED
+                )
 
-        return cache_blk, data, prev_state
+        return cache_blk, data, prev_state, level
 
     # cache access for read
     async def cache_coherent_load(self, addr: int, size: int) -> int:
         assert size == self._cache_blk_size
 
-        tag = self._cache_extract_tag(addr)
-        set = self._cache_extract_set(addr)
+        level = 0
+        for l in range(self._total_cache_level):
+            level = l
+            tag = self._cache_extract_tag(level, addr)
+            set = self._cache_extract_set(level, addr)
+            cache_blk = self._cache_find_valid_block(level, tag, set)
 
-        cache_blk = self._cache_find_valid_block(tag, set)
         if cache_blk is not None:
             # cache hit
-            data = self._cache_data_read(set, cache_blk)
+            cache_blk = await self._cache_data_promote_to_l1(addr, level, cache_blk)
+            data = self._cache_data_read(0, set, cache_blk)
         else:
             # cache miss
-            cache_blk = self._cache_find_invalid_block(set)
-
-            # cache block full
-            if cache_blk is None:
-                cache_blk, prev_state = self._cache_find_replace_block(set)
-                assem_addr = self._cache_assem_addr(set, cache_blk)
-                cached_data = self._cache_data_read(set, cache_blk)
-
-                # cacheline flush to secure space
-                await self._memory_store(assem_addr, size, prev_state, cached_data)
-                self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_INVALID)
+            tag = self._cache_extract_tag(0, addr)
+            set = self._cache_extract_set(0, addr)
+            await self._cache_data_demote(0, addr)
 
             # coherency check whenever inserting a cache block
             # snoop_data to get mesi response
@@ -387,9 +469,11 @@ class CacheController(RunnableComponent):
             if cache_state == CacheState.CACHE_INVALID:
                 return data
 
-            assert self._cache_extract_block_state(set, cache_blk) == CacheState.CACHE_INVALID
-            self._cache_update_block_state(tag, set, cache_blk, cache_state)
-            self._cache_data_write(set, cache_blk, data)
+            cache_blk = self._cache_find_invalid_block(0, set)
+
+            assert self._cache_extract_block_state(0, set, cache_blk) == CacheState.CACHE_INVALID
+            self._cache_update_block_state(0, tag, set, cache_blk, cache_state)
+            self._cache_data_write(0, set, cache_blk, data)
 
         return data
 
@@ -427,43 +511,46 @@ class CacheController(RunnableComponent):
             # See 3.2.4.2.10 (Note)
             request_opcode = CACHE_REQUEST_TYPE.RD_OWN_NO_DATA
 
-        tag = self._cache_extract_tag(addr)
-        set = self._cache_extract_set(addr)
+        level = 0
+        for l in range(self._total_cache_level):
+            level = l
+            tag = self._cache_extract_tag(level, addr)
+            set = self._cache_extract_set(level, addr)
+            cache_blk = self._cache_find_valid_block(level, tag, set)
 
-        cache_blk = self._cache_find_valid_block(tag, set)
         remote_data = None
         if cache_blk is not None:
             # print("Cache hit")
             # cache hit
-            cache_state = self._cache_extract_block_state(set, cache_blk)
+            cache_blk = await self._cache_data_promote_to_l1(addr, level, cache_blk)
+            level = 0  # Now promoted to L1 Cache
+            tag = self._cache_extract_tag(0, addr)
+            set = self._cache_extract_set(0, addr)
+            cache_state = self._cache_extract_block_state(level, set, cache_blk)
             assert cache_state != CacheState.CACHE_INVALID
-
-            # Set cache state to WAITING
-            # Cache lines in this state should ignore all responses
-            # Until we solve it here
-
-            # self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_WAITING)
             if cache_state == CacheState.CACHE_SHARED:
                 # can be real shared or exclusive-shared
                 # print(f"{self._component_name} getting new state")
                 new_state, remote_data = await self._cache_to_coh_state_lookup(addr, request_opcode)
                 if remote_data is not None:
-                    self._cache_data_write(set, cache_blk, remote_data)
+                    self._cache_data_write(level, set, cache_blk, remote_data)
                 else:
-                    remote_data = self._cache_data_read(set, cache_blk)
+                    remote_data = self._cache_data_read(level, set, cache_blk)
 
-                cache_state = self._cache_extract_block_state(set, cache_blk)
+                cache_state = self._cache_extract_block_state(level, set, cache_blk)
                 # print(f"{self._component_name} Returned cache state: {new_state}")
                 # print(f"Middle cache state: {cache_state}")
-                self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_EXCLUSIVE)
+                self._cache_update_block_state(
+                    level, tag, set, cache_blk, CacheState.CACHE_EXCLUSIVE
+                )
             else:
                 if mask != MAX_INT:
-                    remote_data = self._cache_data_read(set, cache_blk)
+                    remote_data = self._cache_data_read(level, set, cache_blk)
 
             # Update data base on mask
 
-            self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_MODIFIED)
-            cache_state = self._cache_extract_block_state(set, cache_blk)
+            self._cache_update_block_state(level, tag, set, cache_blk, CacheState.CACHE_MODIFIED)
+            cache_state = self._cache_extract_block_state(level, set, cache_blk)
 
             if remote_data is not None:
                 # print(f"remote data: 0x{remote_data:0128x}")
@@ -473,32 +560,25 @@ class CacheController(RunnableComponent):
                 data = (remote_data & revert_mask) | (data & mask)
             # print(f"new data: 0x{data:0128x}")
 
-            self._cache_data_write(set, cache_blk, data)
+            self._cache_data_write(level, set, cache_blk, data)
         else:
             # print("Cache miss")
             # cache miss
-            cache_blk = self._cache_find_invalid_block(set)
-
-            # cache block full
-            if cache_blk is None:
-                cache_blk, prev_state = self._cache_find_replace_block(set)
-                assem_addr = self._cache_assem_addr(set, cache_blk)
-                cached_data = self._cache_data_read(set, cache_blk)
-
-                # cacheline flush to secure space
-                await self._memory_store(assem_addr, size, prev_state, cached_data)
-                self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_INVALID)
-
+            await self._cache_data_demote(0, addr)
+            tag = self._cache_extract_tag(0, addr)
+            set = self._cache_extract_set(0, addr)
+            cache_blk = self._cache_find_invalid_block(0, set)
+            assert cache_blk is not None
             # coherency check whenever inserting a cache block
             new_state, remote_data = await self._cache_to_coh_state_lookup(addr, request_opcode)
 
             # todo: read memory if partial update is supported
-            self._cache_update_block_state(tag, set, cache_blk, CacheState.CACHE_MODIFIED)
+            self._cache_update_block_state(0, tag, set, cache_blk, CacheState.CACHE_MODIFIED)
             if remote_data is not None:
                 data = (remote_data & revert_mask) | (data & mask)
                 # print(f"old remote data: 0x{remote_data:0128x}")
             # print(f"new data: 0x{data:0128x}")
-            self._cache_data_write(set, cache_blk, data)
+            self._cache_data_write(0, set, cache_blk, data)
         # print(
         #     f"Dev {self._component_name} Finished cache_coherent_store at 0x{addr:08x}, data: 0x{data:0128x}"
         # )
@@ -549,7 +629,7 @@ class CacheController(RunnableComponent):
                     assert False
 
     async def _run_coh_request(self, packet: CacheRequest, cache_fifo: CacheFifoPair):
-        cache_blk, data, prev_state = await self._coh_to_cache_state_lookup(
+        cache_blk, data, prev_state, level = await self._coh_to_cache_state_lookup(
             packet.type, packet.addr
         )
         if cache_blk is None:
