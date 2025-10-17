@@ -140,7 +140,7 @@ class MyType1Accelerator(RunnableComponent):
         label = f"Port{port_index}"
         super().__init__(label)
         self._train_data_path = "./links-anon-sampled-condensed-350000.txt"
-        # self._train_data_path = "./links-anon-4.txt"
+        self._train_data_path = "./links-anon-4.txt"
         # self._train_data_path = "./links-anon-sampled-condensed-short.txt"
 
         self._total_devs = total_devs
@@ -153,7 +153,7 @@ class MyType1Accelerator(RunnableComponent):
                 transport_connection=self._sw_conn_client.get_cxl_connection(),
                 device_name=label,
                 device_id=device_id,
-                cache_line_count=[2048, 8192],
+                cache_line_count=[8, 32],
             )
         )
         self._wait_tasks = []
@@ -354,6 +354,7 @@ class MyType1Accelerator(RunnableComponent):
                 while iteration_count < MAX_ITER:
                     with tqdm(
                         total=total_users,
+                        total=total_users,
                         desc=f"Iteration Progress",
                         position=(2 * self._device_id) + 1,
                         leave=False,
@@ -362,10 +363,6 @@ class MyType1Accelerator(RunnableComponent):
                             await self._iter_go_signal.wait()
                         iteration_count += 1
                         for page in range(total_users):
-                            if page not in corpus:
-                                await sleep(0)
-                                pbar2.update()
-                                continue
                             if self._cache_friendly == 1:
                                 if (
                                     old_dict.getAddr(page) // 64
@@ -381,13 +378,14 @@ class MyType1Accelerator(RunnableComponent):
                             else:
                                 raise Exception("Illegal cache friendly level! (can be 0, 1, or 2)")
                             temp = 0
-                            for linking_page in corpus:
+                            for linking_page in range(total_users):
                                 # check if page links to our page
-                                if page in corpus[linking_page]:
+                                if linking_page in corpus and page in corpus[linking_page]:
                                     temp += await old_dict[linking_page] / len(corpus[linking_page])
                                 # if page has no links, interpret it as having one link for every other page
-                                if len(corpus[linking_page]) == 0:
+                                if linking_page not in corpus or len(corpus[linking_page]) == 0:
                                     temp += (await old_dict[linking_page]) / total_users
+                                await sleep(0)
                             temp *= self._damping_factor
                             temp += (1 - self._damping_factor) / total_users
                             await new_dict.setitem(page, temp)

@@ -155,11 +155,13 @@ class CacheController(RunnableComponent):
             ]
             for i in range(len(self._cache_assoc_size))
         ]
+        print((self._cache_assoc_size))
         # for cache block eviction algorithm
         self._setcnt = [
             [SetCounter() for set in range(self._cache_set_size[i])]
             for i in range(len(self._cache_set_size))
         ]
+        print((self._cache_set_size))
 
         self._blk_mask = self._cache_blk_size - 1
         self._set_mask = [
@@ -297,17 +299,17 @@ class CacheController(RunnableComponent):
         self._cache[0][set_l1][target] = source_info
         # Update tag
         tag = self._cache_extract_tag(0, addr)
-        self._cache[0][set_l1][target].tag = tag
-        self._cache_update_block_state(level, 0, set_level, blk, CacheState.CACHE_INVALID)
+        self._cache_update_block_state(0, tag, set_l1, target, source_info.state)
         return target
 
     async def _cache_data_demote(self, level: int, addr: int):
-        set_level = self._cache_extract_set(level, addr)
         if level >= self._total_cache_level:
             raise Exception(f"No {level + 1} level cache!")
+
+        set_level = self._cache_extract_set(level, addr)
         cache_blk = self._cache_find_invalid_block(level, set_level)
         if cache_blk is not None:
-            return cache_blk
+            return
 
         cache_blk, prev_state = self._cache_find_replace_block(level, set_level)
         assem_addr = self._cache_assem_addr(level, set_level, cache_blk)
@@ -329,7 +331,7 @@ class CacheController(RunnableComponent):
             tag = self._cache_extract_tag(level + 1, addr)
             self._cache[level + 1][set_level_plus_one][target].tag = tag
         self._cache_update_block_state(level, 0, set_level, cache_blk, CacheState.CACHE_INVALID)
-        return cache_blk
+        return
 
     def _cache_rsp_state_lookup(self, packet: CacheResponse) -> CacheState:
         if packet.status == CACHE_RESPONSE_STATUS.OK:
