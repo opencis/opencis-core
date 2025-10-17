@@ -291,7 +291,7 @@ class MyType1Accelerator(RunnableComponent):
                                             )
                                         # if page has no links, interpret it as having one link for every other page
                                         if len(corpus[linking_page]) == 0:
-                                            temp[i] += (await old_dict[linking_page]) / len(corpus)
+                                            temp[i] += (await old_dict[linking_page]) / total_users
                             for i in range(8):
                                 if page + i in corpus and page + i < total_users:
                                     temp[i] *= self._damping_factor
@@ -353,7 +353,7 @@ class MyType1Accelerator(RunnableComponent):
             ) as pbar:
                 while iteration_count < MAX_ITER:
                     with tqdm(
-                        total=len(corpus),
+                        total=total_users,
                         desc=f"Iteration Progress",
                         position=(2 * self._device_id) + 1,
                         leave=False,
@@ -361,7 +361,11 @@ class MyType1Accelerator(RunnableComponent):
                         if iteration_count != 0:
                             await self._iter_go_signal.wait()
                         iteration_count += 1
-                        for page in corpus:
+                        for page in range(total_users):
+                            if page not in corpus:
+                                await sleep(0)
+                                pbar2.update()
+                                continue
                             if self._cache_friendly == 1:
                                 if (
                                     old_dict.getAddr(page) // 64
@@ -383,7 +387,7 @@ class MyType1Accelerator(RunnableComponent):
                                     temp += await old_dict[linking_page] / len(corpus[linking_page])
                                 # if page has no links, interpret it as having one link for every other page
                                 if len(corpus[linking_page]) == 0:
-                                    temp += (await old_dict[linking_page]) / len(corpus)
+                                    temp += (await old_dict[linking_page]) / total_users
                             temp *= self._damping_factor
                             temp += (1 - self._damping_factor) / total_users
                             await new_dict.setitem(page, temp)
