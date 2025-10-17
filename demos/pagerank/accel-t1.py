@@ -46,6 +46,7 @@ async def main():
     total_devs = int(sys.argv[3])
     cache_friendly = int(sys.argv[4])
     jacobi = int(sys.argv[5])
+    unroll_loop = int(sys.argv[6])
 
     logger.debug(f"[ACCEL] listening on port {sw_portno} and physical port {portidx}")
 
@@ -57,7 +58,8 @@ async def main():
         device_id=portidx - 1,
         total_devs=total_devs,
         cache_friendly=cache_friendly,
-        jacobi=jacobi
+        jacobi=jacobi,
+        loop_unroll=unroll_loop,
     )
 
     global start_tasks

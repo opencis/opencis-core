@@ -21,6 +21,10 @@ from opencis.cxl.component.switch_connection_client import SwitchConnectionClien
 from opencis.cxl.component.common import CXL_COMPONENT_TYPE
 from opencis.util.component import RunnableComponent
 
+# MAX_ITER should be an even number
+# so the final result will be at the first buffer
+MAX_ITER = 6
+
 
 class CustomList:
     def __init__(self, numElmts: int = None, offset=0x0, numWidth=8):
@@ -131,6 +135,7 @@ class MyType1Accelerator(RunnableComponent):
         total_devs: int = 1,
         cache_friendly: int = 0,
         jacobi: int = 0,
+        loop_unroll: bool = False,
     ):
         label = f"Port{port_index}"
         super().__init__(label)
@@ -168,14 +173,14 @@ class MyType1Accelerator(RunnableComponent):
         self._iter_go_signal.set()
 
         self._jacobi = jacobi
+        self._loop_unroll = loop_unroll
 
         self._cache_friendly = cache_friendly
         self._irq_manager.register_interrupt_handler(Irq.HOST_SENT, self.set_go_signal)
-        if self._cache_friendly == 2:
-            pass
-            # self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app_most_friendly)
+        if self._loop_unroll:
+            self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app_unroll)
         else:
-            self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app)
+            self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app_normal)
 
     async def set_go_signal(self, _):
         self._iter_go_signal.set()
@@ -210,7 +215,7 @@ class MyType1Accelerator(RunnableComponent):
         max_id += 1  # id may start from 0
         return max_id
 
-    async def _run_app(self, _):
+    async def _run_app_unroll(self, _):
         # Loop unrolling
         try:
             logger.info(f"Cache friendly level: {self._cache_friendly}")
@@ -238,9 +243,6 @@ class MyType1Accelerator(RunnableComponent):
             logger.info(f"Dev {self._device_id} starting...")
 
             iteration_count = 0
-            # MAX_ITER should be an even number
-            # so the final result will be at the first buffer
-            MAX_ITER = 5
 
             # repeatedly calculating new rank values basing on all of the current rank values
             with tqdm(
@@ -248,7 +250,6 @@ class MyType1Accelerator(RunnableComponent):
                 desc=f"Dev {self._device_id} Iteration",
                 position=2 * self._device_id,
                 leave=False,
-                disable=True,
             ) as pbar:
                 while iteration_count < MAX_ITER:
                     with tqdm(
@@ -256,7 +257,6 @@ class MyType1Accelerator(RunnableComponent):
                         desc=f"Iteration Progress",
                         position=(2 * self._device_id) + 1,
                         leave=False,
-                        disable=True,
                     ) as pbar2:
                         if iteration_count != 0:
                             await self._iter_go_signal.wait()
@@ -313,7 +313,7 @@ class MyType1Accelerator(RunnableComponent):
         except Exception as e:
             print(e)
 
-    async def _run_app_2(self, _):
+    async def _run_app_normal(self, _):
         # Normal
         try:
             logger.info(f"Cache friendly level: {self._cache_friendly}")
@@ -343,7 +343,6 @@ class MyType1Accelerator(RunnableComponent):
             iteration_count = 0
             # MAX_ITER should be an even number
             # so the final result will be at the first buffer
-            MAX_ITER = 10
 
             # repeatedly calculating new rank values basing on all of the current rank values
             with tqdm(

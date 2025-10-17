@@ -97,11 +97,23 @@ def main():
         help="Use Jacobi method (out-of-place updates for new PageRank scores) instead of Gauss-Seigel method (in-place updates).",
     )
 
+    parser.add_argument(
+        "-u",
+        "--unroll-loop",
+        dest="ul",
+        action="store_true",
+        help="Unroll loop (must be used with -f=1).",
+    )
+
     args = vars(parser.parse_args())
     num_accels = args["na"]
     accel_type = args["at"]
     cache_friendly = args["cf"]
     jacobi = str(int(args["ja"]))
+    if args["ul"] and cache_friendly != 1:
+        print("-u must be used with -f=1!")
+        exit(1)
+    unroll_loop = str(int(args["ul"]))
     sw_port = "22500"
 
     host_file = f"./host-t{accel_type}.py"
@@ -114,7 +126,11 @@ def main():
     ]
     for i in range(int(num_accels)):
         RUN_LIST.append(
-            (f"accel{i + 1}", accel_file, (sw_port, f"{i + 1}", num_accels, cache_friendly, jacobi))
+            (
+                f"accel{i + 1}",
+                accel_file,
+                (sw_port, f"{i + 1}", num_accels, cache_friendly, jacobi, unroll_loop),
+            )
         )
     signal(SIGCONT, run_next_app)
     signal(SIGINT, clean_shutdown)

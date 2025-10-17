@@ -453,6 +453,7 @@ class CacheController(RunnableComponent):
         if cache_blk is not None:
             # cache hit
             cache_blk = await self._cache_data_promote_to_l1(addr, level, cache_blk)
+            set = self._cache_extract_set(0, addr)
             data = self._cache_data_read(0, set, cache_blk)
         else:
             # cache miss
