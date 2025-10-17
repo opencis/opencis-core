@@ -354,7 +354,6 @@ class MyType1Accelerator(RunnableComponent):
                 while iteration_count < MAX_ITER:
                     with tqdm(
                         total=total_users,
-                        total=total_users,
                         desc=f"Iteration Progress",
                         position=(2 * self._device_id) + 1,
                         leave=False,
