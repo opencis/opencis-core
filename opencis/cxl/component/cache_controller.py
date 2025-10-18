@@ -155,13 +155,13 @@ class CacheController(RunnableComponent):
             ]
             for i in range(len(self._cache_assoc_size))
         ]
-        print((self._cache_assoc_size))
+        # print((self._cache_assoc_size))
         # for cache block eviction algorithm
         self._setcnt = [
             [SetCounter() for set in range(self._cache_set_size[i])]
             for i in range(len(self._cache_set_size))
         ]
-        print((self._cache_set_size))
+        # print((self._cache_set_size))
 
         self._blk_mask = self._cache_blk_size - 1
         self._set_mask = [
@@ -259,7 +259,7 @@ class CacheController(RunnableComponent):
 
         return None
 
-    def _cache_find_valid_block(self, level: int, tag: int, set: int) -> int:
+    def _cache_find_valid_block(self, level: int, tag: int, set: int) -> int | None:
         for blk in range(self._cache_assoc_size[level]):
             if (self._cache[level][set][blk].tag == tag) and (
                 self._cache[level][set][blk].state != CacheState.CACHE_INVALID
@@ -286,7 +286,7 @@ class CacheController(RunnableComponent):
         set_l1 = self._cache_extract_set(0, addr)
         set_level = self._cache_extract_set(level, addr)
 
-        # Invalid original data so we have free space in that level
+        # Invalidate original data so we have free space in that level
         # Reduce possible memory write backs
         source_info = copy.deepcopy(self._cache[level][set_level][blk])
         self._cache_update_block_state(level, 0, set_level, blk, CacheState.CACHE_INVALID)
@@ -400,7 +400,9 @@ class CacheController(RunnableComponent):
         await cache_fifo.request.put(packet)
         # print("Received Response Packet!!!")
         packet = await cache_fifo.response.get()
-        # # print(f"Packet received data: {packet.data:0128x}")
+        # print(packet)
+        # if packet.data:
+        # print(f"Packet received data: {packet.data:0128x}")
         # assert packet.status == CACHE_RESPONSE_STATUS.RSP_I
 
         return packet.status, packet.data
@@ -416,8 +418,9 @@ class CacheController(RunnableComponent):
             level = l
             tag = self._cache_extract_tag(level, addr)
             set = self._cache_extract_set(level, addr)
-
             cache_blk = self._cache_find_valid_block(level, tag, set)
+            if cache_blk is not None:
+                break
 
         prev_state = None
         if cache_blk is not None:
@@ -451,6 +454,8 @@ class CacheController(RunnableComponent):
             tag = self._cache_extract_tag(level, addr)
             set = self._cache_extract_set(level, addr)
             cache_blk = self._cache_find_valid_block(level, tag, set)
+            if cache_blk is not None:
+                break
 
         if cache_blk is not None:
             # cache hit
@@ -481,20 +486,20 @@ class CacheController(RunnableComponent):
         return data
 
     async def cache_coherent_partial_store(self, addr: int, size: int, data: int):
-        # # print(f"{self._component_name} start cache_coherent_partial_store 1")
+        # print(f"{self._component_name} start cache_coherent_partial_store 1")
         # mask_offset = (64 - (addr % 64) - size) * 8
         mask_offset = (addr % 64) * 8
-        # # print(f"{self._component_name} start cache_coherent_partial_store 2")
+        # print(f"{self._component_name} start cache_coherent_partial_store 2")
 
         mask = (pow(2, (size * 8)) - 1) << mask_offset
         # print(f"size = {size}, mask_offset = {mask_offset}, mask = {mask:0128x}")
-        # # print(f"{self._component_name} start cache_coherent_partial_store 3")
+        # print(f"{self._component_name} start cache_coherent_partial_store 3")
         data = (data << mask_offset) & mask
-        # # print(f"{self._component_name} start cache_coherent_partial_store 4")
+        # print(f"{self._component_name} start cache_coherent_partial_store 4")
         aligned_addr = addr - (addr % 64)
-        # # print(f"{self._component_name} start cache_coherent_partial_store 5")
+        # print(f"{self._component_name} start cache_coherent_partial_store 5")
         await self.cache_coherent_store(aligned_addr, 64, data, mask)
-        # # print(f"{self._component_name} Finished cache_coherent_partial_store")
+        # print(f"{self._component_name} Finished cache_coherent_partial_store")
         # Allows partial store to a cache block
 
     # cache access for write
@@ -520,6 +525,8 @@ class CacheController(RunnableComponent):
             tag = self._cache_extract_tag(level, addr)
             set = self._cache_extract_set(level, addr)
             cache_blk = self._cache_find_valid_block(level, tag, set)
+            if cache_blk is not None:
+                break
 
         remote_data = None
         if cache_blk is not None:
@@ -536,9 +543,14 @@ class CacheController(RunnableComponent):
                 # print(f"{self._component_name} getting new state")
                 new_state, remote_data = await self._cache_to_coh_state_lookup(addr, request_opcode)
                 if remote_data is not None:
+                    # print("Writing new dat")
                     self._cache_data_write(level, set, cache_blk, remote_data)
                 else:
+                    # print(
+                    #     f"Reading cache line data level {level}, set {set}, cache_blk {cache_blk}"
+                    # )
                     remote_data = self._cache_data_read(level, set, cache_blk)
+                    # print(f"data: {remote_data:0128x}")
 
                 cache_state = self._cache_extract_block_state(level, set, cache_blk)
                 # print(f"{self._component_name} Returned cache state: {new_state}")
@@ -575,13 +587,15 @@ class CacheController(RunnableComponent):
             # coherency check whenever inserting a cache block
             new_state, remote_data = await self._cache_to_coh_state_lookup(addr, request_opcode)
 
-            # todo: read memory if partial update is supported
             self._cache_update_block_state(0, tag, set, cache_blk, CacheState.CACHE_MODIFIED)
             if remote_data is not None:
                 data = (remote_data & revert_mask) | (data & mask)
                 # print(f"old remote data: 0x{remote_data:0128x}")
             # print(f"new data: 0x{data:0128x}")
             self._cache_data_write(0, set, cache_blk, data)
+            # print(
+            #     f"Readback: set {set}, cache_blk {cache_blk}, data: {self._cache_data_read(0, set, cache_blk):0128x}"
+            # )
         # print(
         #     f"Dev {self._component_name} Finished cache_coherent_store at 0x{addr:08x}, data: 0x{data:0128x}"
         # )

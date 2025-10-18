@@ -110,7 +110,7 @@ def main():
     accel_type = args["at"]
     cache_friendly = args["cf"]
     jacobi = str(int(args["ja"]))
-    if args["ul"] and cache_friendly != 1:
+    if args["ul"] and cache_friendly != "1":
         print("-u must be used with -f=1!")
         exit(1)
     unroll_loop = str(int(args["ul"]))

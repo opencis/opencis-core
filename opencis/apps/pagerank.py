@@ -141,7 +141,7 @@ class MyType1Accelerator(RunnableComponent):
         super().__init__(label)
         self._train_data_path = "./links-anon-sampled-condensed-350000.txt"
         self._train_data_path = "./links-anon-4.txt"
-        # self._train_data_path = "./links-anon-sampled-condensed-short.txt"
+        self._train_data_path = "./links-anon-sampled-condensed-short.txt"
 
         self._total_devs = total_devs
 
@@ -281,19 +281,26 @@ class MyType1Accelerator(RunnableComponent):
 
                             temp = [0, 0, 0, 0, 0, 0, 0, 0]
 
-                            for linking_page in corpus:
+                            for linking_page in range(total_users):
                                 # check if page links to our page
                                 for i in range(8):
-                                    if page + i in corpus and page + i < total_users:
-                                        if page + i in corpus[linking_page]:
+                                    if page + i < total_users:
+                                        if (
+                                            linking_page in corpus
+                                            and page + i in corpus[linking_page]
+                                        ):
                                             temp[i] += await old_dict[linking_page] / len(
                                                 corpus[linking_page]
                                             )
                                         # if page has no links, interpret it as having one link for every other page
-                                        if len(corpus[linking_page]) == 0:
+                                        if (
+                                            linking_page not in corpus
+                                            or len(corpus[linking_page]) == 0
+                                        ):
                                             temp[i] += (await old_dict[linking_page]) / total_users
+                                await sleep(0)
                             for i in range(8):
-                                if page + i in corpus and page + i < total_users:
+                                if page + i < total_users:
                                     temp[i] *= self._damping_factor
                                     temp[i] += (1 - self._damping_factor) / total_users
                                     await new_dict.setitem(page + i, temp[i])
