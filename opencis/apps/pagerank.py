@@ -23,7 +23,7 @@ from opencis.util.component import RunnableComponent
 
 # MAX_ITER should be an even number
 # so the final result will be at the first buffer
-MAX_ITER = 6
+MAX_ITER = 4
 
 
 class CustomList:
@@ -139,9 +139,9 @@ class MyType1Accelerator(RunnableComponent):
     ):
         label = f"Port{port_index}"
         super().__init__(label)
-        self._train_data_path = "./links-anon-sampled-condensed-350000.txt"
-        self._train_data_path = "./links-anon-4.txt"
-        self._train_data_path = "./links-anon-sampled-condensed-short.txt"
+        self._train_data_path = "./links-anon-sampled-condensed-50000.txt"
+        # self._train_data_path = "./links-anon-4.txt"
+        # self._train_data_path = "./links-anon-sampled-condensed-short.txt"
 
         self._total_devs = total_devs
 
