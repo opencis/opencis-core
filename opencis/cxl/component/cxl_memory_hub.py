@@ -169,6 +169,15 @@ class CxlMemoryHub(RunnableComponent):
         assert resp.status == MEMORY_RESPONSE_STATUS.OK
         return resp
 
+    async def flush(self, addr: int, size: int) -> int:
+        addr_type = self._cache_controller.get_mem_addr_type(addr)
+        match addr_type:
+            case MEM_ADDR_TYPE.DRAM | MEM_ADDR_TYPE.CXL_CACHED | MEM_ADDR_TYPE.CXL_CACHED_BI:
+                packet = MemoryRequest(MEMORY_REQUEST_TYPE.FLUSH_DATA, addr, size)
+                resp = await self._send_mem_request(packet)
+                return 0
+        return 0
+
     async def load(self, addr: int, size: int) -> int:
         addr_type = self._cache_controller.get_mem_addr_type(addr)
         match addr_type:

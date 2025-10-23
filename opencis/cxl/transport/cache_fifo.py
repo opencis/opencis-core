@@ -22,6 +22,7 @@ class CACHE_REQUEST_TYPE(Enum):
     WRITE_BACK_CLEAN = auto()
     UNCACHED_WRITE = auto()
     UNCACHED_READ = auto()
+    FLUSH_DATA = auto()
 
 
 @dataclass

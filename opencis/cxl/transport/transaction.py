@@ -997,6 +997,7 @@ class CxlCacheH2DDataHeader(UnalignedBitStructure):
     poison: int
     go_err: int
     cache_id: int
+    flush_data: int
     rsvd: int
     _fields = [
         BitField("valid", 0, 0),
@@ -1004,7 +1005,29 @@ class CxlCacheH2DDataHeader(UnalignedBitStructure):
         BitField("poison", 13, 13),
         BitField("go_err", 14, 14),
         BitField("cache_id", 15, 18),
-        BitField("rsvd", 19, 23),
+        BitField("flush_data", 19, 19),
+        BitField("rsvd", 20, 23),
+    ]
+
+
+class CxlCacheH2DDataFlushHeader(UnalignedBitStructure):
+    valid: int
+    uqid: int
+    poison: int
+    go_err: int
+    cache_id: int
+    flush_data: int
+    addr: int
+    rsvd: int
+    _fields = [
+        BitField("valid", 0, 0),
+        BitField("uqid", 1, 12),
+        BitField("poison", 13, 13),
+        BitField("go_err", 14, 14),
+        BitField("cache_id", 15, 18),
+        BitField("flush_data", 19, 19),
+        BitField("addr", 20, 65),
+        BitField("rsvd", 66, 71),
     ]
 
 
@@ -1135,6 +1158,34 @@ class CxlCacheH2DDataPacket(CxlCacheBasePacket):
         return self.h2ddata_header.cache_id
 
 
+H2DDATA_FLUSH_HEADER_START = CXL_CACHE_HEADER_END + 1
+H2DDATA_FLUSH_HEADER_END = H2DDATA_FLUSH_HEADER_START + CxlCacheH2DDataFlushHeader.get_size() - 1
+H2DDATA_FLUSH_FIELD_START = H2DDATA_FLUSH_HEADER_END + 1
+
+
+class CxlCacheH2DDataFlushPacket(CxlCacheBasePacket):
+    h2ddata_header: CxlCacheH2DDataFlushHeader
+    data: int
+    _fields = CxlCacheBasePacket._fields + [
+        StructureField(
+            "h2ddata_header",
+            H2DDATA_FLUSH_HEADER_START,
+            H2DDATA_FLUSH_HEADER_END,
+            CxlCacheH2DDataFlushHeader,
+        ),
+        ByteField("data", H2DDATA_FLUSH_FIELD_START, H2DDATA_FLUSH_FIELD_START + 63),
+    ]
+
+    def get_uqid(self) -> int:
+        return self.h2ddata_header.uqid
+
+    def get_cache_id(self) -> int:
+        return self.h2ddata_header.cache_id
+
+    def get_address(self) -> int:
+        return self.h2ddata_header.addr << 6
+
+
 # Helper classes
 class CxlCacheCacheD2HReqPacket(CxlCacheD2HReqPacket):
     @staticmethod
@@ -1238,6 +1289,25 @@ class CxlCacheCacheH2DDataPacket(CxlCacheH2DDataPacket):
         packet.h2ddata_header.valid = 0b1
         packet.h2ddata_header.cache_id = cache_id
         packet.h2ddata_header.cqid = cqid
+        packet.h2ddata_header.flush_data = 0
+        packet.data = data
+        return packet
+
+
+class CxlCacheCacheH2DDataFlushPacket(CxlCacheH2DDataFlushPacket):
+    @staticmethod
+    def create(
+        cache_id: int, data: int, uqid: int = 0, addr: int = 0
+    ) -> "CxlCacheCacheH2DDataFlushPacket":
+        packet = CxlCacheCacheH2DDataFlushPacket()
+        packet.system_header.payload_type = PAYLOAD_TYPE.CXL_CACHE
+        packet.system_header.payload_length = len(packet)
+        packet.cxl_cache_header.msg_class = CXL_CACHE_MSG_CLASS.H2D_DATA
+        packet.h2ddata_header.valid = 0b1
+        packet.h2ddata_header.cache_id = cache_id
+        packet.h2ddata_header.uqid = uqid
+        packet.h2ddata_header.flush_data = 1
+        packet.h2ddata_header.addr = addr >> 6
         packet.data = data
         return packet
 

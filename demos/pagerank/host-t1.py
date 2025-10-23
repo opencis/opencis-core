@@ -189,9 +189,9 @@ async def my_img_classification_app(**kwargs):
     await start_signal.wait()
     logger.info("Host main process running!")
 
-    corpus, total_users = read_file("./links-anon-sampled-condensed-50000.txt")
+    # corpus, total_users = read_file("./links-anon-sampled-condensed-50000.txt")
     # corpus, total_users = read_file("./links-anon-4.txt")
-    # corpus, total_users = read_file("./links-anon-sampled-condensed-short.txt")
+    corpus, total_users = read_file("./links-anon-sampled-condensed-short.txt")
 
     print(f"Total users: {total_users}")
     pageRank = CustomList(total_users, START_ADDR)
@@ -211,7 +211,11 @@ async def my_img_classification_app(**kwargs):
     ) as pbar:
         for i in range(total_users):
             await pageRank.host_setitem(i, 1 / total_users)
+            if i % 8 == 7:
+                await cpu.flush_data(pageRank.getAddr(i - 7), 64)
             pbar.update()
+        if i % 8 != 7:
+            await cpu.flush_data(pageRank.getAddr(i - (i % 8)), 64)
 
     for dev_id in range(config.accel_count):
         host_irq_handler.register_interrupt_handler(

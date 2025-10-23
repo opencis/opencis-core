@@ -21,6 +21,7 @@ from opencis.cxl.component.virtual_switch.upstream_vppb import UpstreamVppb
 from opencis.cxl.transport.transaction import (
     BasePacket,
     CxlCacheD2HReqPacket,
+    CxlCacheH2DDataFlushPacket,
     CxlCacheH2DDataPacket,
     CxlIoBasePacket,
     CxlIoCfgRdPacket,
@@ -500,6 +501,8 @@ class CxlCacheRouter(CxlRouter):
                 cache_id = cxl_cache_packet.h2drsp_header.cache_id
             elif cxl_cache_base_packet.is_h2ddata():
                 cxl_cache_packet = cast(CxlCacheH2DDataPacket, packet)
+                if cxl_cache_packet.h2ddata_header.flush_data:
+                    cxl_cache_packet = cast(CxlCacheH2DDataFlushPacket, packet)
                 cache_id = cxl_cache_packet.h2ddata_header.cache_id
             else:
                 raise Exception("Received unexpected packet")

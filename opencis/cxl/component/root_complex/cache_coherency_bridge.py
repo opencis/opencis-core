@@ -29,6 +29,7 @@ from opencis.cxl.transport.cache_fifo import (
 from opencis.cxl.transport.transaction import (
     BasePacket,
     CxlCacheBasePacket,
+    CxlCacheCacheH2DDataFlushPacket,
     CxlCacheD2HReqPacket,
     CxlCacheD2HRspPacket,
     CxlCacheD2HDataPacket,
@@ -407,6 +408,21 @@ class CacheCoherencyBridge(RunnableComponent):
                 cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.OK)
                 await self._upstream_cache_to_coh_bridge_fifo.response.put(cache_packet)
                 self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
+            elif cache_packet.type == CACHE_REQUEST_TYPE.FLUSH_DATA:
+                addr = cache_packet.addr
+                data = cache_packet.data
+                # cache_response_packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_S)
+                mem_packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, 64, data)
+                await self._memory_producer_fifos.request.put(mem_packet)
+                # await self._upstream_cache_to_coh_bridge_fifo.response.put(cache_response_packet)
+                # Can only have one device with FLUSH_DATA, so CACHE_ID = 0
+                #
+                cxl_data_packet = CxlCacheCacheH2DDataFlushPacket.create(
+                    0, data, self.get_next_uqid(), addr
+                )
+                self._cur_state.cache_list.append(0)
+                await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_data_packet)
+                self._cur_state.state = COH_STATE_MACHINE.COH_STATE_WAIT
             else:
                 # device cache snoop filter miss
                 # host can access without sending any transaction to the devices whatsoever
@@ -430,7 +446,11 @@ class CacheCoherencyBridge(RunnableComponent):
                     self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
                 # device cache snoop filter hit
                 # host needs to resolve coherency for the requested line
-                elif cache_packet.type == CACHE_REQUEST_TYPE.SNP_INV:
+                elif cache_packet.type in (
+                    CACHE_REQUEST_TYPE.SNP_INV,
+                    CACHE_REQUEST_TYPE.RD_OWN,
+                    CACHE_REQUEST_TYPE.RD_OWN_NO_DATA,
+                ):
                     await self._snoop_invalidate_caches(addr, self._cur_state.cache_list)
                     self._cur_state.state = COH_STATE_MACHINE.COH_STATE_WAIT
                 else:

@@ -82,6 +82,7 @@ dependencies = [
     "multidict>6.3.2",
     "scikit-learn>=1.6.1",
     "scikit-network>=0.33.3",
+    "nest-asyncio>=1.6.0",
 ]
 name = "opencis"
 version = "0.5"

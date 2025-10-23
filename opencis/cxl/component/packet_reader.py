@@ -18,6 +18,7 @@ from opencis.cxl.transport.transaction import (
     CxlCacheD2HDataPacket,
     CxlCacheD2HReqPacket,
     CxlCacheD2HRspPacket,
+    CxlCacheH2DDataFlushPacket,
     CxlCacheH2DDataPacket,
     CxlCacheH2DReqPacket,
     CxlCacheH2DRspPacket,
@@ -199,6 +200,9 @@ class PacketReader(LabeledComponent):
             cxl_cache_packet = CxlCacheH2DRspPacket()
         elif cxl_cache_base_packet.is_h2ddata():
             cxl_cache_packet = CxlCacheH2DDataPacket()
+            cxl_cache_packet.reset(payload)
+            if cxl_cache_packet.h2ddata_header.flush_data:
+                cxl_cache_packet = CxlCacheH2DDataFlushPacket()
         else:
             msg_class = cxl_cache_base_packet.cxl_cache_header.msg_class
             raise Exception(f"Unsupported CXL.CACHE message class: {msg_class}")

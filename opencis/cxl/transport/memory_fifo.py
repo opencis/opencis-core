@@ -15,6 +15,7 @@ class MEMORY_REQUEST_TYPE(Enum):
     WRITE = auto()
     UNCACHED_READ = auto()
     UNCACHED_WRITE = auto()
+    FLUSH_DATA = auto()
 
 
 @dataclass

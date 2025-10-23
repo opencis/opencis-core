@@ -28,6 +28,7 @@ from opencis.pci.component.fifo_pair import FifoPair
 from opencis.cxl.transport.transaction import (
     BasePacket,
     CxlCacheBasePacket,
+    CxlCacheH2DDataFlushPacket,
     CxlCacheH2DReqPacket,
     CxlCacheH2DRspPacket,
     CxlCacheH2DDataPacket,
@@ -61,6 +62,7 @@ class CacheDcohCxlChannel:
     h2d_req: Queue = field(default_factory=Queue)
     h2d_rsp: Queue = field(default_factory=Queue)
     h2d_data: Queue = field(default_factory=Queue)
+    h2d_data_flush: Queue = field(default_factory=Queue)
 
 
 class CxlCacheDcoh(PacketProcessor):
@@ -519,7 +521,25 @@ class CxlCacheDcoh(PacketProcessor):
             elif cxl_packet.is_h2drsp():
                 await self._cxl_channel.h2d_rsp.put(cast(CxlCacheH2DRspPacket, packet))
             elif cxl_packet.is_h2ddata():
-                await self._cxl_channel.h2d_data.put(cast(CxlCacheH2DDataPacket, packet))
+                data_packet = cast(CxlCacheH2DDataPacket, packet)
+                if not data_packet.h2ddata_header.flush_data:
+                    await self._cxl_channel.h2d_data.put(cast(CxlCacheH2DDataPacket, packet))
+                else:
+                    flush_packet = cast(CxlCacheH2DDataFlushPacket, packet)
+                    await self._cxl_channel.h2d_data_flush.put(flush_packet)
+                    cache_packet_req = CacheRequest(
+                        CACHE_REQUEST_TYPE.FLUSH_DATA,
+                        flush_packet.get_address(),
+                        64,
+                        flush_packet.data,
+                    )
+                    await self._coh_agent_to_cache_fifo.request.put(cache_packet_req)
+                    cache_packet = await self._coh_agent_to_cache_fifo.response.get()
+                    cxl_packet = CxlCacheCacheD2HRspPacket.create(
+                        flush_packet.get_uqid(), CXL_CACHE_D2HRSP_OPCODE.RSP_S_HIT_SE
+                    )
+                    await self._upstream_fifo.target_to_host.put(cxl_packet)
+
             else:
                 raise Exception(f"Received unexpected packet: {cxl_packet.get_type()}")
 

@@ -132,6 +132,7 @@ class CacheController(RunnableComponent):
         assert len(self._cache_assoc_size) == len(self._cache_set_size)
 
         self._total_cache_level = len(self._cache_assoc_size)
+        self._last_level_id = self._total_cache_level - 1
 
         # cache controller connections within CXL complex host module
         self._processor_to_cache_fifo = config.processor_to_cache_fifo
@@ -370,6 +371,24 @@ class CacheController(RunnableComponent):
         packet = await cache_fifo.response.get()
         return packet
 
+    async def _flush_data(self, addr: int, size: int) -> None:
+        level = 0
+        for l in range(self._total_cache_level):
+            level = l
+            tag = self._cache_extract_tag(level, addr)
+            set = self._cache_extract_set(level, addr)
+            cache_blk = self._cache_find_valid_block(level, tag, set)
+            if cache_blk is not None:
+                break
+        assert cache_blk is not None
+        assert self._cache_extract_block_state(level, set, cache_blk) == CacheState.CACHE_MODIFIED
+        value = self._cache_data_read(level, set, cache_blk)
+        cache_fifo = self._get_cache_fifo(addr)
+        packet = CacheRequest(CACHE_REQUEST_TYPE.FLUSH_DATA, addr, size, value)
+        await cache_fifo.request.put(packet)
+        await cache_fifo.response.get()
+        self._cache_update_block_state(level, tag, set, cache_blk, CacheState.CACHE_SHARED)
+
     async def _memory_store(self, addr: int, size: int, prev_state: CacheState, value) -> None:
         cache_fifo = self._get_cache_fifo(addr)
         # Check for dirtiness, use WRITE_BACK_CLEAN if clean
@@ -441,6 +460,8 @@ class CacheController(RunnableComponent):
                     self._cache_extract_block_state(level, set, cache_blk)
                     == CacheState.CACHE_SHARED
                 )
+            elif type == CACHE_REQUEST_TYPE.FLUSH_DATA:
+                self._cache_update_block_state(level, tag, set, cache_blk, CacheState.CACHE_SHARED)
 
         return cache_blk, data, prev_state, level
 
@@ -459,11 +480,13 @@ class CacheController(RunnableComponent):
 
         if cache_blk is not None:
             # cache hit
+            # print(f"Cache hit @ {addr:016x}")
             cache_blk = await self._cache_data_promote_to_l1(addr, level, cache_blk)
             set = self._cache_extract_set(0, addr)
             data = self._cache_data_read(0, set, cache_blk)
         else:
             # cache miss
+            # print(f"Cache miss @ {addr:016x}")
             tag = self._cache_extract_tag(0, addr)
             set = self._cache_extract_set(0, addr)
             await self._cache_data_demote(0, addr)
@@ -642,6 +665,11 @@ class CacheController(RunnableComponent):
                     packet = MemoryResponse(MEMORY_RESPONSE_STATUS.OK)
                     await self._processor_to_cache_fifo.response.put(packet)
 
+                case MEMORY_REQUEST_TYPE.FLUSH_DATA:
+                    await self._flush_data(packet.addr, packet.size)
+                    packet = MemoryResponse(MEMORY_RESPONSE_STATUS.OK)
+                    await self._processor_to_cache_fifo.response.put(packet)
+
                 case _:
                     assert False
 
@@ -650,7 +678,19 @@ class CacheController(RunnableComponent):
             packet.type, packet.addr
         )
         if cache_blk is None:
-            packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_MISS, data)
+            # Cache miss
+            if packet.type == CACHE_REQUEST_TYPE.FLUSH_DATA:
+                rsp_status = CACHE_RESPONSE_STATUS.RSP_S
+                set = self._cache_extract_set(0, packet.addr)
+                await self._cache_data_demote(0, packet.addr)
+                blk = self._cache_find_invalid_block(0, set)
+                tag = self._cache_extract_tag(0, packet.addr)
+                self._cache_data_write(0, set, blk, packet.data)
+                self._cache_update_block_state(0, tag, set, blk, CacheState.CACHE_SHARED)
+                data = self._cache_data_read(0, set, blk)
+                packet = CacheResponse(rsp_status, data, prev_state)
+            else:
+                packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_MISS, data)
         elif packet.type == CACHE_REQUEST_TYPE.SNP_DATA:
             rsp_status = CACHE_RESPONSE_STATUS.RSP_S
             packet = CacheResponse(rsp_status, data, prev_state)
@@ -662,6 +702,12 @@ class CacheController(RunnableComponent):
             # 3.2.4.2.14 ~ 3.2.4.2.16
             # guarantee to the Host that the device no longer contains any cached copies of this line
             packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I, data, prev_state)
+        elif packet.type == CACHE_REQUEST_TYPE.FLUSH_DATA:
+            rsp_status = CACHE_RESPONSE_STATUS.RSP_S
+            set = self._cache_extract_set(level, packet.addr)
+            self._cache_data_write(level, set, cache_blk, packet.data)
+            self._cache_update_block_state(0, tag, set, blk, CacheState.CACHE_SHARED)
+            packet = CacheResponse(rsp_status, data, prev_state)
         else:
             assert False
         await cache_fifo.response.put(packet)

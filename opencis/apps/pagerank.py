@@ -139,9 +139,9 @@ class MyType1Accelerator(RunnableComponent):
     ):
         label = f"Port{port_index}"
         super().__init__(label)
-        self._train_data_path = "./links-anon-sampled-condensed-50000.txt"
+        # self._train_data_path = "./links-anon-sampled-condensed-50000.txt"
         # self._train_data_path = "./links-anon-4.txt"
-        # self._train_data_path = "./links-anon-sampled-condensed-short.txt"
+        self._train_data_path = "./links-anon-sampled-condensed-short.txt"
 
         self._total_devs = total_devs
 
@@ -411,10 +411,6 @@ class MyType1Accelerator(RunnableComponent):
         except Exception as e:
             print(e)
 
-    def _app_shutdown(self):
-        logger.info(self._create_message(f"Removing tmp directory: {self.accel_dirname}"))
-        shutil.rmtree(self.accel_dirname, ignore_errors=True)
-
     async def _run(self):
         tasks = [
             create_task(self._sw_conn_client.run()),
@@ -443,4 +439,3 @@ class MyType1Accelerator(RunnableComponent):
             create_task(self._irq_manager.stop()),
         ]
         await gather(*tasks)
-        await self._app_shutdown()
