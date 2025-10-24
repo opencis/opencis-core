@@ -290,6 +290,11 @@ class CacheController(RunnableComponent):
         # Invalidate original data so we have free space in that level
         # Reduce possible memory write backs
         source_info = copy.deepcopy(self._cache[level][set_level][blk])
+        # if addr == 0x1800:
+        #     print(
+        #         f"Cache blk: {blk}, set {set_level}, data {source_info.data}, level {level}, tag {source_info.tag} - before"
+        #     )
+        #     print(f"addr: {self._cache_assem_addr(level, set_level, blk)}")
         self._cache_update_block_state(level, 0, set_level, blk, CacheState.CACHE_INVALID)
 
         target = self._cache_find_invalid_block(0, set_l1)
@@ -298,30 +303,35 @@ class CacheController(RunnableComponent):
             target = self._cache_find_invalid_block(0, set_l1)
             assert target is not None
         self._cache[0][set_l1][target] = source_info
+
         # Update tag
         tag = self._cache_extract_tag(0, addr)
+        # if addr == 0x1800:
+        #     print(
+        #         f"Cache blk: {target}, set {set_l1}, data {self._cache[0][set_l1][target].data}, level 0, tag {tag} - after"
+        #     )
         self._cache_update_block_state(0, tag, set_l1, target, source_info.state)
         return target
 
-    async def _cache_data_demote(self, level: int, addr: int):
+    async def _cache_data_demote(self, level: int, make_way_for_addr: int):
         if level >= self._total_cache_level:
             raise Exception(f"No {level + 1} level cache!")
 
-        set_level = self._cache_extract_set(level, addr)
+        set_level = self._cache_extract_set(level, make_way_for_addr)
         cache_blk = self._cache_find_invalid_block(level, set_level)
         if cache_blk is not None:
             return
 
         cache_blk, prev_state = self._cache_find_replace_block(level, set_level)
-        assem_addr = self._cache_assem_addr(level, set_level, cache_blk)
+        to_evict_addr = self._cache_assem_addr(level, set_level, cache_blk)
         cached_data = self._cache_data_read(level, set_level, cache_blk)
 
         if level + 1 == self._total_cache_level:
             # cacheline flush to secure space
-            await self._memory_store(assem_addr, 64, prev_state, cached_data)
+            await self._memory_store(to_evict_addr, 64, prev_state, cached_data)
         else:
-            set_level_plus_one = self._cache_extract_set(level + 1, addr)
-            await self._cache_data_demote(level + 1, addr)
+            set_level_plus_one = self._cache_extract_set(level + 1, to_evict_addr)
+            await self._cache_data_demote(level + 1, to_evict_addr)
             target = self._cache_find_invalid_block(level + 1, set_level_plus_one)
             assert target is not None
 
@@ -329,7 +339,7 @@ class CacheController(RunnableComponent):
                 self._cache[level][set_level][cache_blk]
             )
             # Update tag
-            tag = self._cache_extract_tag(level + 1, addr)
+            tag = self._cache_extract_tag(level + 1, to_evict_addr)
             self._cache[level + 1][set_level_plus_one][target].tag = tag
         self._cache_update_block_state(level, 0, set_level, cache_blk, CacheState.CACHE_INVALID)
         return
@@ -476,14 +486,23 @@ class CacheController(RunnableComponent):
             set = self._cache_extract_set(level, addr)
             cache_blk = self._cache_find_valid_block(level, tag, set)
             if cache_blk is not None:
+                # data = self._cache_data_read(level, set, cache_blk)
+                # if addr == 0x1800:
+                #     print(
+                #         f"Cache blk: {cache_blk}, set {set}, data {data}, level {level}, tag {tag} - 1"
+                #     )
                 break
 
         if cache_blk is not None:
             # cache hit
-            # print(f"Cache hit @ {addr:016x}")
+            # if addr == 0x1800:
+            #     print(f"Cache hit @ {addr:016x}")
             cache_blk = await self._cache_data_promote_to_l1(addr, level, cache_blk)
+
             set = self._cache_extract_set(0, addr)
             data = self._cache_data_read(0, set, cache_blk)
+            # if addr == 0x1800:
+            #     print(f"Cache blk: {cache_blk}, set {set}, data {data}, level {level} - 2")
         else:
             # cache miss
             # print(f"Cache miss @ {addr:016x}")
@@ -685,6 +704,9 @@ class CacheController(RunnableComponent):
                 await self._cache_data_demote(0, packet.addr)
                 blk = self._cache_find_invalid_block(0, set)
                 tag = self._cache_extract_tag(0, packet.addr)
+                # print(
+                #     f"FLUSHING-MISS: addr: 0x{packet.addr:08x}, blk {blk}, set {set}, level {0}, tag {tag}, data: {packet.data}"
+                # )
                 self._cache_data_write(0, set, blk, packet.data)
                 self._cache_update_block_state(0, tag, set, blk, CacheState.CACHE_SHARED)
                 data = self._cache_data_read(0, set, blk)
@@ -704,9 +726,13 @@ class CacheController(RunnableComponent):
             packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I, data, prev_state)
         elif packet.type == CACHE_REQUEST_TYPE.FLUSH_DATA:
             rsp_status = CACHE_RESPONSE_STATUS.RSP_S
+            tag = self._cache_extract_tag(level, packet.addr)
             set = self._cache_extract_set(level, packet.addr)
+            # print(
+            #     f"FLUSHING: addr: {packet.addr}, blk {cache_blk}, set {set}, level {level}, tag {tag}"
+            # )
             self._cache_data_write(level, set, cache_blk, packet.data)
-            self._cache_update_block_state(0, tag, set, blk, CacheState.CACHE_SHARED)
+            self._cache_update_block_state(level, tag, set, cache_blk, CacheState.CACHE_SHARED)
             packet = CacheResponse(rsp_status, data, prev_state)
         else:
             assert False

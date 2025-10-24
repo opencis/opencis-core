@@ -80,7 +80,7 @@ def main():
     )
 
     parser.add_argument(
-        "-f",
+        "-r",
         "--push-rate",
         dest="pr",
         default="1",
@@ -101,14 +101,14 @@ def main():
     global RUN_LIST
     RUN_LIST = [
         ("switch", "./switch.py", (sw_port, num_accels)),
-        ("host", host_file, (sw_port, num_accels)),
+        ("host", host_file, (sw_port, num_accels, push_rate)),
     ]
     for i in range(int(num_accels)):
         RUN_LIST.append(
             (
                 f"accel{i + 1}",
                 accel_file,
-                (sw_port, f"{i + 1}", num_accels, push_rate),
+                (sw_port, f"{i + 1}", num_accels),
             )
         )
     signal(SIGCONT, run_next_app)

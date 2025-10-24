@@ -135,7 +135,6 @@ class MyType1Accelerator(RunnableComponent):
         irq_port: int = 8500,
         device_id: int = 0,
         total_devs: int = 1,
-        push_rate: float = 1,
     ):
         label = f"Port{port_index}"
         super().__init__(label)
@@ -155,8 +154,7 @@ class MyType1Accelerator(RunnableComponent):
         )
         self._wait_tasks = []
         self._device_id = device_id
-
-        self._push_rate = push_rate
+        self._count = 0
 
         self._twitter_user_mapping: Dict[int, List[int]] = {}
         self._damping_factor = 0.85
@@ -180,14 +178,19 @@ class MyType1Accelerator(RunnableComponent):
         packet_addr = await self._packet_data[0]
         packet_len = await self._packet_data[1]
         padded_len = (((packet_len - 1) // 64) + 1) * 64
-        # print(
-        #     f"Received addr 0x{packet_addr:08x}, len 0x{packet_len:08x}, padded_len 0x{padded_len:08x}"
-        # )
+        # if self._count > 3000:
+        #     print(
+        #         f"Received addr 0x{packet_addr:08x}, len 0x{packet_len:08x}, padded_len 0x{padded_len:08x}"
+        #     )
+        # if packet_addr == 0:
+        #     exit()
+
         raw_packet_padded = await self._cxl_type1_device.cxl_cache_read(packet_addr, padded_len)
         raw_packet = raw_packet_padded[0:packet_len]
         data = self._processor.parse_packet(raw_packet)
         opencis_raw = data.opencis.raw_mode.to_bytes()
         # Read packet
+        self._count += 1
         await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
 
     async def _run(self):

@@ -26,6 +26,7 @@ from opencis.drivers.cxl_bus_driver import CxlBusDriver
 from opencis.drivers.cxl_mem_driver import CxlMemDriver
 from opencis.drivers.pci_bus_driver import PciBusDriver
 from opencis.apps.packet_processor import CustomList
+import random
 import nest_asyncio
 
 nest_asyncio.apply()
@@ -34,7 +35,7 @@ nest_asyncio.apply()
 # pylint: disable=global-statement, duplicate-code
 @dataclass
 class ImageClassificationConfigs:
-    train_data_path: str
+    push_rate: float
     accel_count: int
     samples_from_each_category: int
     pci_cfg_base_addr: int = 0x10000000
@@ -71,8 +72,14 @@ INITIAL_PACKET_ADDR = 0x2000
 packet_data = CustomList(2, START_ADDR)
 continue_signal = asyncio.Event()
 
+SEED = 42
+random.seed(SEED)
+
+flushed_packets = 0
+non_flushed_packets = 0
+
 # Path to your pcap file
-pcap_file_path = "/Users/zhxq/Downloads/50000-t1n2f1u-cache8-32.pcap"
+pcap_file_path = "/home/zhxq/50000-t1n2f1u-cache8-32.pcap"
 # Define custom parameters to load the Lua script
 # custom_params = {'-X': f'lua_script:{lua_script_path}'}
 
@@ -156,7 +163,9 @@ async def barrier_one_iter_finished_type1(dev_id: int):
 
 
 async def check_final_iter_ready():
+    global flushed_packets, non_flushed_packets
     print("All packets handled!!")
+    print(f"FLUSHed packets: {flushed_packets}, non-FLUSHed packets: {non_flushed_packets}.")
     stop_signal.set()
 
 
@@ -165,7 +174,7 @@ async def process_packet_async(packet):
 
 
 async def my_img_classification_app(**kwargs):
-    global cpu, packet_data, host_irq_handler, current_offset
+    global cpu, packet_data, host_irq_handler, current_offset, flushed_packets, non_flushed_packets
     cpu = kwargs["cpu"]
 
     global mem_hub
@@ -200,17 +209,23 @@ async def my_img_classification_app(**kwargs):
         raw_data_padded = raw_data + (bytes(b"\x00") * (64 - (raw_data_len % 64)))
         raw_data_padded_len = len(raw_data_padded)
 
+        # if count > 3000:
+        #     print(
+        #         f"Storing addr 0x{current_offset:08x}, len 0x{raw_data_len:08x}, padded_len 0x{raw_data_padded_len:08x}"
+        #     )
+
         await packet_data.host_setitem(0, current_offset)
         await packet_data.host_setitem(1, raw_data_len)
 
-        # print(
-        #     f"Storing addr 0x{current_offset:08x}, len 0x{raw_data_len:08x}, padded_len 0x{raw_data_padded_len:08x}"
-        # )
-
         await cpu.store_bin(current_offset, raw_data_padded_len, raw_data_padded)
 
-        for i in range(raw_data_padded_len // 64):
-            await cpu.flush_data(current_offset + i * 64, 64)
+        prob_var = random.random()
+        if prob_var < config.push_rate:
+            flushed_packets += 1
+            for i in range(raw_data_padded_len // 64):
+                await cpu.flush_data(current_offset + i * 64, 64)
+        else:
+            non_flushed_packets += 1
 
         current_offset += raw_data_len
         current_offset = ((current_offset - 1) // 64 + 1) * 64
@@ -255,11 +270,11 @@ async def run_demo(signame=None):
 async def main():
     sw_portno = int(sys.argv[1])
     accel_count = int(sys.argv[2])
-    train_data_path = sys.argv[3] if len(sys.argv) > 3 else None
+    push_rate = float(sys.argv[3]) if len(sys.argv) > 3 else None
 
     global config
     config = ImageClassificationConfigs(
-        train_data_path=train_data_path,
+        push_rate=push_rate,
         accel_count=accel_count,
         samples_from_each_category=1,
         pci_cfg_base_addr=0x10000000,
