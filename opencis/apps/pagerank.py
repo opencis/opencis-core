@@ -139,9 +139,9 @@ class MyType1Accelerator(RunnableComponent):
     ):
         label = f"Port{port_index}"
         super().__init__(label)
-        # self._train_data_path = "./links-anon-sampled-condensed-50000.txt"
+        self._train_data_path = "./links-anon-sampled-condensed-50000.txt"
         # self._train_data_path = "./links-anon-4.txt"
-        self._train_data_path = "./links-anon-sampled-condensed-short.txt"
+        # self._train_data_path = "./links-anon-sampled-condensed-short.txt"
 
         self._total_devs = total_devs
 
