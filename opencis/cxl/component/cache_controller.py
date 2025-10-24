@@ -328,6 +328,9 @@ class CacheController(RunnableComponent):
 
         if level + 1 == self._total_cache_level:
             # cacheline flush to secure space
+            # print(
+            #     f"evicting addr: 0x{to_evict_addr:08x} (level {level}) for 0x{make_way_for_addr:08x}"
+            # )
             await self._memory_store(to_evict_addr, 64, prev_state, cached_data)
         else:
             set_level_plus_one = self._cache_extract_set(level + 1, to_evict_addr)
@@ -405,9 +408,12 @@ class CacheController(RunnableComponent):
         if prev_state == CacheState.CACHE_MODIFIED:
             packet = CacheRequest(CACHE_REQUEST_TYPE.WRITE_BACK, addr, size, value)
         else:
+            # print("Sending write back clean")
             packet = CacheRequest(CACHE_REQUEST_TYPE.WRITE_BACK_CLEAN, addr, size, value)
         await cache_fifo.request.put(packet)
+        # print("Done put!")
         await cache_fifo.response.get()
+        # print("Got back!")
 
     # For request: coherency tasks from cache controller to coh module
     async def _cache_to_coh_state_lookup(self, addr: int, op=CACHE_REQUEST_TYPE.SNP_INV):
@@ -700,17 +706,28 @@ class CacheController(RunnableComponent):
             # Cache miss
             if packet.type == CACHE_REQUEST_TYPE.FLUSH_DATA:
                 rsp_status = CACHE_RESPONSE_STATUS.RSP_S
+                # print("device cache flush 1")
                 set = self._cache_extract_set(0, packet.addr)
+                # print("device cache flush 2")
                 await self._cache_data_demote(0, packet.addr)
+                # print("device cache flush 3")
                 blk = self._cache_find_invalid_block(0, set)
+                # print("device cache flush 4")
+                # if blk is None:
+                # print("Failed to find blk!!!!!!!")
+                # print("device cache flush 5")
                 tag = self._cache_extract_tag(0, packet.addr)
                 # print(
                 #     f"FLUSHING-MISS: addr: 0x{packet.addr:08x}, blk {blk}, set {set}, level {0}, tag {tag}, data: {packet.data}"
                 # )
                 self._cache_data_write(0, set, blk, packet.data)
+                # print("device cache flush 6")
                 self._cache_update_block_state(0, tag, set, blk, CacheState.CACHE_SHARED)
+                # print("device cache flush 7")
                 data = self._cache_data_read(0, set, blk)
+                # print("device cache flush 8")
                 packet = CacheResponse(rsp_status, data, prev_state)
+                # print("device cache flush 9")
             else:
                 packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_MISS, data)
         elif packet.type == CACHE_REQUEST_TYPE.SNP_DATA:

@@ -431,6 +431,7 @@ class CxlCacheDcoh(PacketProcessor):
 
             elif h2drsp_packet.h2drsp_header.rsp_data == CXL_CACHE_H2DRSP_CACHE_STATE.INVALID:
                 cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_I)
+                # print("Sending cache_packet I")
                 await self._cache_to_coh_agent_fifo.response.put(cache_packet)
 
         elif h2drsp_packet.h2drsp_header.cache_opcode == CXL_CACHE_H2DRSP_OPCODE.GO_WRITE_PULL:
@@ -501,6 +502,28 @@ class CxlCacheDcoh(PacketProcessor):
             await self._upstream_fifo.target_to_host.put(cxl_packet)
             self._cur_state.state = COH_STATE_MACHINE.COH_STATE_WAIT
 
+    async def _handle_flush_data(self, packet):
+        flush_packet = cast(CxlCacheH2DDataFlushPacket, packet)
+        # print("dcoh 1")
+        await self._cxl_channel.h2d_data_flush.put(flush_packet)
+        # print("dcoh 2")
+        cache_packet_req = CacheRequest(
+            CACHE_REQUEST_TYPE.FLUSH_DATA,
+            flush_packet.get_address(),
+            64,
+            flush_packet.data,
+        )
+        # print("dcoh 3")
+        await self._coh_agent_to_cache_fifo.request.put(cache_packet_req)
+        # print("dcoh 4")
+        cache_packet = await self._coh_agent_to_cache_fifo.response.get()
+        # print("dcoh 5")
+        cxl_packet = CxlCacheCacheD2HRspPacket.create(
+            flush_packet.get_uqid(), CXL_CACHE_D2HRSP_OPCODE.RSP_S_HIT_SE
+        )
+        # print("dcoh 6")
+        await self._upstream_fifo.target_to_host.put(cxl_packet)
+
     # .cache h2d host packet handler
     async def _process_host_to_target(self):
         # pylint: disable=duplicate-code
@@ -519,26 +542,14 @@ class CxlCacheDcoh(PacketProcessor):
             if cxl_packet.is_h2dreq():
                 await self._cxl_channel.h2d_req.put(cast(CxlCacheH2DReqPacket, packet))
             elif cxl_packet.is_h2drsp():
+                # print("Received CxlCacheH2DRspPacket")
                 await self._cxl_channel.h2d_rsp.put(cast(CxlCacheH2DRspPacket, packet))
             elif cxl_packet.is_h2ddata():
                 data_packet = cast(CxlCacheH2DDataPacket, packet)
                 if not data_packet.h2ddata_header.flush_data:
                     await self._cxl_channel.h2d_data.put(cast(CxlCacheH2DDataPacket, packet))
                 else:
-                    flush_packet = cast(CxlCacheH2DDataFlushPacket, packet)
-                    await self._cxl_channel.h2d_data_flush.put(flush_packet)
-                    cache_packet_req = CacheRequest(
-                        CACHE_REQUEST_TYPE.FLUSH_DATA,
-                        flush_packet.get_address(),
-                        64,
-                        flush_packet.data,
-                    )
-                    await self._coh_agent_to_cache_fifo.request.put(cache_packet_req)
-                    cache_packet = await self._coh_agent_to_cache_fifo.response.get()
-                    cxl_packet = CxlCacheCacheD2HRspPacket.create(
-                        flush_packet.get_uqid(), CXL_CACHE_D2HRSP_OPCODE.RSP_S_HIT_SE
-                    )
-                    await self._upstream_fifo.target_to_host.put(cxl_packet)
+                    create_task(self._handle_flush_data(packet))
 
             else:
                 raise Exception(f"Received unexpected packet: {cxl_packet.get_type()}")
@@ -566,7 +577,9 @@ class CxlCacheDcoh(PacketProcessor):
                 await self._process_cache_to_dcoh(self._cur_state.packet)
 
                 if not self._cxl_channel.h2d_rsp.empty():
+                    # print("Calling _process_cxl_h2d_rsp_packet")
                     packet = await self._cxl_channel.h2d_rsp.get()
+                    # print("Invoking")
                     await self._process_cxl_h2d_rsp_packet(packet)
 
             # process host request regardless of device processing state

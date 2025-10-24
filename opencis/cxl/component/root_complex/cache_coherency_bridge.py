@@ -5,6 +5,7 @@ This software is licensed under the terms of the Revised BSD License.
 See LICENSE for details.
 """
 
+import copy
 from dataclasses import dataclass, field
 from asyncio import create_task, gather, Queue, sleep
 from itertools import cycle
@@ -60,6 +61,7 @@ class CacheCoherencyBridgeCxlChannel:
     d2h_req: Queue = field(default_factory=Queue)
     d2h_rsp: Queue = field(default_factory=Queue)
     d2h_data: Queue = field(default_factory=Queue)
+    d2h_rsp_flush: Queue = field(default_factory=Queue)
 
 
 @dataclass
@@ -98,6 +100,8 @@ class CacheCoherencyBridge(RunnableComponent):
         self._cxl_channel = CacheCoherencyBridgeCxlChannel()
 
         self._uqid_gen = cycle(range(0, 4096))
+
+        self._pending_flush_data: Dict[int, CohStateMachine] = {}
 
     def set_cache_coh_dev_count(self, count: int):
         self._num_cache_devices = count
@@ -266,20 +270,20 @@ class CacheCoherencyBridge(RunnableComponent):
             == CXL_CACHE_D2HREQ_OPCODE.CACHE_CLEAN_EVICT_NO_DATA
         ):
             if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_START:
-                print("Received CACHE_CLEAN_EVICT_NO_DATA")
+                # print("Received CACHE_CLEAN_EVICT_NO_DATA")
                 cxl_packet = CxlCacheCacheH2DRspPacket.create(
                     cache_id,
                     CXL_CACHE_H2DRSP_OPCODE.GO,
                     CXL_CACHE_H2DRSP_CACHE_STATE.INVALID,  # MESI for GO mesgs
                     cqid=cqid,
                 )
-                print("CACHE_CLEAN_EVICT_NO_DATA Rsp created")
+                # print("CACHE_CLEAN_EVICT_NO_DATA Rsp created")
                 await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_packet)
-                print("CACHE_CLEAN_EVICT_NO_DATA Rsp sent")
+                # print("CACHE_CLEAN_EVICT_NO_DATA Rsp sent")
                 self._cur_state.state = COH_STATE_MACHINE.COH_STATE_DONE
 
             elif self._cur_state.state == COH_STATE_MACHINE.COH_STATE_DONE:
-                print("CACHE_CLEAN_EVICT_NO_DATA Rsp finalize")
+                # print("CACHE_CLEAN_EVICT_NO_DATA Rsp finalize")
                 sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_OUT)
                 self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
 
@@ -359,6 +363,38 @@ class CacheCoherencyBridge(RunnableComponent):
     async def _process_cxl_d2h_rsp_packet(self, d2hrsp_packet: CxlCacheD2HRspPacket):
         sf_update_list = []
         self._cur_state.cxl_rsp = d2hrsp_packet.d2hrsp_header.cache_opcode
+        # uqid = d2hrsp_packet.d2hrsp_header.uqid
+        # print(f"UQID: {uqid}")
+        # print(self._pending_flush_data.keys())
+        # if uqid in self._pending_flush_data:
+        #     # This is a FLUSH_DATA response
+        #     print("Flush Data Rsp!")
+        #     state_machine = self._pending_flush_data[uqid]
+        #     addr = state_machine.packet.get_address()
+        #     if d2hrsp_packet.d2hrsp_header.cache_opcode in (
+        #         CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_I,
+        #         CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_SE,
+        #     ):
+        #         state_machine.cache_rsp = CACHE_RESPONSE_STATUS.RSP_I
+        #         sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_OUT)
+        #     elif d2hrsp_packet.d2hrsp_header.cache_opcode in (
+        #         CXL_CACHE_D2HRSP_OPCODE.RSP_S_HIT_SE,
+        #     ):
+        #         state_machine.cache_rsp = CACHE_RESPONSE_STATUS.RSP_S
+        #     if sf_update_list:
+        #         self._snoop_filter_update(addr, cache_id, sf_update_list)
+        #     if state_machine.cache_rsp in (
+        #         CACHE_RESPONSE_STATUS.RSP_I,
+        #         CACHE_RESPONSE_STATUS.RSP_S,
+        #     ):
+        #         data = await self._sync_memory_read(addr)
+        #     else:  # Unsupported for now
+        #         assert 0
+        #     cache_packet = CacheResponse(self._cur_state.cache_rsp, data)
+        #     await self._upstream_cache_to_coh_bridge_fifo.response.put(cache_packet)
+        #     del self._pending_flush_data[uqid]
+
+        #     return
         if d2hrsp_packet.d2hrsp_header.cache_opcode < CXL_CACHE_D2HRSP_OPCODE.RSP_S_FWD_M:
             if d2hrsp_packet.d2hrsp_header.cache_opcode in (
                 CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_I,
@@ -395,6 +431,8 @@ class CacheCoherencyBridge(RunnableComponent):
     # pylint: disable=duplicate-code
     async def _process_upstream_host_to_target_packets(self, cache_packet: CacheRequest):
         if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_WAIT:
+            # print("_process_upstream_host_to_target_packets here?")
+            await sleep(0)
             return
 
         if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_START:
@@ -412,21 +450,7 @@ class CacheCoherencyBridge(RunnableComponent):
                 cache_packet = CacheResponse(CACHE_RESPONSE_STATUS.OK)
                 await self._upstream_cache_to_coh_bridge_fifo.response.put(cache_packet)
                 self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
-            elif cache_packet.type == CACHE_REQUEST_TYPE.FLUSH_DATA:
-                addr = cache_packet.addr
-                data = cache_packet.data
-                # cache_response_packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_S)
-                mem_packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, 64, data)
-                await self._memory_producer_fifos.request.put(mem_packet)
-                # await self._upstream_cache_to_coh_bridge_fifo.response.put(cache_response_packet)
-                # Can only have one device with FLUSH_DATA, so CACHE_ID = 0
-                #
-                cxl_data_packet = CxlCacheCacheH2DDataFlushPacket.create(
-                    0, data, self.get_next_uqid(), addr
-                )
-                self._cur_state.cache_list.append(0)
-                await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_data_packet)
-                self._cur_state.state = COH_STATE_MACHINE.COH_STATE_WAIT
+
             else:
                 # device cache snoop filter miss
                 # host can access without sending any transaction to the devices whatsoever
@@ -498,6 +522,38 @@ class CacheCoherencyBridge(RunnableComponent):
             await self._upstream_cache_to_coh_bridge_fifo.response.put(cache_packet)
             self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
 
+    async def _handle_flush_data(self, cache_packet: CacheRequest):
+        addr = cache_packet.addr
+        data = cache_packet.data
+        # cache_response_packet = CacheResponse(CACHE_RESPONSE_STATUS.RSP_S)
+        # print("FLUSH_DATA 1")
+        mem_packet = MemoryRequest(MEMORY_REQUEST_TYPE.WRITE, addr, 64, data)
+        await self._memory_producer_fifos.request.put(mem_packet)
+        # await self._upstream_cache_to_coh_bridge_fifo.response.put(cache_response_packet)
+        # Can only have one device with FLUSH_DATA, so CACHE_ID = 0
+        #
+        # print("FLUSH_DATA 2")
+        uqid = self.get_next_uqid()
+        cxl_data_packet = CxlCacheCacheH2DDataFlushPacket.create(0, data, uqid, addr)
+        # print("FLUSH_DATA 3")
+        # print(f"FLUSH_DATA uqid: {uqid}")
+        self._pending_flush_data[uqid] = {}
+        await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_data_packet)
+        # print("FLUSH_DATA 4")
+        self._snoop_filter_update(addr, 0, [SF_UPDATE_TYPE.SF_DEVICE_IN])
+
+        packet = cast(CxlCacheD2HRspPacket, await self._cxl_channel.d2h_rsp_flush.get())
+
+        if packet.d2hrsp_header.cache_opcode == CXL_CACHE_D2HRSP_OPCODE.RSP_I_HIT_SE:
+            # Push rejected by device
+            self._snoop_filter_update(addr, 0, [SF_UPDATE_TYPE.SF_DEVICE_OUT])
+
+        cache_packet = CacheResponse(self._cur_state.cache_rsp, data)
+        await self._upstream_cache_to_coh_bridge_fifo.response.put(cache_packet)
+        # print("FLUSH_DATA 5")
+        del self._pending_flush_data[uqid]
+        pass
+
     # .cache d2h packet process
     async def _process_downstream_target_to_host_packets(self):
         while True:
@@ -519,7 +575,11 @@ class CacheCoherencyBridge(RunnableComponent):
             if cxl_packet.is_d2hreq():
                 await self._cxl_channel.d2h_req.put(cast(CxlCacheD2HReqPacket, packet))
             elif cxl_packet.is_d2hrsp():
-                await self._cxl_channel.d2h_rsp.put(cast(CxlCacheD2HRspPacket, packet))
+                casted = cast(CxlCacheD2HRspPacket, packet)
+                if casted.d2hrsp_header.uqid in self._pending_flush_data:
+                    await self._cxl_channel.d2h_rsp_flush.put(cast(CxlCacheD2HRspPacket, packet))
+                else:
+                    await self._cxl_channel.d2h_rsp.put(cast(CxlCacheD2HRspPacket, packet))
             elif cxl_packet.is_d2hdata():
                 await self._cxl_channel.d2h_data.put(cast(CxlCacheD2HDataPacket, packet))
             else:
@@ -533,6 +593,7 @@ class CacheCoherencyBridge(RunnableComponent):
 
         while not _stop_process:
             await sleep(0)
+
             # flow control for host/device packets
             # link state machine and function to the current request
             if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_INIT:
@@ -554,9 +615,16 @@ class CacheCoherencyBridge(RunnableComponent):
 
                 if _fc_run:
                     if _fc_host_run:
-                        self._cur_state.packet = (
+                        potential_packet = (
                             await self._upstream_cache_to_coh_bridge_fifo.request.get()
                         )
+                        if potential_packet.type == CACHE_REQUEST_TYPE.FLUSH_DATA:
+                            create_task(
+                                self._handle_flush_data(potential_packet),
+                            )
+                            continue
+
+                        self._cur_state.packet = potential_packet
                         if self._cur_state.packet is None:
                             logger.debug(
                                 self._create_message(
@@ -565,10 +633,11 @@ class CacheCoherencyBridge(RunnableComponent):
                             )
                             _stop_process = True
                         fn = self._process_upstream_host_to_target_packets
+                        # print("self._process_upstream_host_to_target_packets")
                     else:
                         self._cur_state.packet = await self._cxl_channel.d2h_req.get()
                         fn = self._process_cxl_d2h_req_packet
-
+                        # print("self._process_cxl_d2h_req_packet")
                     self._cur_state.state = COH_STATE_MACHINE.COH_STATE_START
 
             # run request processing and response checking code continuously until state changed
@@ -578,6 +647,7 @@ class CacheCoherencyBridge(RunnableComponent):
 
                 if not self._cxl_channel.d2h_rsp.empty():
                     packet = await self._cxl_channel.d2h_rsp.get()
+                    # print("asdkfjaslkdfhjoaishfadsoh")
                     await self._process_cxl_d2h_rsp_packet(packet)
 
     async def _run(self):

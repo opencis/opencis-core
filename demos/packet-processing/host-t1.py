@@ -80,7 +80,7 @@ flushed_packets = 0
 non_flushed_packets = 0
 
 # Path to your pcap file
-pcap_file_path = "/home/zhxq/50000-t1n2f1u-cache8-32.pcap"
+pcap_file_path = "/Users/zhxq/Downloads/50000-t1n2f1u-cache8-32.pcap"
 # Define custom parameters to load the Lua script
 # custom_params = {'-X': f'lua_script:{lua_script_path}'}
 

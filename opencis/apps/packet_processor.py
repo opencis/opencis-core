@@ -150,7 +150,7 @@ class MyType1Accelerator(RunnableComponent):
                 device_name=label,
                 device_id=device_id,
                 # TODO: change cache_line_count back to 8, 32 after debugging
-                cache_line_count=[1, 1],
+                cache_line_count=[8, 32],
             )
         )
         self._wait_tasks = []
