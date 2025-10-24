@@ -266,16 +266,20 @@ class CacheCoherencyBridge(RunnableComponent):
             == CXL_CACHE_D2HREQ_OPCODE.CACHE_CLEAN_EVICT_NO_DATA
         ):
             if self._cur_state.state == COH_STATE_MACHINE.COH_STATE_START:
+                print("Received CACHE_CLEAN_EVICT_NO_DATA")
                 cxl_packet = CxlCacheCacheH2DRspPacket.create(
                     cache_id,
                     CXL_CACHE_H2DRSP_OPCODE.GO,
                     CXL_CACHE_H2DRSP_CACHE_STATE.INVALID,  # MESI for GO mesgs
                     cqid=cqid,
                 )
+                print("CACHE_CLEAN_EVICT_NO_DATA Rsp created")
                 await self._downstream_cxl_cache_fifos.host_to_target.put(cxl_packet)
+                print("CACHE_CLEAN_EVICT_NO_DATA Rsp sent")
                 self._cur_state.state = COH_STATE_MACHINE.COH_STATE_DONE
 
             elif self._cur_state.state == COH_STATE_MACHINE.COH_STATE_DONE:
+                print("CACHE_CLEAN_EVICT_NO_DATA Rsp finalize")
                 sf_update_list.append(SF_UPDATE_TYPE.SF_DEVICE_OUT)
                 self._cur_state.state = COH_STATE_MACHINE.COH_STATE_INIT
 
