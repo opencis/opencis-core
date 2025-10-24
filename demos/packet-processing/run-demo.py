@@ -89,10 +89,21 @@ def main():
         metavar="CACHE_FRIENDLINESS",
     )
 
+    parser.add_argument(
+        "-p",
+        "--max-packets",
+        dest="mp",
+        default="-1",
+        action="store",
+        help="Max number of packets to be processed. Default -1 (no limit).",
+        metavar="CACHE_FRIENDLINESS",
+    )
+
     args = vars(parser.parse_args())
     num_accels = args["na"]
     accel_type = args["at"]
     push_rate = args["pr"]
+    max_packets = args["mp"]
     sw_port = "22500"
 
     host_file = f"./host-t{accel_type}.py"
@@ -101,7 +112,7 @@ def main():
     global RUN_LIST
     RUN_LIST = [
         ("switch", "./switch.py", (sw_port, num_accels)),
-        ("host", host_file, (sw_port, num_accels, push_rate)),
+        ("host", host_file, (sw_port, num_accels, push_rate, max_packets)),
     ]
     for i in range(int(num_accels)):
         RUN_LIST.append(

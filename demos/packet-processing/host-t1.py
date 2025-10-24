@@ -35,9 +35,10 @@ nest_asyncio.apply()
 # pylint: disable=global-statement, duplicate-code
 @dataclass
 class ImageClassificationConfigs:
-    push_rate: float
     accel_count: int
     samples_from_each_category: int
+    push_rate: float = 1
+    max_packets: int = -1
     pci_cfg_base_addr: int = 0x10000000
     pci_cfg_size = 0x10000000  # assuming bus bits n = 8
     pci_mmio_base_addr: int = 0xFE000000
@@ -198,7 +199,7 @@ async def my_img_classification_app(**kwargs):
     packet: Packet
     count = 0
     for packet in cap:
-        if count == 10000:
+        if count == config.max_packets:
             break
         raw_data = packet.get_raw_packet()
         # processor.parse_packet(raw_data)
@@ -271,10 +272,12 @@ async def main():
     sw_portno = int(sys.argv[1])
     accel_count = int(sys.argv[2])
     push_rate = float(sys.argv[3]) if len(sys.argv) > 3 else None
+    max_packets = int(sys.argv[4]) if len(sys.argv) > 4 else None
 
     global config
     config = ImageClassificationConfigs(
         push_rate=push_rate,
+        max_packets=max_packets,
         accel_count=accel_count,
         samples_from_each_category=1,
         pci_cfg_base_addr=0x10000000,
