@@ -211,11 +211,11 @@ async def my_img_classification_app(**kwargs):
     ) as pbar:
         for i in range(total_users):
             await pageRank.host_setitem(i, 1 / total_users)
-            if i % 8 == 7:
-                await cpu.flush_data(pageRank.getAddr(i - 7), 64)
             pbar.update()
-        if i % 8 != 7:
-            await cpu.flush_data(pageRank.getAddr(i - (i % 8)), 64)
+        #     if i % 8 == 7:
+        #         await cpu.flush_data(pageRank.getAddr(i - 7), 64)
+        # if i % 8 != 7:
+        #     await cpu.flush_data(pageRank.getAddr(i - (i % 8)), 64)
 
     for dev_id in range(config.accel_count):
         host_irq_handler.register_interrupt_handler(
