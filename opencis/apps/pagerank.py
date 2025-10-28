@@ -270,7 +270,7 @@ class MyType1Accelerator(RunnableComponent):
                             # print(f"Dev {self._device_id} now page {page}")
                             if self._cache_friendly == 1:
                                 if (
-                                    old_dict.getAddr(page) // 64
+                                    new_dict.getAddr(page) // 64
                                 ) % self._total_devs != self._device_id:
                                     # print(f"Dev {self._device_id} skipping {page}")
                                     await sleep(0)
@@ -376,7 +376,7 @@ class MyType1Accelerator(RunnableComponent):
                         for page in range(total_users):
                             if self._cache_friendly == 1:
                                 if (
-                                    old_dict.getAddr(page) // 64
+                                    new_dict.getAddr(page) // 64
                                 ) % self._total_devs != self._device_id:
                                     await sleep(0)
                                     pbar2.update()
