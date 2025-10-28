@@ -197,7 +197,7 @@ async def my_img_classification_app(**kwargs):
     pageRank = CustomList(total_users, START_ADDR)
     pageRank.setReadFunc(cpu.load_bytes)
     pageRank.setWriteFunc(cpu.store)
-    pageRankSecondBuffer = CustomList(total_users, pageRank.getEndingAddr())
+    pageRankSecondBuffer = CustomList(total_users, pageRank.getAlignedEndingAddr())
     pageRankSecondBuffer.setReadFunc(cpu.load_bytes)
     pageRankSecondBuffer.setWriteFunc(cpu.store)
     print("File finished reading")

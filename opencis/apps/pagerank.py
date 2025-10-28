@@ -51,6 +51,11 @@ class CustomList:
     def getEndingAddr(self) -> int:
         return self.getAddr(self._numElmts - 1) + self._numWidth
 
+    def getAlignedEndingAddr(self) -> int:
+        endingAddr = self.getEndingAddr()
+        endingAddr = (((endingAddr - 1) // 64) + 1) * 64
+        return endingAddr
+
     async def __getitem__(self, i: int) -> float:
         assert i < self._numElmts
         addr = self.getAddr(i)
@@ -237,7 +242,7 @@ class MyType1Accelerator(RunnableComponent):
             # Jacobi method uses two arrays and exchange the two arrays after each iteration
             # Gauss-Seigel method uses one single array and do in-place updates
             if self._jacobi:
-                new_dict = CustomList(total_users, old_dict.getEndingAddr())
+                new_dict = CustomList(total_users, old_dict.getAlignedEndingAddr())
                 new_dict.setReadFunc(self._cxl_type1_device.cxl_cache_read)
                 new_dict.setWriteFunc(self._cxl_type1_device.cxl_partial_write)
             logger.info(f"Dev {self._device_id} starting...")
@@ -342,7 +347,7 @@ class MyType1Accelerator(RunnableComponent):
             # Jacobi method uses two arrays and exchange the two arrays after each iteration
             # Gauss-Seigel method uses one single array and do in-place updates
             if self._jacobi:
-                new_dict = CustomList(total_users, old_dict.getEndingAddr())
+                new_dict = CustomList(total_users, old_dict.getAlignedEndingAddr())
                 new_dict.setReadFunc(self._cxl_type1_device.cxl_cache_read)
                 new_dict.setWriteFunc(self._cxl_type1_device.cxl_partial_write)
             logger.info(f"Dev {self._device_id} starting...")
