@@ -218,7 +218,11 @@ class MyType1Accelerator(RunnableComponent):
                         self._twitter_user_mapping[idFrom].append(idTo)
                     pbar.update()
         max_id += 1  # id may start from 0
-        return max_id
+        dangling: List[int] = []
+        for i in range(0, max_id):
+            if i not in self._twitter_user_mapping:
+                dangling.append(i)
+        return max_id, dangling
 
     async def _run_app_unroll(self, _):
         # Loop unrolling
@@ -226,7 +230,8 @@ class MyType1Accelerator(RunnableComponent):
             logger.info(f"Cache friendly level: {self._cache_friendly}")
             logger.info(f"Method: {"Jacobi" if self._jacobi else "Gauss-Seigel"}")
             logger.info(f"Dev {self._device_id} Reading file...")
-            total_users = self._read_file()
+            total_users, dangling_nodes = self._read_file()
+            page_avg = 1 / total_users
             old_dict = CustomList(total_users, 0x1800)
             old_dict.setNumElmts(total_users)
             print(
@@ -263,6 +268,9 @@ class MyType1Accelerator(RunnableComponent):
                         position=(2 * self._device_id) + 1,
                         leave=False,
                     ) as pbar2:
+                        dangle_sum = self._damping_factor * sum(
+                            [(await old_dict[n]) for n in dangling_nodes]
+                        )
                         if iteration_count != 0:
                             await self._iter_go_signal.wait()
                         iteration_count += 1
@@ -286,7 +294,7 @@ class MyType1Accelerator(RunnableComponent):
 
                             temp = [0, 0, 0, 0, 0, 0, 0, 0]
 
-                            for linking_page in range(total_users):
+                            for linking_page in corpus:
                                 # check if page links to our page
                                 for i in range(8):
                                     if page + i < total_users:
@@ -298,16 +306,19 @@ class MyType1Accelerator(RunnableComponent):
                                                 corpus[linking_page]
                                             )
                                         # if page has no links, interpret it as having one link for every other page
-                                        if (
-                                            linking_page not in corpus
-                                            or len(corpus[linking_page]) == 0
-                                        ):
-                                            temp[i] += (await old_dict[linking_page]) / total_users
+                                        # if (
+                                        #     linking_page not in corpus
+                                        #     or len(corpus[linking_page]) == 0
+                                        # ):
+                                        #     temp[i] += (await old_dict[linking_page]) / total_users
                                 await sleep(0)
                             for i in range(8):
                                 if page + i < total_users:
                                     temp[i] *= self._damping_factor
-                                    temp[i] += (1 - self._damping_factor) / total_users
+                                    # temp[i] += (1 - self._damping_factor) / total_users
+                                    temp[i] += dangle_sum * page_avg + (
+                                        (1 - self._damping_factor) / total_users
+                                    )
                                     await new_dict.setitem(page + i, temp[i])
                             pbar2.update(8)
                         new_dict_temp = new_dict
@@ -331,7 +342,8 @@ class MyType1Accelerator(RunnableComponent):
             logger.info(f"Cache friendly level: {self._cache_friendly}")
             logger.info(f"Method: {"Jacobi" if self._jacobi else "Gauss-Seigel"}")
             logger.info(f"Dev {self._device_id} Reading file...")
-            total_users = self._read_file()
+            total_users, dangling_nodes = self._read_file()
+            page_avg = 1 / total_users
             old_dict = CustomList(total_users, 0x1800)
             old_dict.setNumElmts(total_users)
             print(
@@ -370,6 +382,9 @@ class MyType1Accelerator(RunnableComponent):
                         position=(2 * self._device_id) + 1,
                         leave=False,
                     ) as pbar2:
+                        dangle_sum = self._damping_factor * sum(
+                            [(await old_dict[n]) for n in dangling_nodes]
+                        )
                         if iteration_count != 0:
                             await self._iter_go_signal.wait()
                         iteration_count += 1
@@ -389,16 +404,19 @@ class MyType1Accelerator(RunnableComponent):
                             else:
                                 raise Exception("Illegal cache friendly level! (can be 0, 1, or 2)")
                             temp = 0
-                            for linking_page in range(total_users):
+                            for linking_page in corpus:
                                 # check if page links to our page
                                 if linking_page in corpus and page in corpus[linking_page]:
                                     temp += await old_dict[linking_page] / len(corpus[linking_page])
                                 # if page has no links, interpret it as having one link for every other page
-                                if linking_page not in corpus or len(corpus[linking_page]) == 0:
-                                    temp += (await old_dict[linking_page]) / total_users
+                                # if linking_page not in corpus or len(corpus[linking_page]) == 0:
+                                #     temp += (await old_dict[linking_page]) / total_users
                                 await sleep(0)
                             temp *= self._damping_factor
-                            temp += (1 - self._damping_factor) / total_users
+                            # temp += (1 - self._damping_factor) / total_users
+                            temp += dangle_sum * page_avg + (
+                                (1 - self._damping_factor) / total_users
+                            )
                             await new_dict.setitem(page, temp)
                             pbar2.update()
                         new_dict_temp = new_dict
