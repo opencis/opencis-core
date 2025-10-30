@@ -23,7 +23,7 @@ from opencis.cxl.component.irq_manager import Irq
 from opencis.drivers.cxl_bus_driver import CxlBusDriver
 from opencis.drivers.cxl_mem_driver import CxlMemDriver
 from opencis.drivers.pci_bus_driver import PciBusDriver
-from opencis.apps.pagerank import CustomList
+from opencis.apps.pagerank import CustomList, CustomListInt
 
 
 # pylint: disable=global-statement, duplicate-code
@@ -174,7 +174,30 @@ def read_file(path):
             if idTo > max_id:
                 max_id = idTo
     max_id += 1  # id may start from 0
-    return mapping, max_id
+
+    final_array: List[int] = []
+    final_array.append(0)  # Total number of elements
+    final_array.append(len(mapping))  # Total number of elements w/ outgoing edges
+    final_array.append(max_id - len(mapping))  # Total number of elements w/o outgoing edges
+    prev_count = 0
+    for i in mapping.keys():
+        final_array.append(i)
+    for i in range(max_id):
+        if i not in mapping:
+            final_array.append(i)
+    for i in range(max_id):
+        if i not in mapping:
+            mapping[i] = []
+        final_array.append(prev_count + len(mapping[i]))
+        # for out in self._adj_list[i]:
+        #     if self._components[out] != self._components[i]:
+        #         self._components[out] = self._components[i]
+
+        prev_count += len(mapping[i])
+    for i in range(max_id):
+        final_array += mapping[i]
+    final_array[0] = len(final_array)
+    return mapping, max_id, final_array
 
 
 async def my_img_classification_app(**kwargs):
@@ -189,9 +212,14 @@ async def my_img_classification_app(**kwargs):
     await start_signal.wait()
     logger.info("Host main process running!")
 
-    corpus, total_users = read_file("./links-anon-sampled-condensed-350000.txt")
-    # corpus, total_users = read_file("./links-anon-4.txt")
-    # corpus, total_users = read_file("./links-anon-sampled-condensed-short.txt")
+    corpus, total_users, graph_array = read_file("./links-anon-sampled-condensed-60000.txt")
+    # corpus, total_users, graph_array = read_file("./links-anon-4.txt")
+    # corpus, total_users, graph_array = read_file("./links-anon-sampled-condensed-short.txt")
+
+    total_user_info = CustomListInt(16, 0x0)
+    total_user_info.setReadFunc(cpu.load_bytes)
+    total_user_info.setWriteFunc(cpu.store)
+    await total_user_info.host_setitem(0, total_users)
 
     print(f"Total users: {total_users}")
     pageRank = CustomList(total_users, START_ADDR)
@@ -200,6 +228,11 @@ async def my_img_classification_app(**kwargs):
     pageRankSecondBuffer = CustomList(total_users, pageRank.getAlignedEndingAddr())
     pageRankSecondBuffer.setReadFunc(cpu.load_bytes)
     pageRankSecondBuffer.setWriteFunc(cpu.store)
+
+    graph_array_len = len(graph_array)
+    graph = CustomListInt(graph_array_len, pageRankSecondBuffer.getAlignedEndingAddr())
+    graph.setReadFunc(cpu.load_bytes)
+    graph.setWriteFunc(cpu.store)
     print("File finished reading")
 
     # assigning each page a rank of 1/n, where n is total number of pages in the corpus
@@ -212,6 +245,10 @@ async def my_img_classification_app(**kwargs):
         for i in range(total_users):
             await pageRank.host_setitem(i, 1 / total_users)
             pbar.update()
+
+        for i in range(graph_array_len):
+            e = graph_array[i]
+            await graph.host_setitem(i, e)
         #     if i % 8 == 7:
         #         await cpu.flush_data(pageRank.getAddr(i - 7), 64)
         # if i % 8 != 7:
