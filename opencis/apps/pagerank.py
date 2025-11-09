@@ -23,7 +23,7 @@ from opencis.util.component import RunnableComponent
 
 # MAX_ITER should be an even number
 # so the final result will be at the first buffer
-MAX_ITER = 4
+MAX_ITER = 2
 
 
 class CustomList:
@@ -411,14 +411,15 @@ class MyType1Accelerator(RunnableComponent):
                         position=(2 * self._device_id) + 1,
                         leave=False,
                     ) as pbar2:
+                        if iteration_count != 0:
+                            await self._iter_go_signal.wait()
+
                         dangle_sum = 0
                         for i in range(await graph_structure.getTotalNumDanglingVertices()):
                             n = await graph_structure.getDanglingVerticesPart(i)
                             dangle_sum += await old_dict[n]
                         dangle_sum *= self._damping_factor
 
-                        if iteration_count != 0:
-                            await self._iter_go_signal.wait()
                         iteration_count += 1
                         for page in range(0, total_users, 8):
                             # print(f"Dev {self._device_id} now page {page}")
@@ -561,14 +562,15 @@ class MyType1Accelerator(RunnableComponent):
                         position=(2 * self._device_id) + 1,
                         leave=False,
                     ) as pbar2:
+                        if iteration_count != 0:
+                            await self._iter_go_signal.wait()
+
                         dangle_sum = 0
                         for i in range(await graph_structure.getTotalNumDanglingVertices()):
                             n = await graph_structure.getDanglingVerticesPart(i)
                             dangle_sum += await old_dict[n]
                         dangle_sum *= self._damping_factor
 
-                        if iteration_count != 0:
-                            await self._iter_go_signal.wait()
                         iteration_count += 1
                         for page in range(total_users):
                             if self._cache_friendly == 1:
