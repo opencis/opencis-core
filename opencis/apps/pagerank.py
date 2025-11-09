@@ -23,7 +23,7 @@ from opencis.util.component import RunnableComponent
 
 # MAX_ITER should be an even number
 # so the final result will be at the first buffer
-MAX_ITER = 2
+MAX_ITER = 4
 
 
 class CustomList:
