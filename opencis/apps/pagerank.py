@@ -666,7 +666,11 @@ class MyType1Accelerator(RunnableComponent):
             logger.error(self._create_message(f"Runapp Cancelled: {traceback.format_exc()}"))
             return
         except Exception as e:
-            print(e)
+            print("Exception")
+            print(e.__class__)
+            traceback_str = traceback.format_exc()
+            print(traceback_str)
+            raise e
 
     async def _run(self):
         tasks = [

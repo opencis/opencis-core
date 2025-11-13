@@ -223,6 +223,10 @@ class ShortMsgConn(RunnableComponent):
             for task in self._msg_tasks:
                 task.cancel()
             logger.info(self._create_message("All ShortMsg tasks cancelled"))
+        except Exception as e:
+            print("Here's exception at short msg conn")
+            print(e.__class__)
+            raise e
 
     async def _stop(self):
         logger.debug(self._create_message("ShortMsg Manager Stopping"))

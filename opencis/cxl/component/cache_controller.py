@@ -144,6 +144,8 @@ class CacheController(RunnableComponent):
 
         self._memory_ranges: List[MemoryRange] = []
 
+        self._addr_locks: Dict[int, asyncio.Lock] = {}
+
         self.init_cache()
         logger.debug(self._create_message(f"{config.component_name} LLC Generated"))
 
@@ -288,6 +290,9 @@ class CacheController(RunnableComponent):
         set_l1 = self._cache_extract_set(0, addr)
         set_level = self._cache_extract_set(level, addr)
 
+        prev_state = self._cache_extract_block_state(level, set_level, blk)
+        assert prev_state != CacheState.CACHE_INVALID
+
         # Update TS, prevent from being evicted at its level
         self._cache_priority_update(level, set_level, blk)
 
@@ -317,11 +322,17 @@ class CacheController(RunnableComponent):
         # We must get these data after the await self._cache_data_demote
         # because other coroutines may change the status/value of the cache line
         now_state = self._cache_extract_block_state(level, set_level, blk)
+
+        if now_state == CacheState.CACHE_INVALID:
+            # It has been SnpInv'ed
+            return None
+
+        assert now_state != CacheState.CACHE_INVALID
+
         now_data = self._cache_data_read(level, set_level, blk)
         self._cache_update_block_state(0, tag, set_l1, target, now_state)
         self._cache_data_write(0, set_l1, target, now_data)
         self._cache_update_block_state(level, 0, set_level, blk, CacheState.CACHE_INVALID)
-        # assert source_info.state != CacheState.CACHE_INVALID
         # assert self._cache_assem_addr(0, set_l1, target) == addr
         return target
 
@@ -521,11 +532,18 @@ class CacheController(RunnableComponent):
             #     print(f"Cache hit @ {addr:016x}")
             cache_blk = await self._cache_data_promote_to_l1(addr, level, cache_blk)
 
-            set = self._cache_extract_set(0, addr)
-            data = self._cache_data_read(0, set, cache_blk)
+            # cache_blk can become None during promotion
+            if cache_blk is not None:
+                set = self._cache_extract_set(0, addr)
+                tag = self._cache_extract_tag(0, addr)
+                cache_blk = self._cache_find_valid_block(0, tag, set)
+                cache_state = self._cache_extract_block_state(0, set, cache_blk)
+                assert cache_state != CacheState.CACHE_INVALID
+                data = self._cache_data_read(0, set, cache_blk)
             # if addr == 0x1800:
             #     print(f"Cache blk: {cache_blk}, set {set}, data {data}, level {level} - 2")
-        else:
+
+        if cache_blk is None:
             # cache miss
             # print(f"Cache miss @ {addr:016x}")
             tag = self._cache_extract_tag(0, addr)
@@ -597,50 +615,54 @@ class CacheController(RunnableComponent):
             # print("Cache hit")
             # cache hit
             cache_blk = await self._cache_data_promote_to_l1(addr, level, cache_blk)
-            level = 0  # Now promoted to L1 Cache
-            tag = self._cache_extract_tag(0, addr)
-            set = self._cache_extract_set(0, addr)
-            cache_state = self._cache_extract_block_state(level, set, cache_blk)
-            assert cache_state != CacheState.CACHE_INVALID
-            if cache_state == CacheState.CACHE_SHARED:
-                # can be real shared or exclusive-shared
-                # print(f"{self._component_name} getting new state")
-                new_state, remote_data = await self._cache_to_coh_state_lookup(addr, request_opcode)
-                if remote_data is not None:
-                    # print("Writing new dat")
-                    self._cache_data_write(level, set, cache_blk, remote_data)
-                else:
-                    # print(
-                    #     f"Reading cache line data level {level}, set {set}, cache_blk {cache_blk}"
-                    # )
-                    remote_data = self._cache_data_read(level, set, cache_blk)
-                    # print(f"data: {remote_data:0128x}")
 
+            if cache_blk is not None:
+                level = 0  # Now promoted to L1 Cache
+                tag = self._cache_extract_tag(0, addr)
+                set = self._cache_extract_set(0, addr)
+                cache_blk = self._cache_find_valid_block(0, tag, set)
                 cache_state = self._cache_extract_block_state(level, set, cache_blk)
-                # print(f"{self._component_name} Returned cache state: {new_state}")
-                # print(f"Middle cache state: {cache_state}")
+                assert cache_state != CacheState.CACHE_INVALID
+                if cache_state == CacheState.CACHE_SHARED:
+                    # can be real shared or exclusive-shared
+                    # print(f"{self._component_name} getting new state")
+                    new_state, remote_data = await self._cache_to_coh_state_lookup(
+                        addr, request_opcode
+                    )
+                    if remote_data is not None:
+                        # print("Writing new dat")
+                        self._cache_data_write(level, set, cache_blk, remote_data)
+                    else:
+                        # print(
+                        #     f"Reading cache line data level {level}, set {set}, cache_blk {cache_blk}"
+                        # )
+                        remote_data = self._cache_data_read(level, set, cache_blk)
+                        # print(f"data: {remote_data:0128x}")
+                    cache_state = self._cache_extract_block_state(level, set, cache_blk)
+                    # print(f"{self._component_name} Returned cache state: {new_state}")
+                    # print(f"Middle cache state: {cache_state}")
+                    self._cache_update_block_state(
+                        level, tag, set, cache_blk, CacheState.CACHE_EXCLUSIVE
+                    )
+                else:
+                    if mask != MAX_INT:
+                        remote_data = self._cache_data_read(level, set, cache_blk)
+
+                # Update data base on mask
                 self._cache_update_block_state(
-                    level, tag, set, cache_blk, CacheState.CACHE_EXCLUSIVE
+                    level, tag, set, cache_blk, CacheState.CACHE_MODIFIED
                 )
-            else:
-                if mask != MAX_INT:
-                    remote_data = self._cache_data_read(level, set, cache_blk)
+                cache_state = self._cache_extract_block_state(level, set, cache_blk)
+                if remote_data is not None:
+                    # print(f"remote data: 0x{remote_data:0128x}")
+                    # print(f"mask: {mask:0128x}")
+                    # print(f"revert mask: {revert_mask:0128x}")
+                    # print(f"masked: {(remote_data & revert_mask):0128x}")
+                    data = (remote_data & revert_mask) | (data & mask)
+                # print(f"new data: 0x{data:0128x}")
+                self._cache_data_write(level, set, cache_blk, data)
 
-            # Update data base on mask
-
-            self._cache_update_block_state(level, tag, set, cache_blk, CacheState.CACHE_MODIFIED)
-            cache_state = self._cache_extract_block_state(level, set, cache_blk)
-
-            if remote_data is not None:
-                # print(f"remote data: 0x{remote_data:0128x}")
-                # print(f"mask: {mask:0128x}")
-                # print(f"revert mask: {revert_mask:0128x}")
-                # print(f"masked: {(remote_data & revert_mask):0128x}")
-                data = (remote_data & revert_mask) | (data & mask)
-            # print(f"new data: 0x{data:0128x}")
-
-            self._cache_data_write(level, set, cache_blk, data)
-        else:
+        if cache_blk is None:
             # print("Cache miss")
             # cache miss
             await self._cache_data_demote(0, addr)
