@@ -155,6 +155,7 @@ async def check_final_results():
 
 def read_file(path):
     mapping: Dict[int, List[int]] = {}
+    reverse_mapping: Dict[int, List[int]] = {}
     all_ids: Dict[int, int] = {}
     max_id = 0
     with open(path) as f:
@@ -169,6 +170,11 @@ def read_file(path):
                 mapping[idFrom] = [idTo]
             else:
                 mapping[idFrom].append(idTo)
+
+            if idTo not in reverse_mapping:
+                reverse_mapping[idTo] = [idFrom]
+            else:
+                reverse_mapping[idTo].append(idFrom)
             if idFrom > max_id:
                 max_id = idFrom
             if idTo > max_id:
@@ -179,23 +185,38 @@ def read_file(path):
     final_array.append(0)  # Total number of elements
     final_array.append(len(mapping))  # Total number of elements w/ outgoing edges
     final_array.append(max_id - len(mapping))  # Total number of elements w/o outgoing edges
-    prev_count = 0
+
+    # Offset + 3
     for i in mapping.keys():
         final_array.append(i)
     for i in range(max_id):
         if i not in mapping:
             final_array.append(i)
+
+    # Mapping length
+    # Offset + Len
     for i in range(max_id):
         if i not in mapping:
             mapping[i] = []
-        final_array.append(prev_count + len(mapping[i]))
+        final_array.append(len(mapping[i]))
+
+    # Reverse Mapping start/end addr
+    # Offset + 2xLen
+    prev_count = 0
+    for i in range(max_id):
+        if i not in reverse_mapping:
+            reverse_mapping[i] = []
+        final_array.append(prev_count + len(reverse_mapping[i]))
         # for out in self._adj_list[i]:
         #     if self._components[out] != self._components[i]:
         #         self._components[out] = self._components[i]
 
-        prev_count += len(mapping[i])
+        prev_count += len(reverse_mapping[i])
+
+    # Reverse mapping contents
+    # Offset + 3xLen
     for i in range(max_id):
-        final_array += mapping[i]
+        final_array += reverse_mapping[i]
     final_array[0] = len(final_array)
     return mapping, max_id, final_array
 
@@ -214,7 +235,7 @@ async def my_img_classification_app(**kwargs):
 
     corpus, total_users, graph_array = read_file("./links-anon-sampled-condensed-60000.txt")
     # corpus, total_users, graph_array = read_file("./links-anon-4.txt")
-    # corpus, total_users, graph_array = read_file("./links-anon-sampled-condensed-short.txt")
+    # corpus, total_users, graph_array = read_file("./links-anon-sampled-condensed-5000.txt")
 
     total_user_info = CustomListInt(16, 0x0)
     total_user_info.setReadFunc(cpu.load_bytes)

@@ -37,7 +37,11 @@ class CustomList:
 
     def getAddr(self, i: int) -> int:
         assert i < self._numElmts
-        return (i * self._numWidth) + self._offset
+        return self.getPageOffset(i) + self._offset
+
+    def getPageOffset(self, i: int) -> int:
+        assert i < self._numElmts
+        return i * self._numWidth
 
     def getnumWidth(self) -> int:
         return self._numWidth
@@ -242,7 +246,7 @@ class GraphStruct:
     async def getTotalVertices(self) -> int:
         return self.getTotalNumVerticesWithOutgoingEdges() + self.getTotalNumDanglingVertices()
 
-    async def getMetadata(self, i: int) -> int:
+    async def getLinkedInPageTotalOutEdges(self, i: int) -> int:
         assert i < self._numElmts
         return await self._array[3 + (await self.getTotalVertices()) + i]
 
@@ -254,11 +258,19 @@ class GraphStruct:
             await self.getTotalNumDanglingVertices()
         )
 
-    async def getOutEdgePart(self, i: int) -> int:
+    # async def getOutEdgePart(self, i: int) -> int:
+    #     assert i < self._numElmts
+    #     return await self._array[3 + (2 * (await self.getTotalVertices())) + i]
+
+    async def getMetadata(self, i):
         assert i < self._numElmts
         return await self._array[3 + (2 * (await self.getTotalVertices())) + i]
 
-    async def getOutEdgeListBound(self, i: int) -> Tuple[int, int]:
+    async def getInEdgePart(self, i: int) -> int:
+        assert i < self._numElmts
+        return await self._array[3 + (3 * (await self.getTotalVertices())) + i]
+
+    async def getInEdgeListBound(self, i: int) -> Tuple[int, int]:
         assert i < self._numElmts
         start = 0
         end = await self.getMetadata(i)
@@ -322,8 +334,7 @@ class MyType1Accelerator(RunnableComponent):
         self._stop_signal = Event()
         self._stop_flag = False
 
-        self._iter_go_signal = Event()
-        self._iter_go_signal.set()
+        self._iter_go_signal = False
 
         self._jacobi = jacobi
         self._loop_unroll = loop_unroll
@@ -336,7 +347,7 @@ class MyType1Accelerator(RunnableComponent):
             self._irq_manager.register_interrupt_handler(Irq.HOST_READY, self._run_app_normal)
 
     async def set_go_signal(self, _):
-        self._iter_go_signal.set()
+        self._iter_go_signal = True
 
     def set_stop_flag(self):
         self._stop_flag = True
@@ -412,7 +423,8 @@ class MyType1Accelerator(RunnableComponent):
                         leave=False,
                     ) as pbar2:
                         if iteration_count != 0:
-                            await self._iter_go_signal.wait()
+                            while self._iter_go_signal == False:
+                                await sleep(0.1)
 
                         dangle_sum = 0
                         for i in range(await graph_structure.getTotalNumDanglingVertices()):
@@ -425,7 +437,7 @@ class MyType1Accelerator(RunnableComponent):
                             # print(f"Dev {self._device_id} now page {page}")
                             if self._cache_friendly == 1:
                                 if (
-                                    new_dict.getAddr(page) // 64
+                                    new_dict.getPageOffset(page) // 64
                                 ) % self._total_devs != self._device_id:
                                     # print(f"Dev {self._device_id} skipping {page}")
                                     await sleep(0)
@@ -481,7 +493,7 @@ class MyType1Accelerator(RunnableComponent):
 
                     pbar.update()
                     await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
-                    self._iter_go_signal.clear()
+                    self._iter_go_signal = False
                     await sleep(0)
             await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
         except CancelledError:
@@ -563,19 +575,26 @@ class MyType1Accelerator(RunnableComponent):
                         leave=False,
                     ) as pbar2:
                         if iteration_count != 0:
-                            await self._iter_go_signal.wait()
+                            while self._iter_go_signal == False:
+                                await sleep(0.1)
 
                         dangle_sum = 0
-                        for i in range(await graph_structure.getTotalNumDanglingVertices()):
+                        dangle_num = await graph_structure.getTotalNumDanglingVertices()
+                        for i in range(dangle_num):
                             n = await graph_structure.getDanglingVerticesPart(i)
-                            dangle_sum += await old_dict[n]
+                            old_val = await old_dict[n]
+                            # print(f"[0,{self._device_id},{n},{old_val}]", flush=True)
+                            dangle_sum += old_val
                         dangle_sum *= self._damping_factor
+                        dangle_sum = dangle_sum * page_avg + (
+                            (1 - self._damping_factor) / total_users
+                        )
 
                         iteration_count += 1
                         for page in range(total_users):
                             if self._cache_friendly == 1:
                                 if (
-                                    new_dict.getAddr(page) // 64
+                                    new_dict.getPageOffset(page) // 64
                                 ) % self._total_devs != self._device_id:
                                     await sleep(0)
                                     pbar2.update()
@@ -588,38 +607,50 @@ class MyType1Accelerator(RunnableComponent):
                             else:
                                 raise Exception("Illegal cache friendly level! (can be 0, 1, or 2)")
                             temp = 0
-                            total_non_dangling = (
-                                await graph_structure.getTotalNumVerticesWithOutgoingEdges()
-                            )
-                            # non_dangling_start, non_dangling_end = (
-                            #     graph_structure.getNonDanglingBound()
+                            # total_non_dangling = (
+                            #     await graph_structure.getTotalNumVerticesWithOutgoingEdges()
                             # )
-                            for li in range(total_non_dangling):
-                                linking_page = (
-                                    await graph_structure.getVerticesWithOutgoingEdgesPart(li)
-                                )
+                            page_incoming_start, page_incoming_end = (
+                                await graph_structure.getInEdgeListBound(page)
+                            )
+                            # print(
+                            #     f"[2,{self._device_id},{page},{page_incoming_start},{page_incoming_end}]",
+                            #     flush=True,
+                            # )
+                            for li in range(page_incoming_start, page_incoming_end):
+                                linking_page = await graph_structure.getInEdgePart(li)
                                 # for linking_page in corpus:
                                 # check if page links to our page
-                                conn_start, conn_end = await graph_structure.getOutEdgeListBound(
-                                    linking_page
+
+                                len_linking_page = (
+                                    await graph_structure.getLinkedInPageTotalOutEdges(linking_page)
                                 )
-                                len_linking_page = conn_end - conn_start
-                                for pi in range(conn_start, conn_end):
-                                    out_link = await graph_structure.getOutEdgePart(pi)
-                                    if page == out_link:
-                                        # temp += await old_dict[linking_page] / len(
-                                        #     corpus[linking_page]
-                                        # )
-                                        temp += await old_dict[linking_page] / len_linking_page
+                                # print(
+                                #     f"[3,{self._device_id},{page},{len_linking_page}]",
+                                #     flush=True,
+                                # )
+
+                                old_val = await old_dict[linking_page]
+                                # print(
+                                #     f"[4,{self._device_id},{page},{linking_page},{old_val}]",
+                                #     flush=True,
+                                # )
+                                temp += old_val / len_linking_page
+                                # for pi in range(conn_start, conn_end):
+                                #     out_link = await graph_structure.getOutEdgePart(pi)
+                                #     if page == out_link:
+                                #         # temp += await old_dict[linking_page] / len(
+                                #         #     corpus[linking_page]
+                                #         # )
+
                                 # if page has no links, interpret it as having one link for every other page
                                 # if linking_page not in corpus or len(corpus[linking_page]) == 0:
                                 #     temp += (await old_dict[linking_page]) / total_users
                                 await sleep(0)
                             temp *= self._damping_factor
                             # temp += (1 - self._damping_factor) / total_users
-                            temp += dangle_sum * page_avg + (
-                                (1 - self._damping_factor) / total_users
-                            )
+                            temp += dangle_sum
+                            # print(f"[5,{self._device_id},{page},{temp}]", flush=True)
                             await new_dict.setitem(page, temp)
                             pbar2.update()
                         new_dict_temp = new_dict
@@ -628,7 +659,7 @@ class MyType1Accelerator(RunnableComponent):
 
                     pbar.update()
                     await self._irq_manager.send_irq_request(Irq.ACCEL_TRAINING_FINISHED)
-                    self._iter_go_signal.clear()
+                    self._iter_go_signal = False
                     await sleep(0)
             await self._irq_manager.send_irq_request(Irq.ACCEL_VALIDATION_FINISHED)
         except CancelledError:

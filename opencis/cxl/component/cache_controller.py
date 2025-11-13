@@ -5,8 +5,9 @@ This software is licensed under the terms of the Revised BSD License.
 See LICENSE for details.
 """
 
+import asyncio
 import time
-from typing import Optional, Tuple, List
+from typing import Dict, Optional, Tuple, List
 from asyncio import create_task, gather, sleep
 from dataclasses import dataclass, field
 from enum import Enum, auto
@@ -287,22 +288,24 @@ class CacheController(RunnableComponent):
         set_l1 = self._cache_extract_set(0, addr)
         set_level = self._cache_extract_set(level, addr)
 
+        # Update TS, prevent from being evicted at its level
+        self._cache_priority_update(level, set_level, blk)
+
         # Invalidate original data so we have free space in that level
         # Reduce possible memory write backs
-        source_info = copy.deepcopy(self._cache[level][set_level][blk])
+
+        assert self._cache_assem_addr(level, set_level, blk) == addr
         # if addr == 0x1800:
         #     print(
         #         f"Cache blk: {blk}, set {set_level}, data {source_info.data}, level {level}, tag {source_info.tag} - before"
         #     )
         #     print(f"addr: {self._cache_assem_addr(level, set_level, blk)}")
-        self._cache_update_block_state(level, 0, set_level, blk, CacheState.CACHE_INVALID)
 
         target = self._cache_find_invalid_block(0, set_l1)
         if target is None:
             await self._cache_data_demote(0, addr)
             target = self._cache_find_invalid_block(0, set_l1)
             assert target is not None
-        self._cache[0][set_l1][target] = source_info
 
         # Update tag
         tag = self._cache_extract_tag(0, addr)
@@ -310,7 +313,16 @@ class CacheController(RunnableComponent):
         #     print(
         #         f"Cache blk: {target}, set {set_l1}, data {self._cache[0][set_l1][target].data}, level 0, tag {tag} - after"
         #     )
-        self._cache_update_block_state(0, tag, set_l1, target, source_info.state)
+
+        # We must get these data after the await self._cache_data_demote
+        # because other coroutines may change the status/value of the cache line
+        now_state = self._cache_extract_block_state(level, set_level, blk)
+        now_data = self._cache_data_read(level, set_level, blk)
+        self._cache_update_block_state(0, tag, set_l1, target, now_state)
+        self._cache_data_write(0, set_l1, target, now_data)
+        self._cache_update_block_state(level, 0, set_level, blk, CacheState.CACHE_INVALID)
+        # assert source_info.state != CacheState.CACHE_INVALID
+        # assert self._cache_assem_addr(0, set_l1, target) == addr
         return target
 
     async def _cache_data_demote(self, level: int, make_way_for_addr: int):
@@ -324,28 +336,32 @@ class CacheController(RunnableComponent):
 
         cache_blk, prev_state = self._cache_find_replace_block(level, set_level)
         to_evict_addr = self._cache_assem_addr(level, set_level, cache_blk)
-        cached_data = self._cache_data_read(level, set_level, cache_blk)
 
         if level + 1 == self._total_cache_level:
             # cacheline flush to secure space
+            cached_data = self._cache_data_read(level, set_level, cache_blk)
+            self._cache_update_block_state(level, 0, set_level, cache_blk, CacheState.CACHE_INVALID)
+            await self._memory_store(to_evict_addr, 64, prev_state, cached_data)
+        else:
             # print(
             #     f"evicting addr: 0x{to_evict_addr:08x} (level {level}) for 0x{make_way_for_addr:08x}"
             # )
-            await self._memory_store(to_evict_addr, 64, prev_state, cached_data)
-        else:
             set_level_plus_one = self._cache_extract_set(level + 1, to_evict_addr)
             await self._cache_data_demote(level + 1, to_evict_addr)
             target = self._cache_find_invalid_block(level + 1, set_level_plus_one)
             assert target is not None
 
-            self._cache[level + 1][set_level_plus_one][target] = copy.deepcopy(
-                self._cache[level][set_level][cache_blk]
-            )
+            # We must get these data after the await self._cache_data_demote
+            # because other coroutines may change the status/value of the cache line
+
             # Update tag
             tag = self._cache_extract_tag(level + 1, to_evict_addr)
-            self._cache[level + 1][set_level_plus_one][target].tag = tag
-        self._cache_update_block_state(level, 0, set_level, cache_blk, CacheState.CACHE_INVALID)
-        return
+
+            old_state = self._cache_extract_block_state(level, set_level, cache_blk)
+            old_data = self._cache_data_read(level, set_level, cache_blk)
+            self._cache_update_block_state(level + 1, tag, set_level_plus_one, target, old_state)
+            self._cache_data_write(level + 1, set_level_plus_one, target, old_data)
+            self._cache_update_block_state(level, 0, set_level, cache_blk, CacheState.CACHE_INVALID)
 
     def _cache_rsp_state_lookup(self, packet: CacheResponse) -> CacheState:
         if packet.status == CACHE_RESPONSE_STATUS.OK:
@@ -443,7 +459,7 @@ class CacheController(RunnableComponent):
         return packet.status, packet.data
 
     # For response: coherency tasks from coh module to cache controller
-    async def _coh_to_cache_state_lookup(
+    def _coh_to_cache_state_lookup(
         self, type: CACHE_REQUEST_TYPE, addr: int
     ) -> Tuple[int, int, CacheState, int]:
         data = 0
@@ -699,7 +715,7 @@ class CacheController(RunnableComponent):
                     assert False
 
     async def _run_coh_request(self, packet: CacheRequest, cache_fifo: CacheFifoPair):
-        cache_blk, data, prev_state, level = await self._coh_to_cache_state_lookup(
+        cache_blk, data, prev_state, level = self._coh_to_cache_state_lookup(
             packet.type, packet.addr
         )
         if cache_blk is None:

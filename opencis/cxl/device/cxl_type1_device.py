@@ -71,6 +71,7 @@ class CxlType1DeviceConfig:
     # Total cache size: cache_line_count * cache_line_size
     # First int in cache_line_count is L1 cache, next is L2, ...
     # e.g., [8, 32] -> 8x64KB = 512KB L1 Cache, 32x64KB = 2MB L2 Cache
+    cache_num_assoc: List[int] = field(default_factory=list)
     cache_line_count: List[int] = field(default_factory=list)
     cache_line_size: int = 64 * KB
     device_id: int = 0
@@ -97,7 +98,9 @@ class CxlType1Device(RunnableComponent):
         self._real_number_of_cache_lines = [
             (cnt * self._cache_line_size) // 64 for cnt in self._cache_line_count
         ]
-        self._cache_num_assoc = [4, 4]
+        self._cache_num_assoc = config.cache_num_assoc
+        if not self._cache_num_assoc:
+            self._cache_num_assoc = [4 for _ in self._cache_line_count]
 
         assert len(self._cache_num_assoc) == len(self._real_number_of_cache_lines)
 
