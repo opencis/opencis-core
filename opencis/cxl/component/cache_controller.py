@@ -144,8 +144,6 @@ class CacheController(RunnableComponent):
 
         self._memory_ranges: List[MemoryRange] = []
 
-        self._addr_locks: Dict[int, asyncio.Lock] = {}
-
         self.init_cache()
         logger.debug(self._create_message(f"{config.component_name} LLC Generated"))
 
