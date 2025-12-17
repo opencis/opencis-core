@@ -169,19 +169,21 @@ class SwitchConnectionManager(RunnableComponent):
             for device_config in self._device_configs:
                 if hasattr(device_config, "port_index") and device_config.port_index == port_index:
                     mld_config = device_config
-                    num_lds = mld_config.num_lds_supported
+                    # num_lds_supported only exists on MultiLogicalDeviceConfig
+                    num_lds = getattr(mld_config, "num_lds_supported", 1)
                     logger.info(
-                        f"SwitchConnectionManager: Found MLD config for port {port_index}: "
+                        f"SwitchConnectionManager: Found device config for port {port_index}: "
                         f"num_lds_supported = {num_lds}"
                     )
                     break
 
         if mld_config is None:
-            logger.info(f"SwitchConnectionManager: No MLD config found for port {port_index}")
+            logger.info(f"SwitchConnectionManager: No device config found for port {port_index}")
         else:
-            num_lds = mld_config.num_lds_supported
+            # num_lds_supported only exists on MultiLogicalDeviceConfig
+            num_lds = getattr(mld_config, "num_lds_supported", 1)
             logger.info(
-                f"SwitchConnectionManager: Passing MLD config: num_lds_supported = {num_lds}"
+                f"SwitchConnectionManager: Passing device config: num_lds_supported = {num_lds}"
             )
 
         packet_processor = CxlPacketProcessor(

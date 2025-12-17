@@ -77,9 +77,10 @@ class CxlPacketProcessor(RunnableComponent):
         super().__init__(label)
         logger.info(f"CxlPacketProcessor: Constructor called with mld_config: {mld_config}")
         if mld_config:
-            logger.info(
-                f"CxlPacketProcessor: mld_config.num_lds_supported = {mld_config.num_lds_supported}"
-            )
+            # num_lds_supported only exists on MultiLogicalDeviceConfig,
+            # not SingleLogicalDeviceConfig
+            num_lds = getattr(mld_config, "num_lds_supported", 1)
+            logger.info(f"CxlPacketProcessor: mld_config.num_lds_supported = {num_lds}")
         else:
             logger.info("CxlPacketProcessor: mld_config is None")
 

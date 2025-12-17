@@ -115,14 +115,13 @@ class FMLD(RunnableComponent):
             if multiplier > 0:
                 # Get the actual memory size for this LD
                 if ld_id in self._ld_memory_sizes:
-                    # Use actual memory size from _ld_memory_sizes (stored in KB)
-                    memory_size_kb = self._ld_memory_sizes[ld_id]
-                    memory_size_bytes = memory_size_kb * 1024  # Convert KB to bytes
+                    # Use actual memory size from _ld_memory_sizes (stored in bytes)
+                    memory_size_bytes = self._ld_memory_sizes[ld_id]
                     allocated_memory_size += memory_size_bytes
                     mb_size = memory_size_bytes / (1024 * 1024)
                     logger.info(
                         f"FMLD: Using actual memory size for LD {ld_id}: "
-                        f"{memory_size_bytes} bytes ({memory_size_kb} KB = {mb_size:.1f} MB)"
+                        f"{memory_size_bytes} bytes ({mb_size:.1f} MB)"
                     )
                 else:
                     # Fallback to default size based on allocation multiplier
@@ -137,10 +136,15 @@ class FMLD(RunnableComponent):
 
         # Get the number of LDs supported from config
         num_lds_supported = getattr(self, "_num_lds_supported", 16)  # Default to 16 if not set
+
+        # Calculate the actual number of allocated LDs
+        ld_count = sum(1 for multiplier in self._ld_allocations.values() if multiplier > 0)
+
         attr_val = getattr(self, "_num_lds_supported", "NOT_SET")
         logger.info(f"FMLD: num_lds_supported = {num_lds_supported} (attr = {attr_val})")
+        logger.info(f"FMLD: ld_count (allocated) = {ld_count}")
 
-        logger.info(f"LD Count (num_lds_supported): {num_lds_supported} (from config)")
+        logger.info(f"LD Count (allocated): {ld_count}")
         logger.info(f"Total Capacity: {self._total_capacity}")
         mem_size_mb = memory_size / (1024 * 1024)
         logger.info(f"Memory Size (Total Capacity): {memory_size} bytes ({mem_size_mb:.2f} MB)")
@@ -161,7 +165,7 @@ class FMLD(RunnableComponent):
 
         response_payload = GetLdInfoResponsePayload(  # noqa: F841
             memory_size=memory_size,
-            ld_count=num_lds_supported,  # Use num_lds_supported from config
+            ld_count=ld_count,  # Use actual number of allocated LDs
             qos_telemetry_capability=0,
             total_capacity=self._total_capacity,  # Total capacity from FMLD
             max_capacity=self._total_capacity,  # Max capacity is same as total for now
@@ -170,7 +174,7 @@ class FMLD(RunnableComponent):
 
         get_ld_info_response_packet = GetLdInfoResponsePacket.create(
             memory_size=memory_size,
-            ld_count=num_lds_supported,  # Return num_lds_supported from config
+            ld_count=ld_count,  # Return actual number of allocated LDs
             message_tag=get_ld_info_request_packet.cci_msg_header.message_tag,
         )
         await self.upstream_fifo.target_to_host.put(get_ld_info_response_packet)
@@ -197,63 +201,47 @@ class FMLD(RunnableComponent):
         logger.info(f"FMLD: After cleanup - _ld_allocations keys: {sorted(self._ld_allocations)}")
 
         start_ld_id = request_packet.payload.start_ld_id
-        # ld_alloc_list_limit used for validation if needed
-        _ = request_packet.payload.ld_allocation_list_limit
-
-        # Handle dynamic LD allocations - don't limit by current dictionary size
-        # max_ld_id used to track highest LD ID if needed
-        _ = max(self._ld_allocations) if self._ld_allocations else -1
-
-        if start_ld_id < 0:
-            raise Exception("Invalid start_ld_id")
-
-        # Calculate number of allocated lds and create allocation multipliers
-        # IMPORTANT: Maintain the full allocation list structure with deallocated LDs showing as 0
-        number_of_lds = 0
-        ld_allocation_multipliers = {}
-
-        # Check if all LDs are deallocated
-        all_deallocated = True
-        for ld_id, allocation_multiplier in self._ld_allocations.items():
-            if allocation_multiplier > 0:
-                all_deallocated = False
-                if ld_id >= start_ld_id:
-                    # Use the allocation multiplier (not memory size)
-                    ld_allocation_multipliers[ld_id] = allocation_multiplier
-                    number_of_lds += 1
+        ld_allocation_list_limit = request_packet.payload.ld_allocation_list_limit
 
         # Get the number of LDs supported from config
         num_lds_supported = getattr(self, "_num_lds_supported", 16)  # Default to 16 if not set
 
-        # If all LDs are deallocated, return 0 for number_of_lds (no LDs allocated)
+        if start_ld_id < 0:
+            raise Exception("Invalid start_ld_id")
+
+        # Calculate the end LD ID based on the limit
+        # If limit is 0, return all LDs from start_ld_id to num_lds_supported
+        if ld_allocation_list_limit == 0:
+            end_ld_id = num_lds_supported
+        else:
+            end_ld_id = min(start_ld_id + ld_allocation_list_limit, num_lds_supported)
+
+        # Calculate number of allocated lds and create allocation multipliers
+        # Only include LDs in the requested range [start_ld_id, end_ld_id)
+        number_of_lds = 0
+        ld_allocation_multipliers = {}
+
+        # Populate the allocation multipliers for the requested range
+        for ld_id in range(start_ld_id, end_ld_id):
+            if ld_id in self._ld_allocations and self._ld_allocations[ld_id] > 0:
+                # LD is allocated
+                ld_allocation_multipliers[ld_id] = self._ld_allocations[ld_id]
+                number_of_lds += 1
+            else:
+                # LD is not allocated or deallocated
+                ld_allocation_multipliers[ld_id] = 0
+
+        # Check if all LDs in the range are deallocated
+        all_deallocated = number_of_lds == 0
+
+        # If all LDs are deallocated, log it
         if all_deallocated:
             logger.info("FMLD: All LDs are deallocated, returning 0 for number_of_lds")
-            # According to CXL spec: "Number of LDs" = number of LDs currently allocated/enabled
-            number_of_lds = 0  # No LDs are currently allocated
-            ld_allocation_multipliers = {
-                i: 0 for i in range(num_lds_supported)
-            }  # All supported LDs set to 0
             logger.info(
                 f"FMLD: Returning {number_of_lds} allocated LDs "
                 f"(0 allocated, {num_lds_supported} slots available)"
             )
         else:
-            # Maintain the full allocation list structure - include deallocated LDs as 0
-            # This ensures that when an LD is deallocated, all other LDs keep positions
-            # Include all supported LDs (0 to num_lds_supported-1) for consistent UI
-            for ld_id in range(num_lds_supported):  # Include all supported LDs
-                if ld_id not in ld_allocation_multipliers:
-                    # This LD is deallocated - add it with value 0 to maintain position
-                    ld_allocation_multipliers[ld_id] = 0
-                    logger.debug(
-                        f"FMLD: Added deallocated LD {ld_id} with value 0 to maintain position"
-                    )
-
-            # Count only the allocated LDs (not deallocated ones)
-            allocated_ld_count = sum(
-                1 for multiplier in ld_allocation_multipliers.values() if multiplier > 0
-            )
-            number_of_lds = allocated_ld_count  # Only count allocated LDs
             logger.info(f"FMLD: {number_of_lds} LDs are currently allocated")
 
         get_ld_allocations_response_packet = GetLdAllocationsResponsePacket.create(
@@ -395,20 +383,19 @@ class FMLD(RunnableComponent):
 
                     if range1 > 0:
                         # Allocate the LD
-                        # Convert memory size in KB to allocation multiplier
-                        # Memory size in KB -> bytes -> allocation multiplier
-                        memory_size_bytes = range1 * 1024  # Convert KB to bytes
-                        allocation_multiplier = memory_size_bytes // (
-                            256 * 1024 * 1024
-                        )  # Convert to multiplier (256MB base unit)
+                        # range1 is the allocation multiplier (1 unit = 256MB)
+                        allocation_multiplier = range1
+                        memory_size_bytes = allocation_multiplier * (256 * 1024 * 1024)
 
-                        # Store the allocation multiplier (not the memory size)
+                        # Store the allocation multiplier
                         self._ld_allocations[ld_id] = allocation_multiplier
-                        # Store the original memory size for reference
-                        self._ld_memory_sizes[ld_id] = range1
+                        # Store the memory size in bytes
+                        self._ld_memory_sizes[ld_id] = memory_size_bytes
+                        mb_size = memory_size_bytes / (1024 * 1024)
                         logger.info(
-                            f"Allocated LD {ld_id} with memory size {range1} KB "
-                            f"(allocation multiplier {allocation_multiplier})"
+                            f"Allocated LD {ld_id} with allocation multiplier "
+                            f"{allocation_multiplier} "
+                            f"(memory size {memory_size_bytes} bytes = {mb_size:.0f} MB)"
                         )
                     elif range1 == 0:
                         # Deallocate the LD - set to 0 to maintain position structure

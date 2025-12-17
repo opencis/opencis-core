@@ -100,6 +100,7 @@ async def test_multi_logical_device_ld_id():
         mld_packet_processor_writer,
         cxl_connections,
         CXL_COMPONENT_TYPE.LD,
+        mld_config,
         label="ClientPortMld",
     )
     mld_packet_processor_task = create_task(mld_packet_processor.run())
