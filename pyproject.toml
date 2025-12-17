@@ -39,6 +39,7 @@ disable = [
   "import-outside-toplevel",
   "too-many-nested-blocks",
   "duplicate-code",
+  "no-else-return",
 ]
 jobs = 4
 

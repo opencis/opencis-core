@@ -42,7 +42,9 @@ class FMLD(RunnableComponent):
         self._total_capacity = total_capacity
         self._ld_count = ld_count
         self._dev_type = dev_type
-        self._memory_granularity = 256
+        # Memory Granularity encoding per CXL spec:
+        # 0h = 256 MB, 1h = 512 MB, 2h = 1 GB
+        self._memory_granularity = 0  # Default: 256MB
         self._num_lds_supported = num_lds_supported
 
         # DEBUG: Log initialization parameters
@@ -64,12 +66,15 @@ class FMLD(RunnableComponent):
 
         if ld_count > 0:
             # Pre-configured LDs - calculate allocation multipliers from memory sizes
+            # Granularity based on memory_granularity: 0h=256MB, 1h=512MB, 2h=1GB
+            granularity_bytes = (256 * 1024 * 1024) * (2**self._memory_granularity)
             if memory_sizes and len(memory_sizes) == ld_count:
                 logger.info("FMLD DEBUG: Using memory_sizes for initialization")
                 for i in range(ld_count):
                     memory_size_bytes = memory_sizes[i]
-                    # Calculate allocation multiplier: memory_size_bytes / (256MB base unit)
-                    allocation_multiplier = memory_size_bytes // (256 * 1024 * 1024)
+                    allocation_multiplier = memory_size_bytes // granularity_bytes
+                    if allocation_multiplier == 0:
+                        allocation_multiplier = 1  # Minimum 1 unit
                     self._ld_allocations[i] = allocation_multiplier
                     self._ld_memory_sizes[i] = memory_size_bytes
                     logger.info(
@@ -81,13 +86,13 @@ class FMLD(RunnableComponent):
                 logger.info(f"  memory_sizes is None: {memory_sizes is None}")
                 logger.info(f"  len(memory_sizes): {len(memory_sizes) if memory_sizes else 'N/A'}")
                 logger.info(f"  ld_count: {ld_count}")
-                # Fallback: set all to allocation multiplier 1 (256MB each)
+                # Fallback: set all to allocation multiplier 1
                 for i in range(ld_count):
                     self._ld_allocations[i] = 1
-                    self._ld_memory_sizes[i] = 256 * 1024 * 1024  # 256MB default
+                    self._ld_memory_sizes[i] = granularity_bytes  # Default based on granularity
                 logger.info(
                     f"FMLD initialized with {ld_count} pre-configured LDs "
-                    f"(default 256MB each): {self._ld_allocations}"
+                    f"(default {granularity_bytes // (1024*1024)}MB each): {self._ld_allocations}"
                 )
         else:
             # For dynamic configurations, start with empty allocations
@@ -124,12 +129,14 @@ class FMLD(RunnableComponent):
                         f"{memory_size_bytes} bytes ({mb_size:.1f} MB)"
                     )
                 else:
-                    # Fallback to default size based on allocation multiplier
-                    fallback_size = multiplier * (256 * 1024 * 1024)
+                    # Fallback to default size based on allocation multiplier and granularity
+                    granularity_bytes = (256 * 1024 * 1024) * (2**self._memory_granularity)
+                    fallback_size = multiplier * granularity_bytes
                     allocated_memory_size += fallback_size
+                    mb_size = fallback_size / (1024 * 1024)
                     logger.info(
                         f"FMLD: Using default memory size for LD {ld_id}: "
-                        f"{fallback_size} bytes ({multiplier * 256} MB)"
+                        f"{fallback_size} bytes ({mb_size:.0f} MB)"
                     )
 
         memory_size = allocated_memory_size
@@ -246,7 +253,7 @@ class FMLD(RunnableComponent):
 
         get_ld_allocations_response_packet = GetLdAllocationsResponsePacket.create(
             number_of_lds=number_of_lds,  # Number of currently allocated LDs
-            memory_granularity=0,  # 256MB base unit
+            memory_granularity=self._memory_granularity,
             start_ld_id=start_ld_id,
             ld_length=len(
                 ld_allocation_multipliers
@@ -383,9 +390,15 @@ class FMLD(RunnableComponent):
 
                     if range1 > 0:
                         # Allocate the LD
-                        # range1 is the allocation multiplier (1 unit = 256MB)
-                        allocation_multiplier = range1
-                        memory_size_bytes = allocation_multiplier * (256 * 1024 * 1024)
+                        # range1 is the memory size in KB, convert to allocation multiplier
+                        memory_size_kb = range1
+                        memory_size_bytes = memory_size_kb * 1024
+                        # Calculate granularity based on memory_granularity encoding:
+                        # 0h = 256MB, 1h = 512MB, 2h = 1GB
+                        granularity_bytes = (256 * 1024 * 1024) * (2**self._memory_granularity)
+                        allocation_multiplier = memory_size_bytes // granularity_bytes
+                        if allocation_multiplier == 0:
+                            allocation_multiplier = 1  # Minimum 1 unit
 
                         # Store the allocation multiplier
                         self._ld_allocations[ld_id] = allocation_multiplier
