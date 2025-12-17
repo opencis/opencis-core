@@ -1117,8 +1117,6 @@ class FabricManagerSocketIoServer(RunnableComponent):
     async def _startup_get_ld_info_calls(self):
         """Call Get LD Info for all MLD ports at startup to inform UI about supported LD counts."""
         try:
-            logger.info(self._create_message("Starting Get LD Info calls for all MLD ports..."))
-
             # Get all MLD port indices from the MCTP client's device configs
             # We need to find all ports that have MLD devices
             mld_port_indices = []
@@ -1134,15 +1132,12 @@ class FabricManagerSocketIoServer(RunnableComponent):
                             self._create_message(f"Found MLD port: {device_config.port_index}")
                         )
 
-            # If we couldn't get port indices from device configs, try common port indices
+            # If no MLD ports configured, skip the Get LD Info calls
             if not mld_port_indices:
-                logger.info(
-                    self._create_message(
-                        "No MLD ports found in device configs, trying common port indices..."
-                    )
-                )
-                # Common port indices for MLD devices (typically 1, 2, etc.)
-                mld_port_indices = [1, 2, 3, 4, 5, 6, 7, 8]
+                logger.debug(self._create_message("No MLD ports configured, skipping Get LD Info"))
+                return
+
+            logger.info(self._create_message("Starting Get LD Info calls for all MLD ports..."))
 
             # Call Get LD Info for each MLD port
             for port_index in mld_port_indices:

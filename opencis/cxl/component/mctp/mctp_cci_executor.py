@@ -233,7 +233,7 @@ class MctpCciExecutor(RunnableComponent):
         # Stop the executor
         await self._mctp_connection.controller_to_ep.put(None)
         for downstream_connection in self._downstream_port_connections.values():
-            await downstream_connection.target_to_host.put(None)
+            await downstream_connection.cci_fifo.target_to_host.put(None)
         await self._cci_executor.stop()
 
     async def get_background_command_status(self) -> CciBackgroundStatus:

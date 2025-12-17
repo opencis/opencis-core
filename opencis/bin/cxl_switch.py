@@ -32,10 +32,13 @@ def start(config_file):
     switch = CxlSwitch(environment.switch_config, environment.logical_device_configs)
     try:
         asyncio.run(switch.run())
+    except SystemExit:
+        # Signal handler called sys.exit() - process is terminating, don't try to stop
+        # in a new event loop as it would fail with "bound to different event loop"
+        pass
     except Exception as e:
         logger.error("Error while running CXL Switch", exc_info=e)
-    finally:
         try:
             asyncio.run(switch.stop())
-        except Exception as e:
-            logger.error("Error while stopping CXL Switch", exc_info=e)
+        except Exception as stop_e:
+            logger.error("Error while stopping CXL Switch", exc_info=stop_e)

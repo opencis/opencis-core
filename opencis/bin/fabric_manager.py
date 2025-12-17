@@ -29,13 +29,16 @@ def start(use_test_runner, config_file):
     fabric_manager = CxlFabricManager(use_test_runner=use_test_runner, config_file=config_file)
     try:
         asyncio.run(fabric_manager.run())
+    except SystemExit:
+        # Signal handler called sys.exit() - process is terminating, don't try to stop
+        # in a new event loop as it would fail with "bound to different event loop"
+        pass
     except Exception as e:
         logger.error("Error while running CXL FabricManager", exc_info=e)
-    finally:
         try:
             asyncio.run(fabric_manager.stop())
-        except Exception as e:
-            logger.error("Error while stopping CXL FabricManager", exc_info=e)
+        except Exception as stop_e:
+            logger.error("Error while stopping CXL FabricManager", exc_info=stop_e)
 
 
 @fabric_manager_group.command(name="bind")
