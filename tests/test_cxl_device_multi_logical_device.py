@@ -12,6 +12,7 @@ from typing import cast
 import pytest
 
 from opencis.apps.multi_logical_device import MultiLogicalDevice
+from opencis.cxl.device.config.logical_device import MultiLogicalDeviceConfig
 from opencis.cxl.component.common import CXL_COMPONENT_TYPE
 from opencis.cxl.component.cxl_packet_processor import CxlPacketProcessor
 from opencis.cxl.component.cxl_connection import CxlConnection
@@ -48,14 +49,17 @@ async def test_multi_logical_device_ld_id():
 
     # Create MLD instance
     cxl_connections = [CxlConnection() for _ in range(ld_count)]
-    mld = MultiLogicalDevice(
+    mld_config = MultiLogicalDeviceConfig(
         port_index=1,
         memory_sizes=[ld_size] * ld_count,
         memory_files=[f"mld_mem{i}.bin" for i in range(ld_count)],
         serial_numbers=["CCCCCCCCCCCCCCCC"] * ld_count,
+        ld_list=list(range(ld_count)),
+        ld_count=ld_count,
+        total_capacity=ld_size * ld_count,
         test_mode=True,
-        cxl_connections=cxl_connections,
     )
+    mld = MultiLogicalDevice(mld_config, cxl_connections=cxl_connections)
 
     # Start MLD pseudo server
     async def handle_client(reader, writer):

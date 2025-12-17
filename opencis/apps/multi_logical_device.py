@@ -7,8 +7,6 @@ See LICENSE for details.
 
 from asyncio import gather, create_task
 from typing import List
-
-from dataclasses import dataclass
 from opencis.cxl.component.cxl_connection import CxlConnection
 from opencis.util.component import RunnableComponent
 from opencis.cxl.device.cxl_type3_device import CxlType3Device, CXL_T3_DEV_TYPE
@@ -44,13 +42,14 @@ class MultiLogicalDevice(RunnableComponent):
         if ld_count == 0:
             self._used_capacity = 0
             logger.info(
-                f"MLD Port{config.port_index}: Dynamic configuration - starting with 0 used capacity"
+                f"MLD Port{config.port_index}: Dynamic config - starting with 0 used capacity"
             )
         else:
             self._used_capacity = sum(config.memory_sizes) if config.memory_sizes else 0
 
         logger.info(
-            f"MLD Port{config.port_index}: Total capacity = {self._total_capacity} bytes, Initial used capacity = {self._used_capacity} bytes"
+            f"MLD Port{config.port_index}: Total capacity = {self._total_capacity} bytes, "
+            f"Initial used capacity = {self._used_capacity} bytes"
         )
 
         assert (
@@ -125,20 +124,29 @@ class MultiLogicalDevice(RunnableComponent):
         """Get the remaining available capacity in bytes."""
         return self._total_capacity - self._used_capacity
 
+    def get_devices(self) -> List[CxlType3Device]:
+        """Get the list of CXL Type 3 devices."""
+        return self._cxl_type3_devices
+
     def reset_capacity(self):
         """Reset used capacity to match current devices."""
         # Calculate actual used capacity based on current devices
-        actual_used_capacity = sum(device._memory_size for device in self._cxl_type3_devices)
+        actual_used_capacity = sum(device.get_memory_size() for device in self._cxl_type3_devices)
         old_used_capacity = self._used_capacity
         self._used_capacity = actual_used_capacity
         logger.info(
-            f"Reset capacity: old_used={old_used_capacity}, actual_used={actual_used_capacity}, total={self._total_capacity}, remaining={self.get_remaining_capacity()}"
+            f"Reset capacity: old_used={old_used_capacity}, actual_used={actual_used_capacity}, "
+            f"total={self._total_capacity}, remaining={self.get_remaining_capacity()}"
         )
 
         # Log individual device memory sizes for debugging
         for i, device in enumerate(self._cxl_type3_devices):
+            mem_size = device.get_memory_size()
+            mb_size = mem_size / (1024 * 1024)
+            dev_label = device.get_label() or "unknown"
             logger.info(
-                f"Device {i}: memory_size={device._memory_size} bytes ({device._memory_size / (1024*1024):.1f} MB), label={getattr(device, '_label', 'unknown')}"
+                f"Device {i}: memory_size={mem_size} bytes ({mb_size:.1f} MB), "
+                f"label={dev_label}"
             )
 
     def _validate_capacity_for_dynamic_lds(self, memory_sizes: List[int]) -> bool:
@@ -147,7 +155,9 @@ class MultiLogicalDevice(RunnableComponent):
         remaining_capacity = self._total_capacity - self._used_capacity
 
         logger.info(
-            f"Capacity validation: requested={requested_capacity} bytes, total={self._total_capacity} bytes, used={self._used_capacity} bytes, remaining={remaining_capacity} bytes"
+            f"Capacity validation: requested={requested_capacity} bytes, "
+            f"total={self._total_capacity} bytes, used={self._used_capacity} bytes, "
+            f"remaining={remaining_capacity} bytes"
         )
 
         if requested_capacity > remaining_capacity:
@@ -196,7 +206,15 @@ class MultiLogicalDevice(RunnableComponent):
             total_mb = self._total_capacity / (1024 * 1024)
             used_mb = self._used_capacity / (1024 * 1024)
 
-            error_msg = f'Backend capacity exceeded. The backend has insufficient memory capacity to allocate the requested LDs. Try using "Force Clear All LDs" to free up memory, or reduce the number/size of LDs you are trying to allocate.\n\nDetails:\n- Requested: {requested_mb:.1f} MB ({requested_capacity:,} bytes)\n- Available: {remaining_mb:.1f} MB ({remaining_capacity:,} bytes)\n- Total capacity: {total_mb:.1f} MB ({self._total_capacity:,} bytes)\n- Currently used: {used_mb:.1f} MB ({self._used_capacity:,} bytes)'
+            error_msg = (
+                "Backend capacity exceeded. The backend has insufficient memory capacity "
+                'to allocate the requested LDs. Try using "Force Clear All LDs" to free up '
+                "memory, or reduce the number/size of LDs you are trying to allocate.\n\n"
+                f"Details:\n- Requested: {requested_mb:.1f} MB ({requested_capacity:,} bytes)\n"
+                f"- Available: {remaining_mb:.1f} MB ({remaining_capacity:,} bytes)\n"
+                f"- Total capacity: {total_mb:.1f} MB ({self._total_capacity:,} bytes)\n"
+                f"- Currently used: {used_mb:.1f} MB ({self._used_capacity:,} bytes)"
+            )
             logger.error(error_msg)
             return False
 
@@ -217,7 +235,8 @@ class MultiLogicalDevice(RunnableComponent):
             )
             if len(ld_ids) > current_connection_count:
                 logger.info(
-                    f"Updating connection client to support {len(ld_ids)} LDs (currently {current_connection_count})"
+                    f"Updating connection client to support {len(ld_ids)} LDs "
+                    f"(currently {current_connection_count})"
                 )
                 # Create a new connection client with the required number of connections
                 self._sw_conn_client = SwitchConnectionClient(
@@ -240,7 +259,8 @@ class MultiLogicalDevice(RunnableComponent):
             else:
                 # This should not happen now since we ensure enough connections above
                 logger.error(
-                    f"Not enough connections for LD {ld_id} (index {i}), but we should have {len(self._cxl_connections)} connections"
+                    f"Not enough connections for LD {ld_id} (index {i}), "
+                    f"but we should have {len(self._cxl_connections)} connections"
                 )
                 continue
 
@@ -258,7 +278,8 @@ class MultiLogicalDevice(RunnableComponent):
         self._used_capacity += sum(memory_sizes)
         logger.info(f"Successfully created {len(self._cxl_type3_devices)} logical devices")
         logger.info(
-            f"Updated used capacity: {self._used_capacity} bytes, remaining: {self.get_remaining_capacity()} bytes"
+            f"Updated used capacity: {self._used_capacity} bytes, "
+            f"remaining: {self.get_remaining_capacity()} bytes"
         )
         return True
 
@@ -268,16 +289,16 @@ class MultiLogicalDevice(RunnableComponent):
         Args:
             ld_ids: List of LD IDs to deallocate
         """
-        from opencis.util.logger import logger
-
         if not ld_ids:
             logger.warning("No LD IDs provided for dynamic deallocation")
             return False
 
         logger.info(f"Deallocating {len(ld_ids)} logical devices dynamically: {ld_ids}")
-        logger.info(
-            f"Current devices: {[f'{i}:{self._extract_ld_id_from_device(device)}' for i, device in enumerate(self._cxl_type3_devices)]}"
-        )
+        current_devices = [
+            f"{i}:{self.extract_ld_id_from_device(device)}"
+            for i, device in enumerate(self._cxl_type3_devices)
+        ]
+        logger.info(f"Current devices: {current_devices}")
 
         # Find and remove the logical devices
         devices_to_remove = []
@@ -288,13 +309,13 @@ class MultiLogicalDevice(RunnableComponent):
             found_device = False
             for i, device in enumerate(self._cxl_type3_devices):
                 # Extract LD ID from device label or other identifier
-                device_ld_id = self._extract_ld_id_from_device(device)
+                device_ld_id = self.extract_ld_id_from_device(device)
                 logger.info(
                     f"Checking device {i}: device_ld_id={device_ld_id}, requested_ld_id={ld_id}"
                 )
                 if device_ld_id == ld_id:
                     devices_to_remove.append((i, device))
-                    total_deallocated_capacity += device._memory_size
+                    total_deallocated_capacity += device.get_memory_size()
                     found_device = True
                     logger.info(f"Found device {i} with LD ID {device_ld_id} for deallocation")
                     break
@@ -304,11 +325,11 @@ class MultiLogicalDevice(RunnableComponent):
                 # Try to find by position instead of LD ID
                 if ld_id < len(self._cxl_type3_devices):
                     device = self._cxl_type3_devices[ld_id]
-                    device_ld_id = self._extract_ld_id_from_device(device)
+                    device_ld_id = self.extract_ld_id_from_device(device)
                     devices_to_remove.append((ld_id, device))
-                    total_deallocated_capacity += device._memory_size
+                    total_deallocated_capacity += device.get_memory_size()
                     logger.info(
-                        f"Found device by position {ld_id} with LD ID {device_ld_id} for deallocation"
+                        f"Found device at position {ld_id}, LD ID {device_ld_id}, for dealloc"
                     )
                 else:
                     logger.error(
@@ -318,7 +339,7 @@ class MultiLogicalDevice(RunnableComponent):
         # Stop all devices first
         for original_i, device in devices_to_remove:
             try:
-                device_ld_id = self._extract_ld_id_from_device(device)
+                device_ld_id = self.extract_ld_id_from_device(device)
                 await device.stop()
                 logger.info(f"Stopped logical device {device_ld_id}")
             except Exception as e:
@@ -327,7 +348,7 @@ class MultiLogicalDevice(RunnableComponent):
         # Remove devices from the list (in reverse order to maintain indices)
         for original_i, device in sorted(devices_to_remove, reverse=True):
             try:
-                device_ld_id = self._extract_ld_id_from_device(device)
+                device_ld_id = self.extract_ld_id_from_device(device)
                 if original_i < len(self._cxl_type3_devices):
                     del self._cxl_type3_devices[original_i]
                     logger.info(f"Successfully deallocated logical device {device_ld_id}")
@@ -340,20 +361,22 @@ class MultiLogicalDevice(RunnableComponent):
         self._used_capacity -= total_deallocated_capacity
         logger.info(f"Successfully deallocated {len(devices_to_remove)} logical devices")
         logger.info(
-            f"Updated used capacity: {self._used_capacity} bytes, remaining: {self.get_remaining_capacity()} bytes"
+            f"Updated used capacity: {self._used_capacity} bytes, "
+            f"remaining: {self.get_remaining_capacity()} bytes"
         )
         # Reset capacity to ensure it matches actual devices
         self.reset_capacity()
         return True
 
-    def _extract_ld_id_from_device(self, device):
+    def extract_ld_id_from_device(self, device):
         """Extract LD ID from device label or other identifier."""
-        # Try to extract LD ID from device label
-        if hasattr(device, "_label") and device._label:
-            # Look for LD ID in the label (e.g., "Port1_LD16384" -> 16384)
-            import re
+        import re
 
-            match = re.search(r"LD(\d+)", device._label)
+        # Try to extract LD ID from device label
+        label = device.get_label() if hasattr(device, "get_label") else None
+        if label:
+            # Look for LD ID in the label (e.g., "Port1_LD16384" -> 16384)
+            match = re.search(r"LD(\d+)", label)
             if match:
                 return int(match.group(1))
 

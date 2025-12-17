@@ -81,7 +81,7 @@ class CxlPacketProcessor(RunnableComponent):
                 f"CxlPacketProcessor: mld_config.num_lds_supported = {mld_config.num_lds_supported}"
             )
         else:
-            logger.info(f"CxlPacketProcessor: mld_config is None")
+            logger.info("CxlPacketProcessor: mld_config is None")
 
         self._reader = PacketReader(reader, label=label)
         self._writer = writer
@@ -162,8 +162,8 @@ class CxlPacketProcessor(RunnableComponent):
                 cxl_connections = self._cxl_connection
                 self._ld_count = len(cxl_connections)
             else:
-                # Single CxlConnection object - this happens when ld_count=0 in SwitchConnectionClient
-                # For dynamic configurations with no initial LDs, we should start with ld_count=0
+                # Single CxlConnection object - happens when ld_count=0
+                # For dynamic configs with no initial LDs, start with ld_count=0
                 cxl_connections = [self._cxl_connection]
                 self._ld_count = 0  # Start with no LDs for dynamic configuration
 
@@ -179,7 +179,8 @@ class CxlPacketProcessor(RunnableComponent):
                 memory_sizes = self._mld_config.memory_sizes
                 num_lds_supported = self._mld_config.num_lds_supported
                 logger.info(
-                    f"CxlPacketProcessor: Using mld_config - num_lds_supported = {num_lds_supported}"
+                    "CxlPacketProcessor: Using mld_config - "
+                    f"num_lds_supported = {num_lds_supported}"
                 )
             else:
                 total_capacity = 0
@@ -187,7 +188,8 @@ class CxlPacketProcessor(RunnableComponent):
                 memory_sizes = None
                 num_lds_supported = 16  # Default value
                 logger.info(
-                    f"CxlPacketProcessor: mld_config is None, using default num_lds_supported = {num_lds_supported}"
+                    "CxlPacketProcessor: mld_config is None, "
+                    f"using default num_lds_supported = {num_lds_supported}"
                 )
 
             logger.info(

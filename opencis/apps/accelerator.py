@@ -27,7 +27,6 @@ from torchinfo import summary
 from tqdm.auto import tqdm
 
 from opencis.util.logger import logger
-from opencis.util.number import split_int
 from opencis.cxl.device.cxl_type1_device import CxlType1Device, CxlType1DeviceConfig
 from opencis.cxl.device.cxl_type2_device import (
     CxlType2Device,

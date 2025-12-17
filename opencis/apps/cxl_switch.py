@@ -9,7 +9,7 @@ from asyncio import gather, create_task
 from dataclasses import dataclass, field
 import os
 import signal
-from typing import List, Optional
+from typing import List
 
 from opencis.pci.component.pci import SW_SWITCH_DID
 
@@ -40,8 +40,6 @@ from opencis.cxl.cci.generic.information_and_status import (
     BackgroundOperationStatusCommand,
 )
 from opencis.cxl.cci.fabric_manager.mld_components import (
-    GetLdInfoCommand,
-    GetLdAllocationsCommand,
     SetLdAllocationsCommand,
 )
 from opencis.cxl.cci.fabric_manager.physical_switch import (

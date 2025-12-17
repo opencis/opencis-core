@@ -540,7 +540,7 @@ class GetLdAllocationsResponsePacket(CciResponsePacket):
         number_of_lds: int,
         memory_granularity: int,
         start_ld_id: int,
-        ld_length: int,
+        ld_length: int,  # pylint: disable=unused-argument
         ld_allocations: dict[int, int],
         message_tag: int,
     ) -> "GetLdAllocationsResponsePacket":

@@ -52,7 +52,7 @@ class CxlFabricManager(RunnableComponent):
                 env = parse_cxl_environment(config_file)
                 self._device_configs = env.multi_logical_device_configs
                 # Make device configs available to the API client
-                self._api_client._device_configs = self._device_configs
+                self._api_client.set_device_configs(self._device_configs)
             except Exception as e:
                 logger.warning(f"Could not load device configs from {config_file}: {e}")
 

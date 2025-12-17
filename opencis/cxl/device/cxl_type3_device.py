@@ -95,6 +95,22 @@ class CxlType3Device(RunnableComponent):
         # Update CxlMemManager with a CxlMemoryDeviceComponent
         self._cxl_mem_manager.set_memory_device_component(self._cxl_memory_device_component)
 
+    def get_memory_size(self) -> int:
+        """Get the memory size of this device."""
+        return self._memory_size
+
+    def get_serial_number(self) -> str:
+        """Get the serial number of this device."""
+        return self._serial_number
+
+    def get_label(self) -> Optional[str]:
+        """Get the label of this device."""
+        return self._label
+
+    def set_memory_size(self, memory_size: int):
+        """Set the memory size of this device."""
+        self._memory_size = memory_size
+
     def _init_device(
         self,
         cxl_io_callback_data: CxlIoCallbackData,

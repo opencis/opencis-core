@@ -67,6 +67,15 @@ class MctpCciApiClient(RunnableComponent):
         self._responses: Dict[int, CciMessagePacket] = {}
         self._condition = Condition()
         self._notification_handler = None
+        self._device_configs = []
+
+    def get_device_configs(self):
+        """Get the device configs associated with this client."""
+        return self._device_configs
+
+    def set_device_configs(self, configs):
+        """Set the device configs for this client."""
+        self._device_configs = configs
 
     async def _process_incoming_packets(self):
         while True:

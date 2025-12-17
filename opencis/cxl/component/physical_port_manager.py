@@ -114,13 +114,12 @@ class PhysicalPortManager(RunnableComponent):
         # Debug logging
         from opencis.util.logger import logger
 
-        logger.info(f"[PhysicalPortManager] Checking for connected devices...")
+        logger.info("[PhysicalPortManager] Checking for connected devices...")
         logger.info(f"[PhysicalPortManager] Device configs: {self._device_configs}")
 
         for port_index, switch_port in enumerate(switch_ports):
-            logger.info(
-                f"[PhysicalPortManager] Checking port {port_index}, type: {switch_port.port_config.type}"
-            )
+            port_type = switch_port.port_config.type
+            logger.info(f"[PhysicalPortManager] Checking port {port_index}, type: {port_type}")
             if switch_port.port_config.type != PORT_TYPE.DSP:
                 logger.info(f"[PhysicalPortManager] Port {port_index} is not DSP, skipping")
                 continue
@@ -147,15 +146,16 @@ class PhysicalPortManager(RunnableComponent):
                         # Use total_capacity field instead of calculating from memory_sizes
                         total_capacity = switch_config.total_capacity
                         logger.info(
-                            f"[PhysicalPortManager] Port {port_index}: Using static config, capacity={total_capacity}, serial={serial_number}"
+                            f"[PhysicalPortManager] Port {port_index}: Using static config, "
+                            f"capacity={total_capacity}, serial={serial_number}"
                         )
                     else:
-                        # No static devices configured - try to get dynamic device info from MLD process
+                        # No static devices - try to get dynamic device info from MLD
                         try:
                             from opencis.cxl.component.mld_client import mld_client
 
                             # Ensure we're connected to the MLD process
-                            if not hasattr(mld_client, "_connected") or not mld_client._connected:
+                            if not mld_client.is_connected():
                                 await mld_client.connect()
 
                             # Query for dynamic device information
@@ -167,17 +167,21 @@ class PhysicalPortManager(RunnableComponent):
                                 )
                                 serial_number = dynamic_devices[0]["serial_number"]
                                 logger.info(
-                                    f"[PhysicalPortManager] Port {port_index}: Using dynamic devices, capacity={total_capacity}, serial={serial_number}"
+                                    f"[PhysicalPortManager] Port {port_index}: "
+                                    f"Using dynamic devices, capacity={total_capacity}, "
+                                    f"serial={serial_number}"
                                 )
                             else:
                                 # No dynamic devices either - skip this port
                                 logger.info(
-                                    f"[PhysicalPortManager] Port {port_index}: No devices found (static or dynamic)"
+                                    f"[PhysicalPortManager] Port {port_index}: "
+                                    "No devices found (static or dynamic)"
                                 )
                                 continue
                         except Exception as e:
                             logger.warning(
-                                f"[PhysicalPortManager] Port {port_index}: Failed to query MLD process: {e}"
+                                f"[PhysicalPortManager] Port {port_index}: "
+                                f"Failed to query MLD process: {e}"
                             )
                             # Skip this port if we can't query the MLD process
                             continue

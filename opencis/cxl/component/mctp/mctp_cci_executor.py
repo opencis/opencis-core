@@ -110,10 +110,11 @@ class MctpCciExecutor(RunnableComponent):
 
                 # Check if the port_index exists in downstream port connections
                 if port_index not in self._downstream_port_connections:
+                    ports = list(self._downstream_port_connections.keys())
                     logger.error(
                         self._create_message(
                             f"Port index {port_index} is not a valid downstream port. "
-                            f"Available downstream ports: {list(self._downstream_port_connections.keys())}"
+                            f"Available downstream ports: {ports}"
                         )
                     )
                     # Send error response
@@ -147,8 +148,8 @@ class MctpCciExecutor(RunnableComponent):
                             # Update virtual switch manager with the new LD allocations
                             if self._virtual_switch_manager is not None:
                                 if request_payload.number_of_lds == 0:
-                                    # This is a "deallocate all" request - completely clear all LD allocations
-                                    # This ensures proper state synchronization with MLD Manager and Virtual Switch
+                                    # Deallocate all - clear all LD allocations
+                                    # Ensures state sync with MLD Manager and Virtual Switch
                                     self._virtual_switch_manager.update_ld_allocations(
                                         port_index, []
                                     )
@@ -166,7 +167,8 @@ class MctpCciExecutor(RunnableComponent):
                                                 allocated_ld_ids.append(ld_id)
 
                                     logger.info(
-                                        f"Updating virtual switch manager with allocated LD IDs: {allocated_ld_ids}"
+                                        f"Updating virtual switch manager with LD IDs: "
+                                        f"{allocated_ld_ids}"
                                     )
                                     self._virtual_switch_manager.update_ld_allocations(
                                         port_index, allocated_ld_ids

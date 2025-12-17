@@ -168,7 +168,7 @@ def validate_component(ctx, param, components):
     if "all" in components:
         return ("fm", "switch", "host-group", "sld-group", "mld-group")
     for c in components:
-        if not c in valid_components:
+        if c not in valid_components:
             raise click.BadParameter(f"Please select from {list(valid_components)}")
     return components
 
@@ -178,7 +178,7 @@ def validate_log_level(ctx, param, level):
     valid_levels = list(logging.getLevelNamesMapping().keys())
     if level:
         level = level.upper()
-        if not level in valid_levels:
+        if level not in valid_levels:
             raise click.BadParameter(f"Please select from {", ".join(valid_levels)}")
     return level
 

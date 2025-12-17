@@ -47,19 +47,13 @@ from opencis.pci.component.pci import (
 )
 from opencis.pci.component.mmio_manager import BarEntry
 from opencis.pci.component.config_space_manager import (
-    ConfigSpaceManager,
     PCI_DEVICE_TYPE,
 )
 from opencis.cxl.component.cache_controller import (
     CacheController,
     CacheControllerConfig,
 )
-from opencis.cxl.transport.memory_fifo import MemoryFifoPair
 from opencis.cxl.transport.cache_fifo import CacheFifoPair
-from opencis.cxl.component.device_llc_iogen import (
-    DeviceLlcIoGen,
-    DeviceLlcIoGenConfig,
-)
 from opencis.cxl.component.cxl_cache_dcoh import CxlCacheDcoh
 from opencis.util.number_const import KB, MB
 

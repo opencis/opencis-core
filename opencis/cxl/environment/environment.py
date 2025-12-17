@@ -170,8 +170,8 @@ def parse_multi_logical_device_configs(
             if memory_sizes:
                 total_capacity = sum(memory_sizes)
             else:
-                # No logical devices configured - set a default total capacity for dynamic allocation
-                # This allows the MLD to be ready for dynamic LD creation
+                # No logical devices configured - set a default total capacity for
+                # dynamic allocation. This allows the MLD to be ready for dynamic LD creation
                 total_capacity = 2 * 1024 * 1024 * 1024  # Default to 2GB
 
         # Get num_lds_supported from config, default to 16

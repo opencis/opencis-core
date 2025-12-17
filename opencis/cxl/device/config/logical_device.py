@@ -37,3 +37,4 @@ class MultiLogicalDeviceConfig(LogicalDeviceConfig):
     total_capacity: int  # in bytes
     num_lds_supported: int = 16  # Maximum number of LDs supported
     device_id: int = SW_MLD_DID
+    test_mode: bool = False  # Flag for test mode

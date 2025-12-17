@@ -10,6 +10,7 @@ import pytest
 
 from opencis.apps.single_logical_device import SingleLogicalDevice
 from opencis.apps.multi_logical_device import MultiLogicalDevice
+from opencis.cxl.device.config.logical_device import MultiLogicalDeviceConfig
 from opencis.cxl.component.bind_processor import PpbDspBindProcessor
 from opencis.cxl.component.cxl_connection import CxlConnection
 from opencis.cxl.device.downstream_port_device import DownstreamPortDevice
@@ -196,7 +197,8 @@ async def test_multi_logical_device_bind_unbind():
         get_memory_bin_name(3),
         get_memory_bin_name(4),
     ]
-    device = MultiLogicalDevice(
+    mld_config = MultiLogicalDeviceConfig(
+        port_index=0,
         memory_sizes=memory_sizes,
         memory_files=memory_files,
         serial_numbers=[
@@ -205,9 +207,14 @@ async def test_multi_logical_device_bind_unbind():
             "BBBBBBBBBBBBBBBB",
             "BBBBBBBBBBBBBBBB",
         ],
+        ld_list=[0, 1, 2, 3],
+        ld_count=4,
+        total_capacity=sum(memory_sizes),
         test_mode=True,
+    )
+    device = MultiLogicalDevice(
+        mld_config,
         cxl_connections=[transport_connection, CxlConnection(), CxlConnection(), CxlConnection()],
-        port_index=0,
     )
 
     async def start_components():

@@ -11,7 +11,6 @@ from typing import List, Tuple
 
 # from opencis.util.logger import logger
 from opencis.cxl.component.cci_executor import (
-    CciBackgroundCommand,
     CciRequest,
     CciResponse,
     CciForegroundCommand,
@@ -118,7 +117,7 @@ class SetLdAllocationsCommand(CciForegroundCommand):
         # The ld_allocation_list contains tuples of (range1, range2)
         # For now, we'll extract LD IDs from range1 values
         ld_ids = []
-        for range1, range2 in request_payload.ld_allocation_list:
+        for range1, _range2 in request_payload.ld_allocation_list:
             # Convert range1 to LD ID (this is a simplified approach)
             # In a real implementation, you'd need to properly decode the range values
             if range1 > 0:
@@ -127,9 +126,10 @@ class SetLdAllocationsCommand(CciForegroundCommand):
         # Update the virtual switch manager with the new LD allocations
         if self._virtual_switch_manager:
             # Get port_index from the request context
-            # The port_index is passed in the CCI header and should be available in the request context
-            # For now, we'll extract it from the LD IDs (assuming they follow a pattern)
-            # In a real implementation, this should come from the request context
+            # The port_index is passed in the CCI header and should be available
+            # in the request context. For now, we'll extract it from the LD IDs
+            # (assuming they follow a pattern). In a real implementation,
+            # this should come from the request context
             port_index = 1  # Default to port 1, but this should be extracted from request context
 
             # Try to get port_index from request context if available

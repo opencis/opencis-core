@@ -2,14 +2,13 @@
 MLD Manager for dynamic logical device creation and management.
 """
 
-import asyncio
-import json
 from typing import Dict, List, Optional
-from opencis.util.logger import logger
-from opencis.apps.multi_logical_device import MultiLogicalDevice
-from opencis.cxl.component.cxl_component import CXL_COMPONENT_TYPE
+
 import socketio
 from aiohttp import web
+
+from opencis.util.logger import logger
+from opencis.apps.multi_logical_device import MultiLogicalDevice
 
 
 class MLDManager:
@@ -36,7 +35,8 @@ class MLDManager:
         self._mld_instances[port_index] = mld
         logger.info(f"Registered MLD instance for port {port_index}")
         logger.info(
-            f"MLD Manager now has {len(self._mld_instances)} registered instances: {list(self._mld_instances.keys())}"
+            f"MLD Manager now has {len(self._mld_instances)} registered instances: "
+            f"{list(self._mld_instances.keys())}"
         )
 
     def get_mld(self, port_index: int) -> Optional[MultiLogicalDevice]:
@@ -44,7 +44,7 @@ class MLDManager:
         mld = self._mld_instances.get(port_index)
         logger.info(f"MLD Manager: get_mld({port_index}) returned: {mld is not None}")
         if mld is not None:
-            logger.info(f"MLD Manager: Port {port_index} has {len(mld._cxl_type3_devices)} devices")
+            logger.info(f"MLD Manager: Port {port_index} has {len(mld.get_devices())} devices")
         return mld
 
     def get_all_mlds(self) -> Dict[int, MultiLogicalDevice]:
@@ -91,8 +91,10 @@ class MLDManager:
                     # Use a minimum of 1MB and maximum of 1GB
                     memory_size_bytes = max(1024 * 1024, min(memory_size_bytes, 1024 * 1024 * 1024))
                     memory_sizes.append(memory_size_bytes)
+                    mb_size = memory_size_bytes / (1024 * 1024)
                     logger.info(
-                        f"Calculated memory size for LD {ld_id}: {memory_size_bytes} bytes ({memory_size_bytes / (1024*1024):.1f} MB)"
+                        f"Calculated memory size for LD {ld_id}: "
+                        f"{memory_size_bytes} bytes ({mb_size:.1f} MB)"
                     )
             if memory_files is None:
                 memory_files = [f"/tmp/ld_{ld_id}.mem" for ld_id in ld_ids]
@@ -124,13 +126,12 @@ class MLDManager:
             )
 
             # Create and register the MLD instance
-            from opencis.apps.multi_logical_device import MultiLogicalDevice
-
             mld = MultiLogicalDevice(mld_config)
             self.register_mld(port_index, mld)
 
             logger.info(
-                f"Created dynamic MLD instance for port {port_index} with capacity {total_capacity} bytes"
+                f"Created dynamic MLD instance for port {port_index} "
+                f"with capacity {total_capacity} bytes"
             )
         else:
             # Reset capacity of existing MLD instance to match current devices
@@ -149,7 +150,8 @@ class MLDManager:
                 used_capacity = mld.get_used_capacity()
                 remaining_capacity = mld.get_remaining_capacity()
                 logger.info(
-                    f"Port {port_index} capacity after creation: used={used_capacity} bytes, remaining={remaining_capacity} bytes"
+                    f"Port {port_index} capacity after creation: "
+                    f"used={used_capacity} bytes, remaining={remaining_capacity} bytes"
                 )
             return success
         except Exception as e:
@@ -173,9 +175,11 @@ class MLDManager:
         mld = self.get_mld(port_index)
         if mld is None:
             logger.warning(
-                f"No MLD instance found for port {port_index} - this may be normal for dynamic configurations"
+                f"No MLD instance found for port {port_index} - "
+                f"this may be normal for dynamic configurations"
             )
-            # For dynamic configurations, it's normal to not have an MLD instance if no LDs are allocated
+            # For dynamic configurations, it's normal to not have an MLD instance
+            # if no LDs are allocated
             # Return True to indicate successful deallocation (nothing to deallocate)
             return True
 
@@ -190,11 +194,12 @@ class MLDManager:
                 used_capacity = mld.get_used_capacity()
                 remaining_capacity = mld.get_remaining_capacity()
                 logger.info(
-                    f"Port {port_index} capacity after deallocation: used={used_capacity} bytes, remaining={remaining_capacity} bytes"
+                    f"Port {port_index} capacity after deallocation: "
+                    f"used={used_capacity} bytes, remaining={remaining_capacity} bytes"
                 )
 
                 # Check if all LDs have been deallocated
-                if len(mld._cxl_type3_devices) == 0:
+                if len(mld.get_devices()) == 0:
                     logger.info(f"All LDs deallocated for port {port_index}, clearing MLD instance")
                     # Remove the MLD instance from the manager
                     if port_index in self._mld_instances:
@@ -211,7 +216,7 @@ class MLDManager:
         mld = self.get_mld(port_index)
         if mld is None:
             return 0
-        return len(mld._cxl_type3_devices)
+        return len(mld.get_devices())
 
     def get_ld_ids(self, port_index: int) -> List[int]:
         """Get the list of LD IDs for a specific port."""
@@ -220,7 +225,7 @@ class MLDManager:
             logger.warning(f"No MLD instance found for port {port_index}")
             return []
 
-        device_count = len(mld._cxl_type3_devices)
+        device_count = len(mld.get_devices())
         ld_ids = list(range(device_count))
         logger.info(
             f"MLD Manager: Port {port_index} has {device_count} devices, returning LD IDs: {ld_ids}"
@@ -273,7 +278,7 @@ class MLDManager:
                 return False
 
         # Get current MLD device count
-        current_device_count = len(mld._cxl_type3_devices)
+        current_device_count = len(mld.get_devices())
         logger.info(f"MLD Manager: Port {port_index} currently has {current_device_count} devices")
 
         # If switch has no LDs allocated, clear all MLD devices
@@ -282,7 +287,7 @@ class MLDManager:
                 logger.info(
                     f"Switch has no LDs allocated, clearing all {current_device_count} MLD devices"
                 )
-                mld._cxl_type3_devices.clear()
+                mld.get_devices().clear()
                 mld.reset_capacity()
                 logger.info(f"Cleared all devices for port {port_index}")
             return True
@@ -299,69 +304,71 @@ class MLDManager:
             # Remove devices that are not in the switch allocation
             devices_to_remove = []
             devices_to_update = []  # Track devices that need memory size updates
-            logger.info(f"Current MLD devices:")
-            for i, device in enumerate(mld._cxl_type3_devices):
-                logger.info(
-                    f"  Device {i}: {device._label}, serial={getattr(device, '_serial_number', 'N/A')}"
-                )
+            logger.info("Current MLD devices:")
+            for i, device in enumerate(mld.get_devices()):
+                dev_label = device.get_label()
+                dev_serial = device.get_serial_number()
+                logger.info(f"  Device {i}: {dev_label}, serial={dev_serial}")
 
                 # Extract LD ID from device label or serial number
                 device_ld_id = None
-                if hasattr(device, "_label") and device._label:
+                if dev_label:
                     # Use regex to extract LD ID from label like "Port1_LD0"
                     import re
 
-                    match = re.search(r"LD(\d+)", device._label)
+                    match = re.search(r"LD(\d+)", dev_label)
                     if match:
                         device_ld_id = int(match.group(1))
                         logger.info(f"    Extracted LD ID from label: {device_ld_id}")
                     else:
-                        logger.warning(f"    Could not extract LD ID from label: {device._label}")
-                elif hasattr(device, "_serial_number"):
+                        logger.warning(f"    Could not extract LD ID from label: {dev_label}")
+                elif dev_serial:
                     # Extract LD ID from serial number like "0000000000000000"
                     try:
-                        device_ld_id = int(device._serial_number[-1], 16)
+                        device_ld_id = int(dev_serial[-1], 16)
                         logger.info(f"    Extracted LD ID from serial: {device_ld_id}")
                     except (ValueError, IndexError):
-                        logger.warning(
-                            f"    Could not extract LD ID from serial: {device._serial_number}"
-                        )
+                        logger.warning(f"    Could not extract LD ID from serial: {dev_serial}")
 
                 if device_ld_id is not None and device_ld_id not in switch_ld_ids:
                     devices_to_remove.append(device)
                     logger.info(
-                        f"    Marking device {device._label} (LD {device_ld_id}) for removal - not in switch allocation"
+                        f"    Marking device {dev_label} (LD {device_ld_id}) "
+                        "for removal - not in switch allocation"
                     )
                 elif device_ld_id is not None and device_ld_id in switch_ld_ids:
                     # Device is kept, but we need to update its memory size to match FMLD allocation
                     devices_to_update.append((device, device_ld_id))
                     logger.info(
-                        f"    Keeping device {device._label} (LD {device_ld_id}) - in switch allocation"
+                        f"    Keeping device {dev_label} (LD {device_ld_id}) - in switch allocation"
                     )
                 elif device_ld_id is None:
-                    logger.warning(f"    Could not determine LD ID for device {device._label}")
+                    logger.warning(f"    Could not determine LD ID for device {dev_label}")
 
-            logger.info(f"Devices to remove: {[d._label for d in devices_to_remove]}")
+            logger.info(f"Devices to remove: {[d.get_label() for d in devices_to_remove]}")
             logger.info(
-                f"Devices to update: {[(d._label, ld_id) for d, ld_id in devices_to_update]}"
+                f"Devices to update: "
+                f"{[(d.get_label(), ld_id) for d, ld_id in devices_to_update]}"
             )
 
             # Remove excess devices
             for device in devices_to_remove:
-                mld._cxl_type3_devices.remove(device)
-                logger.info(f"Removed excess device: {device._label}")
+                mld.get_devices().remove(device)
+                logger.info(f"Removed excess device: {device.get_label()}")
 
             # Update memory sizes for kept devices to match FMLD allocation
             # Use the actual FMLD allocation list if provided, otherwise fall back to calculation
             for i, (device, ld_id) in enumerate(devices_to_update):
                 if fmld_allocation_list and len(fmld_allocation_list) > ld_id * 2:
                     # Get the allocation multiplier from the FMLD allocation list
-                    # The allocation list format is [range1_ld0, range2_ld0, range1_ld1, range2_ld1, ...]
+                    # The allocation list format is [range1_ld0, range2_ld0,
+                    # range1_ld1, range2_ld1, ...]
                     range1_index = ld_id * 2
                     range1_multiplier = fmld_allocation_list[range1_index]
                     allocation_multiplier = range1_multiplier
                     logger.info(
-                        f"Using FMLD allocation list: LD {ld_id} has allocation multiplier {allocation_multiplier}"
+                        f"Using FMLD allocation list: LD {ld_id} "
+                        f"has allocation multiplier {allocation_multiplier}"
                     )
                 else:
                     # Fallback calculation
@@ -371,24 +378,29 @@ class MLDManager:
                     else:
                         allocation_multiplier = i + 1
                     logger.info(
-                        f"Using fallback calculation: LD {ld_id} has allocation multiplier {allocation_multiplier}"
+                        f"Using fallback calculation: LD {ld_id} "
+                        f"has allocation multiplier {allocation_multiplier}"
                     )
 
                 expected_memory_size = allocation_multiplier * 256 * 1024 * 1024  # 256MB base unit
+                dev_label = device.get_label()
 
-                if hasattr(device, "_memory_size"):
-                    old_memory_size = device._memory_size
-                    device._memory_size = expected_memory_size
+                if hasattr(device, "get_memory_size"):
+                    old_memory_size = device.get_memory_size()
+                    device.set_memory_size(expected_memory_size)
                     logger.info(
-                        f"Updated device {device._label} (LD {ld_id}) memory size: {old_memory_size} -> {expected_memory_size} bytes ({allocation_multiplier * 256} MB)"
+                        f"Updated device {dev_label} (LD {ld_id}) memory size: "
+                        f"{old_memory_size} -> {expected_memory_size} bytes "
+                        f"({allocation_multiplier * 256} MB)"
                     )
                 else:
-                    logger.warning(f"Device {device._label} has no _memory_size attribute")
+                    logger.warning(f"Device {dev_label} has no get_memory_size method")
 
             # Reset capacity to reflect the change
             mld.reset_capacity()
             logger.info(
-                f"Removed {len(devices_to_remove)} excess devices, now have {len(mld._cxl_type3_devices)} devices"
+                f"Removed {len(devices_to_remove)} excess devices, "
+                f"now have {len(mld.get_devices())} devices"
             )
 
         # If MLD has fewer devices than switch, we need to create missing devices
@@ -400,17 +412,19 @@ class MLDManager:
 
             # Find which LD IDs are missing
             current_ld_ids = []
-            for device in mld._cxl_type3_devices:
+            for device in mld.get_devices():
                 device_ld_id = None
-                if hasattr(device, "_label") and device._label:
+                dev_label = device.get_label()
+                dev_serial = device.get_serial_number()
+                if dev_label:
                     import re
 
-                    match = re.search(r"LD(\d+)", device._label)
+                    match = re.search(r"LD(\d+)", dev_label)
                     if match:
                         device_ld_id = int(match.group(1))
-                elif hasattr(device, "_serial_number"):
+                elif dev_serial:
                     try:
-                        device_ld_id = int(device._serial_number[-1], 16)
+                        device_ld_id = int(dev_serial[-1], 16)
                     except (ValueError, IndexError):
                         pass
 
@@ -424,26 +438,29 @@ class MLDManager:
                 f"Cannot create {len(missing_ld_ids)} missing devices during sync: {missing_ld_ids}"
             )
             logger.info(
-                f"These devices will need to be created through the normal allocation process"
+                "These devices will need to be created through the normal allocation process"
             )
 
         # If MLD has the same number of devices as switch, verify they match
         else:
             logger.info(
-                f"MLD has same number of devices as switch ({current_device_count}), verifying they match"
+                f"MLD has same number of devices as switch ({current_device_count}), "
+                "verifying they match"
             )
             current_ld_ids = []
-            for device in mld._cxl_type3_devices:
+            for device in mld.get_devices():
                 device_ld_id = None
-                if hasattr(device, "_label") and device._label:
+                dev_label = device.get_label()
+                dev_serial = device.get_serial_number()
+                if dev_label:
                     import re
 
-                    match = re.search(r"LD(\d+)", device._label)
+                    match = re.search(r"LD(\d+)", dev_label)
                     if match:
                         device_ld_id = int(match.group(1))
-                elif hasattr(device, "_serial_number"):
+                elif dev_serial:
                     try:
-                        device_ld_id = int(device._serial_number[-1], 16)
+                        device_ld_id = int(dev_serial[-1], 16)
                     except (ValueError, IndexError):
                         pass
 
@@ -460,10 +477,13 @@ class MLDManager:
         # Reset capacity to ensure it matches current devices
         mld.reset_capacity()
         logger.info(
-            f"MLD Manager: Port {port_index} synchronization complete - {len(mld._cxl_type3_devices)} devices"
+            f"MLD Manager: Port {port_index} synchronization complete - "
+            f"{len(mld.get_devices())} devices"
         )
         logger.info(
-            f"Port {port_index} capacity after sync: used={mld.get_used_capacity()} bytes, remaining={mld.get_remaining_capacity()} bytes"
+            f"Port {port_index} capacity after sync: "
+            f"used={mld.get_used_capacity()} bytes, "
+            f"remaining={mld.get_remaining_capacity()} bytes"
         )
         return True
 
@@ -491,7 +511,8 @@ class MLDManager:
         mld = self.ensure_mld_instance(port_index)
         if mld is None:
             logger.info(
-                f"Could not ensure MLD instance for port {port_index}, returning default remaining capacity"
+                f"Could not ensure MLD instance for port {port_index}, "
+                f"returning default remaining capacity"
             )
             return 4 * 1024 * 1024 * 1024  # 4GB default
         return mld.get_remaining_capacity()
@@ -535,7 +556,7 @@ class MLDManager:
             await self._socket_server.stop()
             logger.info("MLD Manager socket server stopped")
 
-    async def _on_connect(self, sid, environ):
+    async def _on_connect(self, sid, _environ):
         """Handle client connection."""
         logger.info(f"MLD Manager: Client connected: {sid}")
 
@@ -611,7 +632,8 @@ class MLDManager:
                     "success": success,
                     "port_index": port_index,
                     "ld_ids": ld_ids,
-                    "message": f"Logical devices deallocation {'succeeded' if success else 'failed'}",
+                    "message": f"Logical devices deallocation "
+                    f"{'succeeded' if success else 'failed'}",
                 },
                 room=sid,
             )
@@ -647,17 +669,17 @@ class MLDManager:
 
             # Get device information
             devices = []
-            for i, device in enumerate(mld._cxl_type3_devices):
+            for i, device in enumerate(mld.get_devices()):
                 # Extract LD ID from device using the same method as deallocation
-                ld_id = mld._extract_ld_id_from_device(device)
+                ld_id = mld.extract_ld_id_from_device(device)
                 if ld_id is None:
                     # Fallback to device index if extraction fails
                     ld_id = i
 
                 devices.append(
                     {
-                        "serial_number": device._serial_number,
-                        "memory_size": device._memory_size,
+                        "serial_number": device.get_serial_number(),
+                        "memory_size": device.get_memory_size(),
                         "ld_id": ld_id,  # Add the actual LD ID
                     }
                 )
@@ -739,7 +761,8 @@ class MLDManager:
                     "success": success,
                     "port_index": port_index,
                     "switch_ld_ids": switch_ld_ids,
-                    "message": f"Switch state synchronization {'succeeded' if success else 'failed'}",
+                    "message": f"Switch state synchronization "
+                    f"{'succeeded' if success else 'failed'}",
                 },
                 room=sid,
             )
@@ -775,8 +798,6 @@ class MLDManager:
             )
 
             # Create and register the MLD instance
-            from opencis.apps.multi_logical_device import MultiLogicalDevice
-
             mld = MultiLogicalDevice(mld_config)
             self.register_mld(port_index, mld)
 

@@ -17,6 +17,10 @@ class MLDClient:
         self._sio_client = socketio.AsyncClient()
         self._connected = False
 
+    def is_connected(self) -> bool:
+        """Check if the client is connected to the MLD socket server."""
+        return self._connected
+
     async def connect(self):
         """Connect to the MLD socket server."""
         try:
@@ -97,11 +101,10 @@ class MLDClient:
                         f"Successfully created logical devices: {response.get('message', '')}"
                     )
                     return True
-                else:
-                    logger.error(
-                        f"Failed to create logical devices: {response.get('error', 'Unknown error')}"
-                    )
-                    return False
+                logger.error(
+                    f"Failed to create logical devices: {response.get('error', 'Unknown error')}"
+                )
+                return False
 
             except asyncio.TimeoutError:
                 logger.error("Timeout waiting for response from MLD process")
@@ -155,11 +158,11 @@ class MLDClient:
                         f"Successfully deallocated logical devices: {response.get('message', '')}"
                     )
                     return True
-                else:
-                    logger.error(
-                        f"Failed to deallocate logical devices: {response.get('error', 'Unknown error')}"
-                    )
-                    return False
+                logger.error(
+                    "Failed to deallocate logical devices: "
+                    f"{response.get('error', 'Unknown error')}"
+                )
+                return False
 
             except asyncio.TimeoutError:
                 logger.error("Timeout waiting for deallocation response from MLD process")
@@ -206,11 +209,8 @@ class MLDClient:
                         f"MLD Client: Retrieved {len(devices)} devices for port {port_index}"
                     )
                     return devices
-                else:
-                    logger.error(
-                        f"Failed to get device info: {response.get('error', 'Unknown error')}"
-                    )
-                    return None
+                logger.error(f"Failed to get device info: {response.get('error', 'Unknown error')}")
+                return None
 
             except asyncio.TimeoutError:
                 logger.error("Timeout waiting for device info response from MLD process")
@@ -258,11 +258,10 @@ class MLDClient:
 
                 if response.get("success"):
                     return response
-                else:
-                    logger.error(
-                        f"Failed to get capacity info: {response.get('error', 'Unknown error')}"
-                    )
-                    return None
+                logger.error(
+                    f"Failed to get capacity info: {response.get('error', 'Unknown error')}"
+                )
+                return None
             except asyncio.TimeoutError:
                 logger.error("Timeout waiting for capacity info response")
                 return None
@@ -320,11 +319,10 @@ class MLDClient:
                         f"Successfully synced with switch state: {response.get('message', '')}"
                     )
                     return True
-                else:
-                    logger.error(
-                        f"Failed to sync with switch state: {response.get('error', 'Unknown error')}"
-                    )
-                    return False
+                logger.error(
+                    "Failed to sync with switch state: " f"{response.get('error', 'Unknown error')}"
+                )
+                return False
             except asyncio.TimeoutError:
                 logger.error("Timeout waiting for sync response")
                 return False

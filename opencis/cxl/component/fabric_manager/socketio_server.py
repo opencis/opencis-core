@@ -32,9 +32,6 @@ from opencis.cxl.cci.common import (
     get_opcode_string,
 )
 from opencis.cxl.transport.cci_packets import CciMessagePacket
-from opencis.cxl.cci.fabric_manager.mld_components.get_ld_allocations import (
-    GetLdAllocationsRequestPayload,
-)
 
 
 class CommandResponse(TypedDict):
@@ -260,7 +257,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
         return CommandResponse(error=return_code.name)
 
     async def _get_devices(self) -> CommandResponse:
-        (return_code, response) = await self._mctp_client.get_connected_devices()
+        (_, response) = await self._mctp_client.get_connected_devices()
         if response:
             return CommandResponse(error="", result=response.to_dict()["devices"])
         # When there are no devices, return empty array instead of error
@@ -333,7 +330,8 @@ class FabricManagerSocketIoServer(RunnableComponent):
                         max_capacity = capacity_info.get("total_capacity", max_capacity)
                         device_capacity = actual_memory_size
                         logger.info(
-                            f"Using MLD Manager capacity info: used={actual_memory_size} bytes, total={total_capacity} bytes"
+                            f"Using MLD Manager capacity info: used={actual_memory_size} bytes, "
+                            f"total={total_capacity} bytes"
                         )
                     else:
                         logger.warning(
@@ -356,7 +354,8 @@ class FabricManagerSocketIoServer(RunnableComponent):
             if actual_memory_size > 0:
                 response_dict["memorySize"] = actual_memory_size
                 logger.info(
-                    f"Final memory size: {actual_memory_size} bytes ({actual_memory_size / (1024*1024):.2f} MB)"
+                    f"Final memory size: {actual_memory_size} bytes "
+                    f"({actual_memory_size / (1024*1024):.2f} MB)"
                 )
 
             # Add missing capacity fields
@@ -366,7 +365,8 @@ class FabricManagerSocketIoServer(RunnableComponent):
             response_dict["remainingCapacity"] = remaining_capacity
 
             logger.info(
-                f"Added capacity information: totalCapacity={total_capacity}, deviceCapacity={device_capacity}, remainingCapacity={remaining_capacity}"
+                f"Added capacity information: totalCapacity={total_capacity}, "
+                f"deviceCapacity={device_capacity}, remainingCapacity={remaining_capacity}"
             )
 
             return CommandResponse(error="", result=response_dict)
@@ -397,7 +397,8 @@ class FabricManagerSocketIoServer(RunnableComponent):
                 )
                 device_capacity = allocated_memory_bytes
                 logger.info(
-                    f"Using FMLD capacity calculation: {allocated_memory_bytes} bytes (granularity: {response.memory_granularity})"
+                    f"Using FMLD capacity calculation: {allocated_memory_bytes} bytes "
+                    f"(granularity: {response.memory_granularity})"
                 )
 
             # PRIORITY 2: Use MLD Manager as fallback only if FMLD calculation failed
@@ -427,12 +428,13 @@ class FabricManagerSocketIoServer(RunnableComponent):
                         )
                         allocated_memory_bytes = sum(
                             multiplier * granularity_size_bytes
-                            for multiplier in response.ld_allocation_list
+                            for multiplier in response.ld_allocation_list  # pylint: disable=line-too-long
                             if multiplier > 0
                         )
                         device_capacity = allocated_memory_bytes
                         logger.info(
-                            f"Calculated device capacity from allocation multipliers: {allocated_memory_bytes} bytes (granularity: {response.memory_granularity})"
+                            f"Calculated device capacity from allocation multipliers: "
+                            f"{allocated_memory_bytes} bytes (granularity: {response.memory_granularity})"
                         )
 
             # ALWAYS get the correct total capacity from MLD Manager
@@ -461,15 +463,18 @@ class FabricManagerSocketIoServer(RunnableComponent):
             response_dict["remainingCapacity"] = remaining_capacity
 
             logger.info(
-                f"Added capacity information to LD allocation response: totalCapacity={total_capacity}, deviceCapacity={device_capacity}, remainingCapacity={remaining_capacity}"
+                f"Added capacity information to LD allocation response: "
+                f"totalCapacity={total_capacity}, deviceCapacity={device_capacity}, "
+                f"remainingCapacity={remaining_capacity}"
             )
 
             return CommandResponse(error="", result=response_dict)
         return CommandResponse(error=return_code.name)
 
-    async def _set_ld_allocation(self, data) -> CommandResponse:
+    async def _set_ld_allocation(self, data) -> CommandResponse:  # pylint: disable=too-many-return-statements
         # Convert ld_allocation_list from list of dicts to list of tuples
-        # Handle both allocation format [{"range1": x, "range2": y}, ...] and deallocation format [0, 1, 0, ...]
+        # Handle both allocation format [{"range1": x, "range2": y}, ...] and
+        # deallocation format [0, 1, 0, ...]
         ld_allocation_list = []
         for item in data["ldAllocationList"]:
             if isinstance(item, dict):
@@ -485,7 +490,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
         # FIXED LOGIC: Treat range1 as memory size, not LD ID
         # Extract memory sizes from the allocation list
         memory_sizes = []
-        for i, (range1, range2) in enumerate(ld_allocation_list):
+        for i, (range1, _) in enumerate(ld_allocation_list):
             if range1 > 0:
                 # range1 is memory size in KB, convert to bytes
                 memory_size_bytes = range1 * 1024
@@ -532,7 +537,8 @@ class FabricManagerSocketIoServer(RunnableComponent):
             if current_allocation_response:
                 # Extract LD IDs that are actually allocated in the switch
                 # FMLD allocation list format: [range1_ld0, range2_ld0, range1_ld1, range2_ld1, ...]
-                # where range1 is memory size (0=deallocated, 1=256MB, 2=512MB, etc.) and range2 is always 0
+                # where range1 is memory size (0=deallocated, 1=256MB, 2=512MB, etc.)
+                # and range2 is always 0
                 switch_ld_ids = []
                 for i in range(
                     0, len(current_allocation_response.ld_allocation_list), 2
@@ -554,7 +560,8 @@ class FabricManagerSocketIoServer(RunnableComponent):
                     )
                 else:
                     logger.info(
-                        f"Switch has {len(switch_ld_ids)} LDs allocated after deallocation: {switch_ld_ids}"
+                        f"Switch has {len(switch_ld_ids)} LDs allocated after deallocation: "
+                        f"{switch_ld_ids}"
                     )
                     logger.warning(
                         f"Failed to sync MLD Manager with switch state for port {port_index}"
@@ -563,10 +570,8 @@ class FabricManagerSocketIoServer(RunnableComponent):
                 logger.warning(
                     f"Could not get current switch allocation state for port {port_index}"
                 )
-                sequential_ld_ids = []
         except Exception as e:
             logger.warning(f"Error syncing with switch state: {e}")
-            sequential_ld_ids = []
 
         # Handle allocation case (creating new LDs)
         if memory_sizes:
@@ -577,7 +582,8 @@ class FabricManagerSocketIoServer(RunnableComponent):
                 # This is a partial deallocation request - don't create new LDs
                 # Just let the switch handle the deallocation and sync the state
                 logger.info(
-                    f"Detected partial deallocation request for port {port_index}, skipping MLD creation"
+                    f"Detected partial deallocation request for port {port_index}, "
+                    f"skipping MLD creation"
                 )
 
                 # Sync with switch state after deallocation
@@ -609,15 +615,16 @@ class FabricManagerSocketIoServer(RunnableComponent):
                         )
                         if sync_success:
                             logger.info(
-                                f"Successfully synced MLD Manager with switch state after deallocation"
+                                "Successfully synced MLD Manager with switch state "
+                                "after deallocation"
                             )
                         else:
                             logger.warning(
-                                f"Failed to sync MLD Manager with switch state after deallocation"
+                                "Failed to sync MLD Manager with switch state after deallocation"
                             )
                     else:
                         logger.warning(
-                            f"Could not get current switch allocation state after deallocation"
+                            "Could not get current switch allocation state after deallocation"
                         )
                 except Exception as e:
                     logger.warning(f"Error syncing with switch state after deallocation: {e}")
@@ -628,65 +635,65 @@ class FabricManagerSocketIoServer(RunnableComponent):
                     result={
                         "created_ld_ids": [],
                         "deallocated_ld_ids": [],
-                        "message": f"Successfully processed partial deallocation for port {port_index}",
+                        "message": (
+                            f"Successfully processed partial deallocation for port {port_index}"
+                        ),
                     },
                 )
-            else:
-                # This is a pure allocation request - create new LDs
-                # But first, check if we need to sync with the switch state
-                # to ensure we only create the missing LDs
-                try:
-                    # Get the current switch allocation state
-                    get_allocation_request = GetLdAllocationsRequestPayload(
-                        start_ld_id=0, ld_allocation_list_limit=16
+
+            # This is a pure allocation request - create new LDs
+            # But first, check if we need to sync with the switch state
+            # to ensure we only create the missing LDs
+            try:  # pylint: disable=unreachable
+                # Get the current switch allocation state
+                get_allocation_request = GetLdAllocationsRequestPayload(
+                    start_ld_id=0, ld_allocation_list_limit=16
+                )
+                (return_code, current_allocation_response) = (
+                    await self._mctp_client.get_ld_alloctaion(
+                        get_allocation_request, port_index
                     )
-                    (return_code, current_allocation_response) = (
-                        await self._mctp_client.get_ld_alloctaion(
-                            get_allocation_request, port_index
-                        )
+                )
+
+                if current_allocation_response:
+                    # Extract LD IDs that are actually allocated in the switch
+                    switch_ld_ids = []
+                    for i, allocation in enumerate(
+                        current_allocation_response.ld_allocation_list
+                    ):
+                        if allocation > 0:  # Non-zero means allocated
+                            switch_ld_ids.append(i)
+
+                    logger.info(
+                        f"Switch has {len(switch_ld_ids)} LDs allocated: {switch_ld_ids}"
                     )
 
-                    if current_allocation_response:
-                        # Extract LD IDs that are actually allocated in the switch
-                        switch_ld_ids = []
-                        for i, allocation in enumerate(
-                            current_allocation_response.ld_allocation_list
-                        ):
-                            if allocation > 0:  # Non-zero means allocated
-                                switch_ld_ids.append(i)
+                    # Use actual switch LD IDs directly
+                    logger.info(f"Using actual switch LD IDs: {switch_ld_ids}")
 
+                    # Sync MLD Manager with switch state first
+                    sync_success = await self._mld_client.sync_with_switch_state(
+                        port_index,
+                        switch_ld_ids,
+                        current_allocation_response.ld_allocation_list,
+                    )
+                    if sync_success:
                         logger.info(
-                            f"Switch has {len(switch_ld_ids)} LDs allocated: {switch_ld_ids}"
+                            f"Successfully synced MLD Manager with switch state for port {port_index}" # pylint: disable=line-too-long
                         )
-
-                        # Use actual switch LD IDs directly
-                        logger.info(f"Using actual switch LD IDs: {switch_ld_ids}")
-
-                        # Sync MLD Manager with switch state first
-                        sync_success = await self._mld_client.sync_with_switch_state(
-                            port_index,
-                            switch_ld_ids,
-                            current_allocation_response.ld_allocation_list,
-                        )
-                        if sync_success:
-                            logger.info(
-                                f"Successfully synced MLD Manager with switch state for port {port_index}"
-                            )
-                        else:
-                            logger.info(
-                                f"Switch has {len(switch_ld_ids)} LDs allocated after deallocation: {switch_ld_ids}"
-                            )
-                            logger.warning(
-                                f"Failed to sync MLD Manager with switch state for port {port_index}"
-                            )
                     else:
-                        logger.warning(
-                            f"Could not get current switch allocation state for port {port_index}"
+                        logger.info(
+                            f"Switch has {len(switch_ld_ids)} LDs allocated after deallocation: {switch_ld_ids}" # pylint: disable=line-too-long
                         )
-                        sequential_ld_ids = []
-                except Exception as e:
-                    logger.warning(f"Error syncing with switch state: {e}")
-                    sequential_ld_ids = []
+                        logger.warning(
+                            f"Failed to sync MLD Manager with switch state for port {port_index}"
+                        )
+                else:
+                    logger.warning(
+                        f"Could not get current switch allocation state for port {port_index}"
+                    )
+            except Exception as e:
+                logger.warning(f"Error syncing with switch state: {e}")
 
                 # Generate LD IDs for the new allocation request
                 # IMPORTANT: When set_ld_allocation is called with the entire allocation list,
@@ -695,10 +702,12 @@ class FabricManagerSocketIoServer(RunnableComponent):
                     f"Replacing all existing LDs with new allocation list for port {port_index}"
                 )
 
-                # First, clear all existing LDs to free up capacity using the same approach as Force Clear All LDs
+                # First, clear all existing LDs to free up capacity
+                # using the same approach as Force Clear All LDs
                 try:
                     logger.info(
-                        f"Force clearing all existing LDs for port {port_index} before creating new ones"
+                        f"Force clearing all existing LDs for port {port_index} "
+                        f"before creating new ones"
                     )
 
                     # Step 1: Send deallocate command to switch/FMLD (same as Force Clear)
@@ -718,7 +727,8 @@ class FabricManagerSocketIoServer(RunnableComponent):
                         # Create deallocate all request with proper numberOfLds >= 1
                         current_number_of_lds = current_allocation_response.number_of_lds
                         logger.info(
-                            f"Current allocation state shows {current_number_of_lds} LDs to deallocate"
+                            f"Current allocation state shows {current_number_of_lds} LDs "
+                            f"to deallocate"
                         )
 
                         # Create allocation list with all LDs set to 0 (deallocated)
@@ -732,7 +742,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
                     else:
                         # No LDs currently allocated, but clear potential lingering LDs
                         logger.info(
-                            f"No LDs currently allocated, but clearing potential lingering LDs"
+                            "No LDs currently allocated, but clearing potential lingering LDs"
                         )
                         deallocate_allocation_list = [(0, 0) for _ in range(8)]  # Clear up to 8 LDs
 
@@ -749,7 +759,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
 
                     if response:
                         logger.info(
-                            f"Successfully sent deallocate all command to switch for port {port_index}"
+                            f"Successfully sent deallocate all command to switch for port {port_index}" # pylint: disable=line-too-long
                         )
                     else:
                         logger.warning(
@@ -772,7 +782,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
                                     logger.warning(f"Device missing ld_id: {device}")
 
                             logger.info(
-                                f"Found {len(existing_ld_ids)} allocated LDs to clear: {existing_ld_ids}"
+                                f"Found {len(existing_ld_ids)} allocated LDs to clear: {existing_ld_ids}" # pylint: disable=line-too-long
                             )
 
                             # Deallocate MLD devices with correct LD IDs
@@ -787,7 +797,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
                                     )
                                 else:
                                     logger.warning(
-                                        f"Failed to clear existing LDs, but continuing with allocation"
+                                        "Failed to clear existing LDs, but continuing with allocation" # pylint: disable=line-too-long
                                     )
                             else:
                                 logger.info("No existing LDs found to clear")
@@ -798,9 +808,9 @@ class FabricManagerSocketIoServer(RunnableComponent):
                             "Could not get device info for clearing, but continuing with allocation"
                         )
 
-                except Exception as e:
+                except Exception as exc:
                     logger.warning(
-                        f"Error clearing existing LDs: {e}, but continuing with allocation"
+                        f"Error clearing existing LDs: {exc}, but continuing with allocation"
                     )
 
                 # Now create all the new LDs from the allocation list
@@ -820,13 +830,13 @@ class FabricManagerSocketIoServer(RunnableComponent):
                     return CommandResponse(
                         error="DYNAMIC_LD_CREATION_FAILED",
                         result={
-                            "message": f"Switch command succeeded but dynamic LD creation failed for port {port_index}"
+                            "message": f"Switch command succeeded but dynamic LD creation failed for port {port_index}" # pylint: disable=line-too-long
                         },
                     )
 
                 # Note: success is already checked in the if/else blocks above
                 logger.info(
-                    f"Successfully created {len(new_ld_ids)} logical devices dynamically: {new_ld_ids}"
+                    f"Successfully created {len(new_ld_ids)} logical devices dynamically: {new_ld_ids}" # pylint: disable=line-too-long
                 )
 
                 # After successfully creating MLD devices, update FMLD with the new allocations
@@ -853,15 +863,15 @@ class FabricManagerSocketIoServer(RunnableComponent):
 
                     if response:
                         logger.info(
-                            f"Successfully updated FMLD with new LD allocations for port {port_index}"
+                            f"Successfully updated FMLD with new LD allocations for port {port_index}" # pylint: disable=line-too-long
                         )
                     else:
                         logger.warning(
                             f"Failed to update FMLD with new LD allocations for port {port_index}"
                         )
 
-                except Exception as e:
-                    logger.warning(f"Error updating FMLD with new allocations: {e}")
+                except Exception as exc:
+                    logger.warning(f"Error updating FMLD with new allocations: {exc}")
 
                 # Prepare response for allocation
                 return CommandResponse(
@@ -874,7 +884,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
                 )
 
         # Handle deallocation case (no memory sizes provided)
-        else:
+        else:  # pylint: disable=no-else-return
             # Deallocate all existing LDs for this port
             try:
                 logger.info(f"Deallocating all existing LDs for port {port_index}")
@@ -886,7 +896,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
                     existing_ld_ids = []
                     for device in devices:
                         serial_number = device.get("serial_number", "")
-                        # Serial numbers are in format '000000000000000X' where X is the LD ID in hex
+                        # Serial numbers are in format '000000000000000X' where X is the LD ID in hex # pylint: disable=line-too-long
                         try:
                             ld_id_hex = serial_number[-1]
                             ld_id = int(ld_id_hex, 16)  # Convert from hex to int
@@ -900,12 +910,12 @@ class FabricManagerSocketIoServer(RunnableComponent):
                 else:
                     # Fallback: use empty list if no device info available
                     existing_ld_ids = []
-                    logger.warning(f"Could not get device info, using empty LD IDs list")
+                    logger.warning("Could not get device info, using empty LD IDs list")
             except Exception as e:
                 logger.warning(f"Error getting device info for deallocation: {e}")
                 # Fallback: use empty list if error occurs
                 existing_ld_ids = []
-                logger.info(f"Using empty LD IDs list due to error")
+                logger.info("Using empty LD IDs list due to error")
 
             # Deallocate all found LDs from MLD Manager
             if existing_ld_ids:
@@ -915,7 +925,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
 
                 if success:
                     logger.info(
-                        f"Successfully deallocated all LDs for port {port_index} from both switch and MLD"
+                        f"Successfully deallocated all LDs for port {port_index} from both switch and MLD" # pylint: disable=line-too-long
                     )
 
                     # Sync with switch state after deallocation to ensure FMLD state is cleared
@@ -940,7 +950,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
                                     switch_ld_ids.append(i)
 
                             logger.info(
-                                f"Switch has {len(switch_ld_ids)} LDs allocated after deallocation: {switch_ld_ids}"
+                                f"Switch has {len(switch_ld_ids)} LDs allocated after deallocation: {switch_ld_ids}" # pylint: disable=line-too-long
                             )
 
                             # Sync MLD Manager with switch state
@@ -951,15 +961,15 @@ class FabricManagerSocketIoServer(RunnableComponent):
                             )
                             if sync_success:
                                 logger.info(
-                                    f"Successfully synced MLD Manager with switch state after deallocation"
+                                    "Successfully synced MLD Manager with switch state after deallocation" # pylint: disable=line-too-long
                                 )
                             else:
                                 logger.warning(
-                                    f"Failed to sync MLD Manager with switch state after deallocation"
+                                    "Failed to sync MLD Manager with switch state after deallocation" # pylint: disable=line-too-long
                                 )
                         else:
                             logger.warning(
-                                f"Could not get current switch allocation state after deallocation"
+                                "Could not get current switch allocation state after deallocation"
                             )
                     except Exception as e:
                         logger.warning(f"Error syncing with switch state after deallocation: {e}")
@@ -972,16 +982,16 @@ class FabricManagerSocketIoServer(RunnableComponent):
                             "message": f"Successfully deallocated all LDs for port {port_index}",
                         },
                     )
-                else:
-                    logger.warning(
-                        f"Switch deallocation succeeded but MLD deallocation failed for port {port_index}"
-                    )
-                    return CommandResponse(
+
+                logger.warning(
+                    f"Switch deallocation succeeded but MLD deallocation failed for port {port_index}" # pylint: disable=line-too-long
+                )
+                return CommandResponse(
                         error="",
                         result={
                             "created_ld_ids": [],
                             "deallocated_ld_ids": [],
-                            "message": f"Switch deallocation succeeded but MLD deallocation failed for port {port_index}",
+                            "message": f"Switch deallocation succeeded but MLD deallocation failed for port {port_index}", # pylint: disable=line-too-long
                         },
                     )
             else:
@@ -1093,7 +1103,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
 
             # Try to get port indices from the MCTP client's device configs
             if hasattr(self._mctp_client, "_device_configs"):
-                for device_config in self._mctp_client._device_configs:
+                for device_config in self._mctp_client._device_configs:  # pylint: disable=protected-access
                     if hasattr(device_config, "port_index"):
                         mld_port_indices.append(device_config.port_index)
                         logger.info(
@@ -1130,7 +1140,7 @@ class FabricManagerSocketIoServer(RunnableComponent):
                                 memory_size = result.get("memorySize", 0)
                                 logger.info(
                                     self._create_message(
-                                        f"Port {port_index}: LD Count = {ld_count}, Memory Size = {memory_size} bytes"
+                                        f"Port {port_index}: LD Count = {ld_count}, Memory Size = {memory_size} bytes" # pylint: disable=line-too-long
                                     )
                                 )
                             else:

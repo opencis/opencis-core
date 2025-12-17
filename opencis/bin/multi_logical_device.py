@@ -58,7 +58,8 @@ def start_group(config_file):
         # This allows for dynamic LD creation at runtime
         if not device_config.ld_list:
             logger.info(
-                f"Creating MLD instance for port {device_config.port_index} with empty logical devices (ready for dynamic allocation)"
+                f"Creating MLD instance for port {device_config.port_index} "
+                "with empty logical devices (ready for dynamic allocation)"
             )
 
         # Use device_config directly - it's already a MultiLogicalDeviceConfig
@@ -76,7 +77,8 @@ def start_group(config_file):
     else:
         # Start just the socket server without any MLD instances
         logger.info(
-            "No MLD instances to start, but starting MLD manager socket server for dynamic LD creation"
+            "No MLD instances to start, but starting MLD manager socket server "
+            "for dynamic LD creation"
         )
 
         async def run_socket_server_only():
@@ -124,6 +126,7 @@ def start(port, memfile, memsize):
         serial_numbers=[],
         total_capacity=memsize,
         ld_count=1,
+        ld_list=[],
     )
 
     mld = MultiLogicalDevice(mld_config)

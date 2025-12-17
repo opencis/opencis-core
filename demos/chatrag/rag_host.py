@@ -175,7 +175,7 @@ def create_langchain_app(cpu: CPU) -> FastAPI:
                     file.unlink()
 
         retriever = app.state.retriever_chain.retriever
-        retriever.clear()
+        retriever.clear()  # pylint: disable=no-member
 
         return JSONResponse({"message": "All uploaded files and vector DB entries deleted."})
 

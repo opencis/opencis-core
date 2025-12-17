@@ -8,15 +8,13 @@ See LICENSE for details.
 # pylint: disable=unused-import
 from dataclasses import dataclass, field
 from itertools import cycle
-import math
-from typing import Awaitable, Callable, Optional, cast
+from typing import Callable, Optional, cast
 from asyncio import (
     Future,
     Lock,
     create_task,
     current_task,
     gather,
-    get_running_loop,
     sleep,
     Queue,
     timeout,
@@ -54,7 +52,6 @@ from opencis.cxl.component.cache_controller import (
     COH_STATE_MACHINE,
 )
 from opencis.pci.component.packet_processor import PacketProcessor
-from opencis.util.number import split_int
 
 
 @dataclass

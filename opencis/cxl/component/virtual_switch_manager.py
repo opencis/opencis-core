@@ -87,9 +87,8 @@ class VirtualSwitchManager(RunnableComponent):
         for virtual_switch in self._virtual_switches:
             virtual_switch.update_ld_allocations(port_index, ld_ids)
 
-        logger.info(
-            f"Successfully updated LD allocations across {len(self._virtual_switches)} virtual switches"
-        )
+        num_switches = len(self._virtual_switches)
+        logger.info(f"Successfully updated LD allocations across {num_switches} virtual switches")
 
     def get_port(self, switch_index):
         return self._virtual_switches[switch_index].get_irq_port()

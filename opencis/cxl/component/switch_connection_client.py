@@ -135,14 +135,16 @@ class SwitchConnectionClient(RunnableComponent):
         logger.info(self._create_message(f"Connected to switch using local port {local_port}"))
 
         logger.info(
-            f"SwitchConnectionClient: Creating CxlPacketProcessor with mld_config: {self._mld_config}"
+            "SwitchConnectionClient: Creating CxlPacketProcessor "
+            f"with mld_config: {self._mld_config}"
         )
         if self._mld_config:
             logger.info(
-                f"SwitchConnectionClient: mld_config.num_lds_supported = {self._mld_config.num_lds_supported}"
+                "SwitchConnectionClient: mld_config.num_lds_supported = "
+                f"{self._mld_config.num_lds_supported}"
             )
         else:
-            logger.info(f"SwitchConnectionClient: mld_config is None")
+            logger.info("SwitchConnectionClient: mld_config is None")
 
         self._packet_processor = CxlPacketProcessor(
             reader,

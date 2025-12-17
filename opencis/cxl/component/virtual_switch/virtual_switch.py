@@ -195,7 +195,7 @@ class CxlVirtualSwitch(RunnableComponent):
         if port_index < 0 or port_index >= len(self._physical_ports):
             raise Exception("port_index is out of bound")
 
-        # Handle case where there are no allocated LD IDs for this port (e.g., no devices configured)
+        # Handle case where there are no allocated LD IDs for this port
         if port_index >= len(self._allocated_ld) or not self._allocated_ld[port_index]:
             logger.warning(
                 self._create_message(f"No allocated LD IDs for port {port_index}, skipping binding")
