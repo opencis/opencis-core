@@ -8,25 +8,59 @@ jobs:
   pytest:
     name: pytest
     runs-on: ubuntu-22.04
-    container:
-      image: ghcr.io/opencis/core-ci:0.2
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
-      - name: Install Python packages via uv
-        run: uv python pin 3.13 && uv sync
+        uses: actions/checkout@v5
+      # Install directly using dpkg -x to avoid processing dpkg databases and triggers
+      - name: Install ccache
+        run: |
+          sudo apt install --download-only ccache
+          cd /
+          ls /var/cache/apt/archives/*.deb | sudo xargs -I {} dpkg -x {} /
+      - name: Setup ccache for Cython
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          create-symlink: true
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: "pyproject.toml"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          prune-cache: false
+      - name: Sync uv
+        run: uv sync
       - name: Run pytest
         run: make test
   code-quality:
     name: code-quality
     runs-on: ubuntu-22.04
-    container:
-      image: ghcr.io/opencis/core-ci:0.2
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
-      - name: Install Python packages via uv
-        run: uv python pin 3.13 && uv sync
+        uses: actions/checkout@v5
+      # Install directly using dpkg -x to avoid processing dpkg databases and triggers
+      - name: Install ccache
+        run: |
+          sudo apt install --download-only ccache
+          cd /
+          ls /var/cache/apt/archives/*.deb | sudo xargs -I {} dpkg -x {} /
+      - name: Setup ccache for Cython
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          create-symlink: true
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: "pyproject.toml"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          prune-cache: false
+      - name: Sync uv
+        run: uv sync
       - name: Run pylint
         run: make lint
       - name: Run black
