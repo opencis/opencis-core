@@ -130,7 +130,12 @@ class CxlType3Device(RunnableComponent):
         identity = MemoryDeviceIdentity()
         identity.fw_revision = MemoryDeviceIdentity.ascii_str_to_int("EEUM EMU 1.0", 16)
         identity.set_total_capacity(self._memory_size)
-        identity.set_volatile_only_capacity(self._memory_size)
+        # identity.set_volatile_only_capacity(self._memory_size)
+        identity.set_persistent_only_capacity(self._memory_size)
+
+        # Default: 4KB, minimum required: 1280B
+        # See CXL r3.1 9.13.2.1
+        identity.lsa_size = 4096
 
         logger.debug(f"Initialized size at device level: 0x{identity.volatile_only_capacity:08x}")
         self._cxl_memory_device_component = CxlMemoryDeviceComponent(
