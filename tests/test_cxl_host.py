@@ -355,13 +355,6 @@ async def test_cxl_host_type3_ete():
     await asyncio.gather(*start_tasks)
 
 
-def get_trace_ports(file_name):
-    name = re.split("[-|.]", file_name)
-    trace_switch_port = int(name[1][1:])
-    trace_device_port = int(name[2][1:])
-    return trace_switch_port, trace_device_port
-
-
 @pytest.mark.asyncio
 async def test_cxl_qemu_host_type3():
     # pylint: disable=protected-access
@@ -387,14 +380,15 @@ async def test_cxl_qemu_host_type3():
         start_tasks.append(await sld.run_wait_ready())
         slds.append(sld)
 
-    pcap_file = "traces/qemu-s8000-h40026.pcap"
-    trace_switch_port, trace_device_port = get_trace_ports(pcap_file)
+    # Switch port 8000, device port 8080 is fixed in the packet trace.
+    # Read traces/README.md for more details.
+    pcap_file = "traces/qemu.pcap"
     trace_runner = PacketTraceRunner(
         pcap_file,
         "0.0.0.0",
         env.switch_config.port,
-        trace_switch_port,
-        trace_device_port,
+        8000,
+        8080,
     )
 
     error = None
