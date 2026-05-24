@@ -194,6 +194,12 @@ class FabricManagerSocketIoServer(RunnableComponent):
         self._register_handler("pbr:configurePidBinding")
         self._register_handler("pbr:getDrt")
         self._register_handler("pbr:setDrt")
+        # GAE commands
+        self._register_handler("gae:identify")
+        self._register_handler("gae:getPidAccessVectors")
+        self._register_handler("gae:proxyGfdMgmt")
+        self._register_handler("gae:getProxyStatus")
+        self._register_handler("gae:cancelProxy")
         self._mctp_client.register_notification_handler(self._handle_notifications)
 
     def _register_handler(self, event):
@@ -253,6 +259,17 @@ class FabricManagerSocketIoServer(RunnableComponent):
                 response = await self._pbr_get_drt(data)
             elif event_type == "pbr:setDrt":
                 response = await self._pbr_set_drt(data)
+            # GAE commands
+            elif event_type == "gae:identify":
+                response = await self._gae_identify()
+            elif event_type == "gae:getPidAccessVectors":
+                response = await self._gae_get_pid_access_vectors(data)
+            elif event_type == "gae:proxyGfdMgmt":
+                response = await self._gae_proxy_gfd_mgmt(data)
+            elif event_type == "gae:getProxyStatus":
+                response = await self._gae_get_proxy_status(data)
+            elif event_type == "gae:cancelProxy":
+                response = await self._gae_cancel_proxy(data)
             else:
                 response = CommandResponse(error=f"Unknown event: {event_type}")
             logger.info(self._create_message(f"Response: {pformat(response)}"))
@@ -1209,6 +1226,93 @@ class FabricManagerSocketIoServer(RunnableComponent):
             entries=entries,
         )
         (return_code, response) = await self._mctp_client.set_drt(request)
+        if response is not None:
+            return CommandResponse(error="", result=return_code.name)
+        return CommandResponse(error=return_code.name)
+
+    # -------------------------------------------------------------------------
+    # GAE command handlers (Socket.IO gae:* events)
+    # -------------------------------------------------------------------------
+
+    async def _gae_identify(self) -> CommandResponse:
+        """Identify GAE (5800h) — returns vPPB G-FAM support list."""
+        (return_code, response) = await self._mctp_client.identify_gae()
+        if response:
+            return CommandResponse(error="", result={
+                "numVppbsWithGlobalMemory": response.num_vppbs_with_gm_support,
+                "vppbEntries": [
+                    {
+                        "vppbId": e.vppb_id,
+                        "globalMemorySupport": e.global_memory_support,
+                    }
+                    for e in response.vppb_entries
+                ],
+            })
+        return CommandResponse(error=return_code.name)
+
+    async def _gae_get_pid_access_vectors(self, data) -> CommandResponse:
+        """
+        Get PID Access Vectors (5802h).
+        Expected data: {"pid": 0x042}
+        """
+        pid = (data or {}).get("pid", 0)
+        (return_code, response) = await self._mctp_client.get_pid_access_vectors(pid=pid)
+        if response:
+            return CommandResponse(error="", result={
+                "pid": response.pid,
+                "gmv": response.gmv,
+                "vtv": response.vtv,
+            })
+        return CommandResponse(error=return_code.name)
+
+    async def _gae_proxy_gfd_mgmt(self, data) -> CommandResponse:
+        """
+        Proxy GFD Management Command (5809h).
+        Expected data:
+          {
+            "gfdOpcode": 0x0001,   # CCI opcode to forward to GFD
+            "gfdPayload": []       # optional list of ints (byte values)
+          }
+        Returns: {"threadId": N}
+        """
+        data = data or {}
+        gfd_opcode = data.get("gfdOpcode", 0)
+        raw = data.get("gfdPayload", [])
+        gfd_payload = bytes(raw) if raw else b""
+        (return_code, response) = await self._mctp_client.proxy_gfd_mgmt(
+            gfd_opcode=gfd_opcode, gfd_payload=gfd_payload
+        )
+        if response:
+            return CommandResponse(error="", result={"threadId": response.thread_id})
+        return CommandResponse(error=return_code.name)
+
+    async def _gae_get_proxy_status(self, data) -> CommandResponse:
+        """
+        Get Proxy Thread Status (580Ah).
+        Expected data: {"threadId": N}
+        """
+        thread_id = (data or {}).get("threadId", 0)
+        (return_code, response) = await self._mctp_client.get_proxy_thread_status(
+            thread_id=thread_id
+        )
+        if response:
+            return CommandResponse(error="", result={
+                "threadId": response.thread_id,
+                "completed": response.completed,
+                "gfdReturnCode": response.gfd_return_code,
+                "gfdResponsePayload": list(response.gfd_response_payload),
+            })
+        return CommandResponse(error=return_code.name)
+
+    async def _gae_cancel_proxy(self, data) -> CommandResponse:
+        """
+        Cancel Proxy Thread (580Bh).
+        Expected data: {"threadId": N}
+        """
+        thread_id = (data or {}).get("threadId", 0)
+        (return_code, response) = await self._mctp_client.cancel_proxy_thread(
+            thread_id=thread_id
+        )
         if response is not None:
             return CommandResponse(error="", result=return_code.name)
         return CommandResponse(error=return_code.name)

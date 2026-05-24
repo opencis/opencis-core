@@ -48,6 +48,14 @@ from opencis.cxl.transport.cci_packets import CciMessagePacket, CciPayloadPacket
 from opencis.cxl.transport.packet_constants import CCI_MCTP_MESSAGE_CATEGORY
 from opencis.cxl.component.cci_executor import CciExecutor, CciRequest, CciResponse, CciCommand
 from opencis.cxl.cci.common import CCI_RETURN_CODE, get_opcode_string
+from opencis.cxl.component.gae_manager import GaeManager
+from opencis.cxl.cci.fabric_manager.gae import (
+    IdentifyGaeCommand,
+    GetPidAccessVectorsCommand,
+    ProxyGfdMgmtCommand,
+    GetProxyThreadStatusCommand,
+    CancelProxyThreadCommand,
+)
 
 
 
@@ -72,16 +80,22 @@ class FmMctpCciServer(RunnableComponent):
         host: str = "0.0.0.0",
         port: int = 8300,
         cci_commands: Optional[List[CciCommand]] = None,
+        gae_manager: Optional[GaeManager] = None,
         label: Optional[str] = None,
     ):
         super().__init__(label or "FmMctpCciServer")
         self._host = host
         self._port = port
+        self._gae_manager = gae_manager
 
         # Shared CCI executor — all registered commands land here
         self._cci_executor = CciExecutor(label="FmMctpCci")
         for cmd in (cci_commands or []):
             self._cci_executor.register_command(cmd.get_opcode(), cmd)
+
+        # Register GAE commands if a GaeManager was supplied
+        if gae_manager is not None:
+            self._register_gae_commands(gae_manager)
 
         # TCP server — handle_client called per accepted connection.
         # NOTE: leave_opened=False (default) — the ServerComponent closes the
@@ -107,6 +121,42 @@ class FmMctpCciServer(RunnableComponent):
     def register_command(self, command: CciCommand) -> None:
         """Register an additional CCI command after construction."""
         self._cci_executor.register_command(command.get_opcode(), command)
+
+    def set_gfd_executor(self, gfd_executor) -> None:
+        """
+        Bind the GFD's CciExecutor to the GaeManager so that Proxy GFD
+        Management Command (5809h) can forward CCI commands to the GFD.
+
+        Call this once the GFD device has connected and its CciExecutor
+        has been constructed (e.g. from the generic_fabric_device entrypoint
+        or from a test fixture).
+        """
+        if self._gae_manager is not None:
+            self._gae_manager.set_gfd_executor(gfd_executor)
+            logger.info(self._create_message("GFD executor bound to GAE"))
+        else:
+            logger.warning(self._create_message(
+                "set_gfd_executor called but no GaeManager configured"
+            ))
+
+    # ------------------------------------------------------------------
+    # Private: GAE command registration
+    # ------------------------------------------------------------------
+
+    def _register_gae_commands(self, gae_manager: GaeManager) -> None:
+        """Register the five minimal GAE commands on the shared CciExecutor."""
+        gae_cmds = [
+            IdentifyGaeCommand(gae_manager),
+            GetPidAccessVectorsCommand(gae_manager),
+            ProxyGfdMgmtCommand(gae_manager),
+            GetProxyThreadStatusCommand(gae_manager),
+            CancelProxyThreadCommand(gae_manager),
+        ]
+        for cmd in gae_cmds:
+            self._cci_executor.register_command(cmd.get_opcode(), cmd)
+        logger.debug(self._create_message(
+            f"Registered {len(gae_cmds)} GAE commands on CciExecutor"
+        ))
 
     # ------------------------------------------------------------------
     # Per-connection handler
