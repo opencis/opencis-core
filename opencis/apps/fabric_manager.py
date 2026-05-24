@@ -23,6 +23,20 @@ from opencis.cxl.component.fabric_manager.socketio_server import (
     HostFMMsg,
 )
 from opencis.cxl.component.short_msg_conn import ShortMsgConn
+from opencis.cxl.component.mctp.fm_mctp_cci_server import FmMctpCciServer
+from opencis.cxl.component.pbr_switch_manager import (
+    PbrSwitchManager,
+    PidTarget,
+    PidTargetType,
+)
+from opencis.cxl.cci.fabric_manager.pbr_switch import (
+    IdentifyPbrSwitchCommand,
+    ConfigurePidAssignmentCommand,
+    GetPidBindingCommand,
+    ConfigurePidBindingCommand,
+    GetDrtCommand,
+    SetDrtCommand,
+)
 from opencis.util.component import RunnableComponent
 from opencis.util.logger import logger
 
@@ -35,6 +49,7 @@ class CxlFabricManager(RunnableComponent):
         socketio_host: str = "0.0.0.0",
         socketio_port: int = 8200,
         host_fm_conn_port: int = 8700,
+        fm_mctp_cci_port: int = 8300,
         use_test_runner: bool = False,
         config_file: str = None,  # Add config file parameter
     ):
@@ -76,6 +91,37 @@ class CxlFabricManager(RunnableComponent):
 
         self._host_fm_conn_server.register_general_handler(HostFMMsg.CONFIRM, self._host_callback())
         self._use_test_runner = use_test_runner
+
+        # --- FM-side authoritative PBR state (standalone, not shared with switch HW) ---
+        self._fm_pbr_manager = PbrSwitchManager(
+            num_drts=2,
+            num_rgts=1,
+            pid_targets=[
+                PidTarget(target_id=0, target_type=PidTargetType.FABRIC_PORT,
+                          instance_id=0, vcs_id=0, physical_port_id=0),
+                PidTarget(target_id=1, target_type=PidTargetType.HOST_EDGE_PORT,
+                          instance_id=0, vcs_id=0, physical_port_id=1),
+                PidTarget(target_id=2, target_type=PidTargetType.DOWNSTREAM_EDGE_PORT,
+                          instance_id=0, vcs_id=0, physical_port_id=2),
+            ],
+            label="FM-PbrManager",
+        )
+        pbr_commands = [
+            IdentifyPbrSwitchCommand(self._fm_pbr_manager),
+            ConfigurePidAssignmentCommand(self._fm_pbr_manager),
+            GetPidBindingCommand(self._fm_pbr_manager),
+            ConfigurePidBindingCommand(self._fm_pbr_manager),
+            GetDrtCommand(self._fm_pbr_manager),
+            SetDrtCommand(self._fm_pbr_manager),
+        ]
+        self._fm_mctp_cci_server = FmMctpCciServer(
+            host=mctp_host,
+            port=fm_mctp_cci_port,
+            cci_commands=pbr_commands,
+        )
+        logger.info(self._create_message(
+            f"FM MCTP CCI server configured on port {fm_mctp_cci_port}"
+        ))
 
     def get_host_fm_port(self):
         return self._host_fm_conn_server.get_port()
@@ -127,12 +173,14 @@ class CxlFabricManager(RunnableComponent):
             create_task(self._socketio_server.run()),
             create_task(self._api_client.run()),
             create_task(self._host_fm_conn_server.run()),
+            create_task(self._fm_mctp_cci_server.run()),
         ]
         wait_tasks = [
             create_task(self._connection_manager.wait_for_ready()),
             create_task(self._socketio_server.wait_for_ready()),
             create_task(self._api_client.wait_for_ready()),
             create_task(self._host_fm_conn_server.wait_for_ready()),
+            create_task(self._fm_mctp_cci_server.wait_for_ready()),
         ]
         if self._use_test_runner:
             tasks.append(create_task(self._run_test()))
@@ -148,6 +196,7 @@ class CxlFabricManager(RunnableComponent):
             except Exception as e:
                 logger.warning(f"Error disconnecting from MLD process: {e}")
 
+        await self._fm_mctp_cci_server.stop()
         await self._host_fm_conn_server.stop()
         await self._connection_manager.stop()
         await self._socketio_server.stop()
