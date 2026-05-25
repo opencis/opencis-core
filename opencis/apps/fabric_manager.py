@@ -92,7 +92,12 @@ class CxlFabricManager(RunnableComponent):
         self._host_fm_conn_server.register_general_handler(HostFMMsg.CONFIRM, self._host_callback())
         self._use_test_runner = use_test_runner
 
-        # --- FM-side authoritative PBR state (standalone, not shared with switch HW) ---
+        # --- FM-side authoritative PBR state ---
+        # Phase 3: this single PbrSwitchManager instance is shared between
+        #   port 8300 (FmMctpCciServer  — direct MCTP CCI)
+        #   port 8200 (FabricManagerSocketIoServer — CLI commands)
+        # Both paths read/write the same object, so the FM always has a
+        # consistent authoritative view of the PBR control-plane state.
         self._fm_pbr_manager = PbrSwitchManager(
             num_drts=2,
             num_rgts=1,
@@ -114,14 +119,38 @@ class CxlFabricManager(RunnableComponent):
             GetDrtCommand(self._fm_pbr_manager),
             SetDrtCommand(self._fm_pbr_manager),
         ]
+
+        # Phase 2: pass self._api_client so the FM automatically mirrors
+        # write commands (SetDRT, ConfigurePidAssignment, ConfigurePidBinding)
+        # received on port 8300 to the physical switch on port 8100.
         self._fm_mctp_cci_server = FmMctpCciServer(
             host=mctp_host,
             port=fm_mctp_cci_port,
             cci_commands=pbr_commands,
+            switch_api_client=self._api_client,   # Phase 2 — switch mirroring
         )
         logger.info(self._create_message(
-            f"FM MCTP CCI server configured on port {fm_mctp_cci_port}"
+            f"FM MCTP CCI server configured on port {fm_mctp_cci_port} "
+            "(switch mirroring enabled via api_client)"
         ))
+
+    # ------------------------------------------------------------------
+    # Public accessors (Phase 3 — expose shared manager for testing/CLI)
+    # ------------------------------------------------------------------
+
+    def get_fm_pbr_manager(self) -> PbrSwitchManager:
+        """Return the shared FM-side PbrSwitchManager instance.
+
+        Tests and CLI tools may inspect this to verify that commands sent
+        on port 8300 (MCTP) are reflected in FM state without querying the
+        switch directly.
+        """
+        return self._fm_pbr_manager
+
+    def get_fm_mctp_cci_port(self) -> int:
+        """Return the actual port number used by FmMctpCciServer."""
+        return self._fm_mctp_cci_server.get_port()
+
 
     def get_host_fm_port(self):
         return self._host_fm_conn_server.get_port()

@@ -33,7 +33,7 @@ Architectural note:
 
 import asyncio
 from asyncio import create_task, gather
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 
 from opencis.util.component import RunnableComponent
 from opencis.util.logger import logger
@@ -47,7 +47,11 @@ from opencis.cxl.component.mctp.mctp_packet_processor import (
 from opencis.cxl.transport.cci_packets import CciMessagePacket, CciPayloadPacket
 from opencis.cxl.transport.packet_constants import CCI_MCTP_MESSAGE_CATEGORY
 from opencis.cxl.component.cci_executor import CciExecutor, CciRequest, CciResponse, CciCommand
-from opencis.cxl.cci.common import CCI_RETURN_CODE, get_opcode_string
+from opencis.cxl.cci.common import (
+    CCI_RETURN_CODE,
+    CCI_FM_API_COMMAND_OPCODE,
+    get_opcode_string,
+)
 from opencis.cxl.component.gae_manager import GaeManager
 from opencis.cxl.cci.fabric_manager.gae import (
     IdentifyGaeCommand,
@@ -56,6 +60,14 @@ from opencis.cxl.cci.fabric_manager.gae import (
     GetProxyThreadStatusCommand,
     CancelProxyThreadCommand,
 )
+from opencis.cxl.cci.fabric_manager.pbr_switch import (
+    ConfigurePidAssignmentRequestPayload,
+    ConfigurePidBindingRequestPayload,
+    SetDrtRequestPayload,
+)
+
+if TYPE_CHECKING:
+    from opencis.cxl.component.mctp.mctp_cci_api_client import MctpCciApiClient
 
 
 
@@ -81,12 +93,18 @@ class FmMctpCciServer(RunnableComponent):
         port: int = 8300,
         cci_commands: Optional[List[CciCommand]] = None,
         gae_manager: Optional[GaeManager] = None,
+        switch_api_client: Optional["MctpCciApiClient"] = None,
         label: Optional[str] = None,
     ):
         super().__init__(label or "FmMctpCciServer")
         self._host = host
         self._port = port
         self._gae_manager = gae_manager
+
+        # Phase 2: optional reference to the switch-side MCTP API client.
+        # When set, successfully-executed write commands are mirrored to the
+        # physical switch (port 8100) after updating the FM's own state.
+        self._switch_api_client: Optional["MctpCciApiClient"] = switch_api_client
 
         # Shared CCI executor — all registered commands land here
         self._cci_executor = CciExecutor(label="FmMctpCci")
@@ -121,6 +139,19 @@ class FmMctpCciServer(RunnableComponent):
     def register_command(self, command: CciCommand) -> None:
         """Register an additional CCI command after construction."""
         self._cci_executor.register_command(command.get_opcode(), command)
+
+    def bind_switch_api_client(self, client: "MctpCciApiClient") -> None:
+        """
+        Phase 2 — Bind the switch-side MCTP CCI API client after construction.
+
+        Call this once the switch has connected on port 8100 and the
+        MctpCciApiClient is running.  Write commands received on port 8300
+        will then be automatically mirrored to the physical switch.
+        """
+        self._switch_api_client = client
+        logger.info(self._create_message(
+            "Switch API client bound — write commands will be mirrored to switch"
+        ))
 
     def set_gfd_executor(self, gfd_executor) -> None:
         """
@@ -211,6 +242,9 @@ class FmMctpCciServer(RunnableComponent):
         Reads CciPayloadPackets from controller_to_ep, dispatches the embedded
         CCI command through the executor, and sends the response back via
         ep_to_controller.
+
+        Phase 2: After a successful write command, the command is mirrored to
+        the physical switch via _forward_to_switch().
         """
         while True:
             raw = await conn.controller_to_ep.get()
@@ -222,20 +256,26 @@ class FmMctpCciServer(RunnableComponent):
             payload_pkt = raw  # already a CciPayloadPacket (from MctpPacketProcessor)
             cci_msg: CciMessagePacket = payload_pkt.get_cci_message()
             opcode = cci_msg.cci_msg_header.command_opcode
-            tag   = cci_msg.cci_msg_header.message_tag
-            opcode_str = get_opcode_string(opcode)
+            tag    = cci_msg.cci_msg_header.message_tag
+            raw_payload = cci_msg.get_payload()
+            opcode_str  = get_opcode_string(opcode)
 
             logger.debug(self._create_message(
                 f"RX opcode={opcode_str}({opcode:#06x}) tag={tag}"
             ))
 
-            # Build CciRequest
-            request = CciRequest(opcode=opcode, payload=cci_msg.get_payload())
-
-            # Dispatch
+            # 1. Execute locally against FM-side PbrSwitchManager
+            request  = CciRequest(opcode=opcode, payload=raw_payload)
             response: CciResponse = await self._cci_executor.execute_command(request)
 
-            # Build response CciMessagePacket
+            # 2. Phase 2 — Mirror write commands to the physical switch
+            if response.return_code in (
+                CCI_RETURN_CODE.SUCCESS,
+                CCI_RETURN_CODE.BACKGROUND_COMMAND_STARTED,
+            ):
+                await self._forward_to_switch(opcode, raw_payload)
+
+            # 3. Build and send the MCTP response back to the caller
             resp_msg = CciMessagePacket.create(
                 message_category=CCI_MCTP_MESSAGE_CATEGORY.RESPONSE,
                 opcode=opcode,
@@ -251,9 +291,67 @@ class FmMctpCciServer(RunnableComponent):
                 f"TX opcode={opcode_str} tag={tag} rc={rc_str}"
             ))
 
-            # Wrap and enqueue for the outgoing pump
             resp_pkt = CciPayloadPacket.create(resp_msg)
             await conn.ep_to_controller.put(resp_pkt)
+
+    # ------------------------------------------------------------------
+    # Phase 2 — Switch mirroring
+    # ------------------------------------------------------------------
+
+    async def _forward_to_switch(self, opcode: int, payload: bytes) -> None:
+        """
+        Mirror a write command to the physical switch via port 8100.
+
+        Only the three write opcodes are forwarded:
+          0x5704  Configure PID Assignment
+          0x5706  Configure PID Binding
+          0x5709  Set DRT
+
+        Read-only commands (Identify, GetDRT, GetPidBinding) are skipped —
+        they read FM state only; no switch programming is needed.
+
+        Graceful degradation: if the switch client is not bound or not
+        running, a warning is logged and the FM returns normally.
+        """
+        if self._switch_api_client is None:
+            return  # switch mirroring not configured
+
+        if not self._switch_api_client.is_connected():
+            logger.warning(self._create_message(
+                f"Switch not connected; skipping mirror for opcode {opcode:#06x}. "
+                "FM state was updated."
+            ))
+            return
+
+        try:
+            if opcode == CCI_FM_API_COMMAND_OPCODE.CONFIGURE_PID_ASSIGNMENT:
+                req_payload = ConfigurePidAssignmentRequestPayload.parse(payload)
+                await self._switch_api_client.configure_pid_assignment(req_payload)
+                logger.debug(self._create_message(
+                    f"Mirrored CONFIGURE_PID_ASSIGNMENT to switch"
+                ))
+
+            elif opcode == CCI_FM_API_COMMAND_OPCODE.SET_DRT:
+                req_payload = SetDrtRequestPayload.parse(payload)
+                await self._switch_api_client.set_drt(req_payload)
+                logger.debug(self._create_message(
+                    f"Mirrored SET_DRT to switch"
+                ))
+
+            elif opcode == CCI_FM_API_COMMAND_OPCODE.CONFIGURE_PID_BINDING:
+                req_payload = ConfigurePidBindingRequestPayload.parse(payload)
+                await self._switch_api_client.configure_pid_binding(req_payload)
+                logger.debug(self._create_message(
+                    f"Mirrored CONFIGURE_PID_BINDING to switch"
+                ))
+
+            # All other opcodes (read-only or unrecognised) — no switch action
+
+        except Exception as exc:
+            # Non-fatal: FM state is already updated; log and continue
+            logger.warning(self._create_message(
+                f"Failed to mirror opcode {opcode:#06x} to switch: {exc}"
+            ))
 
     # ------------------------------------------------------------------
     # Lifecycle
