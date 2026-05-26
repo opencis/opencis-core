@@ -1,13 +1,30 @@
 FROM ubuntu:22.04
 
-EXPOSE 8000 8100 8200
+EXPOSE 8000 8100 8200 8300
 
 RUN apt update && \
-    apt install -y python3-pip python3.11-dev libpcap-dev
+    apt install -y python3-pip python3.11-dev libpcap-dev gcc
+
 RUN pip install poetry==1.8.0
 
 WORKDIR /opencis-core
 COPY . /opencis-core
+
+# Remove any pre-compiled .so files built against a different Python version
+# or architecture (e.g. cpython-313-x86_64 vs the python3.11 we install above).
+# Python will automatically fall back to the pure-Python packet_structs.py
+# which is always up-to-date with the .pyx source.
+RUN find /opencis-core -name "packet_structs*.so" -delete && \
+    echo "Removed stale .so files — will use pure-Python fallback or recompile"
+
 RUN poetry env use 3.11 && poetry install
+
+# Recompile packet_structs.pyx with the correct Python 3.11 inside the container.
+# This produces a fresh packet_structs.cpython-311-x86_64-linux-gnu.so that
+# contains _GenPbrBasePacket and all other symbols from the current .pyx source.
+RUN poetry run pip install cython && \
+    cd opencis/cxl/transport && \
+    poetry run python setup.py build_ext --inplace && \
+    echo "Cython build complete:" && ls -la packet_structs*.so
 
 ENTRYPOINT ["/bin/bash", "-c" , "poetry env info && ./cxl-util --help"]
