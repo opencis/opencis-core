@@ -3,3 +3,7 @@ __pycache__
 .coverage*
 *.bin
 *.patch
+# Cython compiled binaries — never commit these.
+# The pure-Python packet_structs.py is always the source of truth.
+*.so
+*.pyd
