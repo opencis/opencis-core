@@ -207,6 +207,39 @@ class MctpCciApiClient(RunnableComponent):
         request_message_packet = self._create_request_packet(cci_request)
         return await self._send_request(request_message_packet, port_index, ld_id)
 
+    async def send_raw_cci(
+        self,
+        opcode: int,
+        payload: bytes = b"",
+        port_index: int = 0,
+    ) -> "Tuple[CCI_RETURN_CODE, bytes, bool]":
+        """
+        FM CLI path raw passthrough — used by FmMctpCciServer (port 8300).
+
+        Sends a CCI command to the switch using raw opcode + payload bytes
+        and returns the raw response bytes without any struct parsing.
+
+        Returns:
+            (return_code, response_bytes, is_background)
+            - return_code    : CCI_RETURN_CODE from the switch response header
+            - response_bytes : raw payload bytes from the switch response
+            - is_background  : True when switch replied BACKGROUND_COMMAND_STARTED
+
+        FmMctpCciServer calls this once per incoming MCTP request and
+        forwards response_bytes verbatim in the MCTP response — no struct
+        parsing, no local state, no duplicated switch-programming logic.
+        """
+        request_message_packet = self._create_request_packet(
+            CciRequest(opcode=opcode, payload=payload or b"")
+        )
+        response_message_packet = await self._send_request(
+            request_message_packet, port_index
+        )
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
+        response_bytes = response_message_packet.get_payload() or b""
+        is_background = bool(response_message_packet.cci_msg_header.background_operation)
+        return (return_code, response_bytes, is_background)
+
     def register_notification_handler(self, notification_handler: AsyncEventHandlerType):
         self._notification_handler = notification_handler
 

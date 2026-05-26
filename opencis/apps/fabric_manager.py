@@ -24,20 +24,6 @@ from opencis.cxl.component.fabric_manager.socketio_server import (
 )
 from opencis.cxl.component.short_msg_conn import ShortMsgConn
 from opencis.cxl.component.mctp.fm_mctp_cci_server import FmMctpCciServer
-from opencis.cxl.component.pbr_switch_manager import (
-    PbrSwitchManager,
-    PidTarget,
-    PidTargetType,
-)
-from opencis.cxl.cci.fabric_manager.pbr_switch import (
-    IdentifyPbrSwitchCommand,
-    ConfigurePidAssignmentCommand,
-    GetPidBindingCommand,
-    ConfigurePidBindingCommand,
-    GetDrtCommand,
-    SetDrtCommand,
-)
-from opencis.cxl.component.fabric_manager.pbr_command_service import PbrCommandService
 from opencis.util.component import RunnableComponent
 from opencis.util.logger import logger
 
@@ -93,68 +79,22 @@ class CxlFabricManager(RunnableComponent):
         self._host_fm_conn_server.register_general_handler(HostFMMsg.CONFIRM, self._host_callback())
         self._use_test_runner = use_test_runner
 
-        # --- FM-side authoritative PBR state ---
-        # Phase 3: this single PbrSwitchManager instance is shared between
-        #   port 8300 (FmMctpCciServer  — direct MCTP CCI)
-        #   port 8200 (FabricManagerSocketIoServer — CLI commands)
-        # Both paths read/write the same object, so the FM always has a
-        # consistent authoritative view of the PBR control-plane state.
-        self._fm_pbr_manager = PbrSwitchManager(
-            num_drts=2,
-            num_rgts=1,
-            pid_targets=[
-                PidTarget(target_id=0, target_type=PidTargetType.FABRIC_PORT,
-                          instance_id=0, vcs_id=0, physical_port_id=0),
-                PidTarget(target_id=1, target_type=PidTargetType.HOST_EDGE_PORT,
-                          instance_id=0, vcs_id=0, physical_port_id=1),
-                PidTarget(target_id=2, target_type=PidTargetType.DOWNSTREAM_EDGE_PORT,
-                          instance_id=0, vcs_id=0, physical_port_id=2),
-            ],
-            label="FM-PbrManager",
-        )
-        pbr_commands = [
-            IdentifyPbrSwitchCommand(self._fm_pbr_manager),
-            ConfigurePidAssignmentCommand(self._fm_pbr_manager),
-            GetPidBindingCommand(self._fm_pbr_manager),
-            ConfigurePidBindingCommand(self._fm_pbr_manager),
-            GetDrtCommand(self._fm_pbr_manager),
-            SetDrtCommand(self._fm_pbr_manager),
-        ]
-
-        # Shared PbrCommandService — single authoritative path to the switch.
-        # Both port 8300 (MCTP CCI) and port 8200 (Socket.IO CLI) use this
-        # so switch-programming logic is never duplicated.
-        self._pbr_service = PbrCommandService(
-            api_client=self._api_client,
-            label="FM-PbrService",
-        )
-
+        # Port 8300 — pure MCTP adapter.
+        # Receives MCTP CCI packets, forwards them via the same MctpCciApiClient
+        # that FabricManagerSocketIoServer (port 8200) uses to talk to the switch.
+        # Zero local state — all command processing happens in the switch.
         self._fm_mctp_cci_server = FmMctpCciServer(
             host=mctp_host,
             port=fm_mctp_cci_port,
-            cci_commands=pbr_commands,
-            pbr_service=self._pbr_service,   # shared service — single switch path
+            mctp_client=self._api_client,   # reuse FM CLI path (port 8100)
         )
         logger.info(self._create_message(
-            f"FM MCTP CCI server configured on port {fm_mctp_cci_port} "
-            "(switch mirroring via PbrCommandService)"
+            f"FM MCTP CCI server (port {fm_mctp_cci_port}) "
+            "bridged to FM CLI path via shared MctpCciApiClient"
         ))
 
-    # ------------------------------------------------------------------
-    # Public accessors (Phase 3 — expose shared manager for testing/CLI)
-    # ------------------------------------------------------------------
-
-    def get_fm_pbr_manager(self) -> PbrSwitchManager:
-        """Return the shared FM-side PbrSwitchManager instance.
-
-        Tests and CLI tools may inspect this to verify that commands sent
-        on port 8300 (MCTP) are reflected in FM state without querying the
-        switch directly.
-        """
-        return self._fm_pbr_manager
-
     def get_fm_mctp_cci_port(self) -> int:
-        """Return the actual port number used by FmMctpCciServer."""
+        """Return the actual TCP port used by FmMctpCciServer (port 8300)."""
         return self._fm_mctp_cci_server.get_port()
 
 

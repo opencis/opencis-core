@@ -1,58 +1,51 @@
 """
 test_mctp_fm_port_integration.py
 =================================
-Phase 2 & Phase 3 integration tests for FmMctpCciServer (port 8300).
+Integration tests for FmMctpCciServer (port 8300) — pure MCTP adapter.
 
-These tests verify the **full integration path**:
-  Port 8300 (MCTP CCI) ──► FM PbrSwitchManager (FM state)
-                        ──► MctpCciApiClient ──► Switch (port 8100)
+These tests verify the adapter end-to-end using a mocked MctpCciApiClient
+(specifically, send_raw_cci is mocked with AsyncMock). This lets us test
+the complete MCTP framing pipeline without requiring a full switch stack.
 
-Architecture
-------------
-Each test runs a complete stack:
-  - FmMctpCciServer  (port 8300) — the system under test
-  - A mock switch    (ephemeral) — records what SET_DRT / CONFIGURE_PID commands
-                                   it receives via a real MctpConnectionManager
-  - MctpCciApiClient             — connects FM to mock switch, injected into server
+Full switch-stack integration (with MctpConnectionManager + MctpCciExecutor)
+is covered by the higher-level system tests.
 
-Test isolation: every test gets a fresh event loop (loop_scope="function").
-The mock switch uses MctpCciExecutor with a recording handler so assertions can
-inspect which commands reached the switch.
+Architecture under test:
+  MctpCciTestClient  ──► TCP port 8300 (FmMctpCciServer)
+                          │  MctpPacketProcessor depacketizes
+                          │  _process_client extracts (opcode, payload)
+                          │  _forward_to_cli calls send_raw_cci() [MOCKED]
+                          │  response built from (rc, resp_bytes, is_bg)
+                          │  MctpPacketProcessor repacketizes
+                         ◄── CciPayloadPacket RESPONSE
 
 What is tested
 --------------
-Phase 2 tests:
-  1. SET_DRT on port 8300 updates FM state AND is forwarded to the switch
-  2. CONFIGURE_PID_ASSIGNMENT is forwarded to the switch
-  3. CONFIGURE_PID_BINDING  is forwarded to the switch
-  4. Read-only commands (IDENTIFY, GET_DRT) are NOT forwarded to the switch
-  5. When switch is not connected, FM still returns SUCCESS (graceful degrade)
-
-Phase 3 tests:
-  6. Shared PbrSwitchManager: FM state updated via port 8300 is visible via
-     get_fm_pbr_manager()
-  7. Both port 8300 write and CLI (socketio) write see the same manager state
+  1. All 6 PBR opcodes forwarded to send_raw_cci() with correct opcode
+  2. Payload bytes from MCTP request passed verbatim to send_raw_cci()
+  3. Return code from send_raw_cci() forwarded in MCTP response
+  4. Background flag from send_raw_cci() forwarded in MCTP response
+  5. Response bytes from send_raw_cci() forwarded in MCTP response body
+  6. No mctp_client → UNSUPPORTED for all opcodes
+  7. Switch error codes forwarded back
+  8. Tag echo: response.message_tag = request.message_tag (always)
+  9. Opcode echo: response.command_opcode = request.command_opcode (always)
+ 10. Persistent connection: multiple commands on one TCP connection
+ 11. Concurrent connections: two clients get independent correct responses
+ 12. Configurable response bytes returned to MCTP client
 """
 
 import asyncio
-import pytest
-import pytest_asyncio
+from unittest.mock import AsyncMock, MagicMock
 from typing import Dict, List
 
+import pytest
+import pytest_asyncio
+
 from opencis.cxl.component.mctp.fm_mctp_cci_server import FmMctpCciServer
-from opencis.cxl.component.mctp.mctp_connection_client import MctpConnectionClient
-from opencis.cxl.component.mctp.mctp_cci_api_client import MctpCciApiClient
-from opencis.cxl.component.fabric_manager.pbr_command_service import PbrCommandService
-from opencis.cxl.component.pbr_switch_manager import (
-    PbrSwitchManager,
-    PidTarget,
-    PidTargetType,
-    DrtEntry,
-    DrtEntryType,
-)
+from opencis.cxl.cci.common import CCI_RETURN_CODE, CCI_FM_API_COMMAND_OPCODE
 from opencis.cxl.cci.fabric_manager.pbr_switch import (
     IdentifyPbrSwitchCommand,
-    IdentifyPbrSwitchResponsePayload,
     ConfigurePidAssignmentCommand,
     ConfigurePidAssignmentRequestPayload,
     GetPidBindingCommand,
@@ -61,7 +54,6 @@ from opencis.cxl.cci.fabric_manager.pbr_switch import (
     ConfigurePidBindingRequestPayload,
     GetDrtCommand,
     GetDrtRequestPayload,
-    GetDrtResponsePayload,
     SetDrtCommand,
     SetDrtRequestPayload,
 )
@@ -72,60 +64,33 @@ from opencis.cxl.cci.fabric_manager.pbr_switch.configure_pid_assignment import (
 from opencis.cxl.cci.fabric_manager.pbr_switch.configure_pid_binding import (
     PidBindingOperation,
 )
+from opencis.cxl.component.pbr_switch_manager import (
+    DrtEntry,
+    DrtEntryType,
+)
 from opencis.cxl.component.cci_executor import CciRequest
-from opencis.cxl.cci.common import CCI_RETURN_CODE
 from opencis.cxl.transport.cci_packets import CciMessagePacket, CciPayloadPacket
 from opencis.cxl.transport.packet_constants import CCI_MCTP_MESSAGE_CATEGORY
 
 
 # ---------------------------------------------------------------------------
-# Shared helpers
-# ---------------------------------------------------------------------------
-
-def _make_pbr_manager(label: str = "test-FM-PbrManager") -> PbrSwitchManager:
-    """Create a FM-side PbrSwitchManager with 3 registered PidTargets."""
-    return PbrSwitchManager(
-        num_drts=2,
-        num_rgts=1,
-        pid_targets=[
-            PidTarget(target_id=0, target_type=PidTargetType.FABRIC_PORT,
-                      instance_id=0, vcs_id=0, physical_port_id=0),
-            PidTarget(target_id=1, target_type=PidTargetType.HOST_EDGE_PORT,
-                      instance_id=0, vcs_id=0, physical_port_id=1),
-            PidTarget(target_id=2, target_type=PidTargetType.DOWNSTREAM_EDGE_PORT,
-                      instance_id=0, vcs_id=0, physical_port_id=2),
-        ],
-        label=label,
-    )
-
-
-def _all_pbr_commands(mgr: PbrSwitchManager) -> list:
-    return [
-        IdentifyPbrSwitchCommand(mgr),
-        ConfigurePidAssignmentCommand(mgr),
-        GetPidBindingCommand(mgr),
-        ConfigurePidBindingCommand(mgr),
-        GetDrtCommand(mgr),
-        SetDrtCommand(mgr),
-    ]
-
-
-# ---------------------------------------------------------------------------
-# Raw MCTP test client (reused from test_mctp_fm_port.py)
+# Raw MCTP test client
 # ---------------------------------------------------------------------------
 
 class MctpCciTestClient:
-    """Thin raw-TCP client for CCI command round-trips."""
+    """Thin raw-TCP client for CCI command round-trips on port 8300."""
 
     def __init__(self, host: str, port: int):
         self._host = host
         self._port = port
-        self._reader: asyncio.StreamReader = None
-        self._writer: asyncio.StreamWriter = None
+        self._reader = None
+        self._writer = None
         self._tag = 0
 
     async def connect(self):
-        self._reader, self._writer = await asyncio.open_connection(self._host, self._port)
+        self._reader, self._writer = await asyncio.open_connection(
+            self._host, self._port
+        )
 
     async def close(self):
         if self._writer:
@@ -140,440 +105,312 @@ class MctpCciTestClient:
         self._tag = (self._tag + 1) & 0xFF
         return t
 
-    async def send_command(self, request: CciRequest) -> CciMessagePacket:
-        tag = self._next_tag()
+    async def send(self, opcode: int, payload: bytes = b"", tag: int = None) -> CciMessagePacket:
+        if tag is None:
+            tag = self._next_tag()
         msg = CciMessagePacket.create(
             message_category=CCI_MCTP_MESSAGE_CATEGORY.REQUEST,
-            opcode=request.opcode,
-            data=request.payload if request.payload else b"",
+            opcode=opcode,
+            data=payload,
             message_tag=tag,
         )
-        pkt = CciPayloadPacket.create(msg)
-        self._writer.write(bytes(pkt))
+        self._writer.write(bytes(CciPayloadPacket.create(msg)))
         await self._writer.drain()
-        return (await self._read_packet()).get_cci_message()
+        return (await self._recv()).get_cci_message()
 
-    async def _read_packet(self) -> CciPayloadPacket:
+    async def send_request(self, request: CciRequest) -> CciMessagePacket:
+        return await self.send(opcode=request.opcode, payload=request.payload or b"")
+
+    async def _recv(self) -> CciPayloadPacket:
         from opencis.cxl.transport.packet_structs import SystemHeader
         from opencis.cxl.transport.common import BasePacket
-        hdr_size = SystemHeader.get_size()
-        hdr_bytes = await self._reader.readexactly(hdr_size)
-        base = BasePacket(bytearray(hdr_bytes))
-        remaining = base.system_header.payload_length - len(base)
-        body = await self._reader.readexactly(max(0, remaining))
-        return CciPayloadPacket(bytearray(hdr_bytes + body))
+        hdr = await self._reader.readexactly(SystemHeader.get_size())
+        base = BasePacket(bytearray(hdr))
+        body = await self._reader.readexactly(
+            max(0, base.system_header.payload_length - len(base))
+        )
+        return CciPayloadPacket(bytearray(hdr + body))
 
 
-async def _round_trip(server: FmMctpCciServer, request: CciRequest) -> CciMessagePacket:
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _make_mock_client(
+    rc: CCI_RETURN_CODE = CCI_RETURN_CODE.SUCCESS,
+    response_bytes: bytes = b"",
+    is_background: bool = False,
+):
+    """Return a mock whose send_raw_cci() resolves with the given values."""
+    mock = MagicMock()
+    mock.send_raw_cci = AsyncMock(return_value=(rc, response_bytes, is_background))
+    return mock
+
+
+async def _round_trip(
+    server: FmMctpCciServer,
+    opcode: int,
+    payload: bytes = b"",
+    tag: int = 1,
+) -> CciMessagePacket:
     client = MctpCciTestClient("127.0.0.1", server.get_port())
     await client.connect()
     try:
-        return await asyncio.wait_for(client.send_command(request), timeout=10.0)
+        return await asyncio.wait_for(
+            client.send(opcode, payload, tag=tag), timeout=10.0
+        )
     finally:
         await client.close()
 
 
 # ---------------------------------------------------------------------------
-# Mock switch fixture
-# ---------------------------------------------------------------------------
-
-
-
-class MockSwitch:
-    """
-    Lightweight mock switch — a raw TCP server that accepts one connection,
-    deserialises each CciPayloadPacket it receives, and records the opcode
-    and payload.  It replies SUCCESS to everything so the FM's api_client
-    does not hang waiting for a response.
-
-    This avoids needing a full SwitchConnectionManager / MctpCciExecutor
-    which requires port_configs and switch_connection_manager args.
-    """
-
-    def __init__(self):
-        self._server: asyncio.Server = None
-        self._port: int = 0
-        self._received: Dict[int, List[bytes]] = {}
-        self._server_task: asyncio.Task = None
-
-    async def start(self):
-        self._server = await asyncio.start_server(
-            self._handle_client, "127.0.0.1", 0
-        )
-        self._port = self._server.sockets[0].getsockname()[1]
-        self._server_task = asyncio.create_task(self._server.serve_forever())
-
-    async def stop(self):
-        if self._server:
-            self._server.close()
-            await self._server.wait_closed()
-        if self._server_task:
-            self._server_task.cancel()
-
-    def get_port(self) -> int:
-        return self._port
-
-    def received(self, opcode: int) -> List[bytes]:
-        return self._received.get(opcode, [])
-
-    async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        """Read CciPayloadPackets, record opcode+payload, reply SUCCESS."""
-        from opencis.cxl.transport.packet_structs import SystemHeader
-        from opencis.cxl.transport.common import BasePacket
-        try:
-            while True:
-                hdr_size = SystemHeader.get_size()
-                hdr_bytes = await reader.readexactly(hdr_size)
-                base = BasePacket(bytearray(hdr_bytes))
-                remaining = base.system_header.payload_length - len(base)
-                body = await reader.readexactly(max(0, remaining))
-                pkt = CciPayloadPacket(bytearray(hdr_bytes + body))
-                cci_msg = pkt.get_cci_message()
-                opcode  = cci_msg.cci_msg_header.command_opcode
-                payload = cci_msg.get_payload()
-                tag     = cci_msg.cci_msg_header.message_tag
-
-                self._received.setdefault(opcode, []).append(payload)
-
-                # Reply with SUCCESS
-                resp = CciMessagePacket.create(
-                    message_category=CCI_MCTP_MESSAGE_CATEGORY.RESPONSE,
-                    opcode=opcode,
-                    data=b"",
-                    message_tag=tag,
-                    return_code=int(CCI_RETURN_CODE.SUCCESS),
-                )
-                resp_pkt = CciPayloadPacket.create(resp)
-                writer.write(bytes(resp_pkt))
-                await writer.drain()
-        except (asyncio.IncompleteReadError, ConnectionResetError):
-            pass
-        finally:
-            writer.close()
-
-
-
-# ---------------------------------------------------------------------------
-# Phase 2 fixture: FM server + mock switch wired together
+# Fixtures
 # ---------------------------------------------------------------------------
 
 @pytest_asyncio.fixture(loop_scope="function")
-async def fm_with_switch():
-    """
-    Full Phase 2 stack:
-      MockSwitch raw TCP server (ephemeral)
-      MctpConnectionClient  →  connects FM to mock switch
-      MctpCciApiClient      →  wraps the connection, injected into server
-      FmMctpCciServer       →  the system under test (port=0)
-    """
-    pbr_mgr = _make_pbr_manager()
-
-    # 1. Start lightweight mock switch
-    switch = MockSwitch()
-    await switch.start()
-
-    # 2. MctpConnectionClient connects FM side → mock switch
-    conn_client = MctpConnectionClient(
-        host="127.0.0.1",
-        port=switch.get_port(),
-        auto_reconnect=False,
-    )
-    conn_task = asyncio.create_task(conn_client.run())
-    await conn_client.wait_for_ready()
-
-    # 3. MctpCciApiClient owns the queue pair from the connection client
-    api_client = MctpCciApiClient(conn_client.get_mctp_connection())
-    api_task = asyncio.create_task(api_client.run())
-    await api_client.wait_for_ready()
-
-    # 4. PbrCommandService wraps api_client — mirrors the production path
-    pbr_svc = PbrCommandService(api_client=api_client, label="test-PbrService")
-
-    # 5. FmMctpCciServer with injected pbr_service
-    server = FmMctpCciServer(
-        host="127.0.0.1",
-        port=0,
-        cci_commands=_all_pbr_commands(pbr_mgr),
-        pbr_service=pbr_svc,
-    )
-    server_task = asyncio.create_task(server.run())
+async def fm_no_switch():
+    """FmMctpCciServer with no mctp_client — returns UNSUPPORTED."""
+    server = FmMctpCciServer(host="127.0.0.1", port=0, mctp_client=None)
+    task = asyncio.create_task(server.run())
     await server.wait_for_ready()
-
-    yield server, switch, pbr_mgr
-
-    # Teardown
+    yield server
     await server.stop()
-    await api_client.stop()
-    await conn_client.stop()
-    await switch.stop()
-    for t in [server_task, api_task, conn_task]:
-        try:
-            await asyncio.wait_for(t, timeout=3.0)
-        except Exception:
-            t.cancel()
+    try:
+        await asyncio.wait_for(task, timeout=3.0)
+    except Exception:
+        task.cancel()
 
 
+@pytest_asyncio.fixture(loop_scope="function")
+async def full_stack():
+    """
+    FmMctpCciServer with a mocked MctpCciApiClient.
 
-# ---------------------------------------------------------------------------
-# Phase 2 — Test 1: SET_DRT updates FM state AND forwards to switch
-# ---------------------------------------------------------------------------
+    The mock's send_raw_cci() returns (SUCCESS, b"", False) by default.
+    Tests can override mock.send_raw_cci.return_value for specific cases.
+    """
+    mock_client = _make_mock_client(CCI_RETURN_CODE.SUCCESS, b"", False)
+    server = FmMctpCciServer(
+        host="127.0.0.1", port=0, mctp_client=mock_client
+    )
+    task = asyncio.create_task(server.run())
+    await server.wait_for_ready()
+    yield server, mock_client
+    await server.stop()
+    try:
+        await asyncio.wait_for(task, timeout=3.0)
+    except Exception:
+        task.cancel()
+
+
+# ===========================================================================
+# Tests — all 6 PBR opcodes forwarded correctly
+# ===========================================================================
 
 @pytest.mark.asyncio
-async def test_set_drt_updates_fm_state_and_forwards_to_switch(fm_with_switch):
-    """
-    Phase 2 — SET_DRT (0x5709)
+async def test_identify_pbr_switch_forwarded(full_stack):
+    """IDENTIFY_PBR_SWITCH (0x5700) calls send_raw_cci with correct opcode."""
+    server, mock = full_stack
+    resp = await _round_trip(server, CCI_FM_API_COMMAND_OPCODE.IDENTIFY_PBR_SWITCH)
+    assert resp.cci_msg_header.return_code == CCI_RETURN_CODE.SUCCESS
+    call_opcode = mock.send_raw_cci.call_args[0][0]
+    assert call_opcode == CCI_FM_API_COMMAND_OPCODE.IDENTIFY_PBR_SWITCH
 
-    Send SET_DRT to port 8300.
-    Verify:
-      1. FM PbrSwitchManager DRT is updated (FM state)
-      2. MockSwitch received exactly one SET_DRT payload (switch forwarding)
-    """
-    server, switch, pbr_mgr = fm_with_switch
-
-    entries = [DrtEntry(DrtEntryType.PHYSICAL_PORT, routing_target=1)]
-    req = SetDrtCommand.create_cci_request(
-        SetDrtRequestPayload(drt_index=0, start_entry=0x042, entries=entries)
-    )
-    response = await _round_trip(server, req)
-
-    # 1. FM returned SUCCESS
-    assert response.cci_msg_header.return_code == CCI_RETURN_CODE.SUCCESS
-
-    # 2. FM state updated (Phase 3 shared manager)
-    drt_entries, _ = pbr_mgr.get_drt(drt_index=0, start_entry=0x042, num_entries=1)
-    assert len(drt_entries) == 1
-    assert drt_entries[0].entry_type == DrtEntryType.PHYSICAL_PORT
-    assert drt_entries[0].routing_target == 1
-
-    # 3. Switch received the forwarded SET_DRT (Phase 2)
-    await asyncio.sleep(0.1)  # allow async forwarding to propagate
-    assert len(switch.received(0x5709)) == 1, (
-        "SET_DRT was not forwarded to the switch"
-    )
-
-
-# ---------------------------------------------------------------------------
-# Phase 2 — Test 2: CONFIGURE_PID_ASSIGNMENT is forwarded to switch
-# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_configure_pid_assignment_forwarded_to_switch(fm_with_switch):
-    """
-    Phase 2 — CONFIGURE_PID_ASSIGNMENT (0x5704)
-
-    Assign PID 0x010 → target_id 0 via port 8300.
-    Verify the command reaches the mock switch.
-    """
-    server, switch, pbr_mgr = fm_with_switch
-
+async def test_configure_pid_assignment_forwarded(full_stack):
+    """CONFIGURE_PID_ASSIGNMENT (0x5704) calls send_raw_cci with payload."""
+    server, mock = full_stack
     payload = ConfigurePidAssignmentRequestPayload(
         operation=PidAssignmentOperation.ASSIGN,
         entries=[PidAssignmentEntry(pid=0x010, target_id=0, instance_id=0)],
     )
     req = ConfigurePidAssignmentCommand.create_cci_request(payload)
-    response = await _round_trip(server, req)
+    resp = await _round_trip(server, req.opcode, req.payload or b"")
+    assert resp.cci_msg_header.return_code == CCI_RETURN_CODE.SUCCESS
+    assert mock.send_raw_cci.call_args[0][0] == CCI_FM_API_COMMAND_OPCODE.CONFIGURE_PID_ASSIGNMENT
 
-    assert response.cci_msg_header.return_code == CCI_RETURN_CODE.SUCCESS
-
-    await asyncio.sleep(0.1)
-    assert len(switch.received(0x5704)) == 1, (
-        "CONFIGURE_PID_ASSIGNMENT was not forwarded to the switch"
-    )
-
-
-# ---------------------------------------------------------------------------
-# Phase 2 — Test 3: CONFIGURE_PID_BINDING is forwarded to switch
-# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_configure_pid_binding_forwarded_to_switch(fm_with_switch):
-    """
-    Phase 2 — CONFIGURE_PID_BINDING (0x5706)
-
-    First assign PID 0x020 → target_id 1, then bind it to vcs=0, vppb=0.
-    Verify both commands arrive at the mock switch.
-    """
-    server, switch, pbr_mgr = fm_with_switch
-
-    # First: assign PID
-    assign_payload = ConfigurePidAssignmentRequestPayload(
-        operation=PidAssignmentOperation.ASSIGN,
-        entries=[PidAssignmentEntry(pid=0x020, target_id=1, instance_id=0)],
+async def test_get_pid_binding_forwarded(full_stack):
+    """GET_PID_BINDING (0x5705) forwarded to switch."""
+    server, mock = full_stack
+    req = GetPidBindingCommand.create_cci_request(
+        GetPidBindingRequestPayload(target_vcs=0, target_vppb=0)
     )
-    r1 = await _round_trip(server, ConfigurePidAssignmentCommand.create_cci_request(assign_payload))
-    assert r1.cci_msg_header.return_code == CCI_RETURN_CODE.SUCCESS
+    resp = await _round_trip(server, req.opcode, req.payload or b"")
+    assert resp.cci_msg_header.return_code == CCI_RETURN_CODE.SUCCESS
+    assert mock.send_raw_cci.call_args[0][0] == CCI_FM_API_COMMAND_OPCODE.GET_PID_BINDING
 
-    # Then: bind PID
-    bind_payload = ConfigurePidBindingRequestPayload(
-        operation=PidBindingOperation.BIND,
-        target_vcs=0,
-        target_vppb=0,
-        pid=0x020,
-    )
-    r2 = await _round_trip(server, ConfigurePidBindingCommand.create_cci_request(bind_payload))
-    # Background command returns BACKGROUND_COMMAND_STARTED or SUCCESS
-    assert r2.cci_msg_header.return_code in (
-        CCI_RETURN_CODE.SUCCESS,
-        CCI_RETURN_CODE.BACKGROUND_COMMAND_STARTED,
-    )
-
-    await asyncio.sleep(0.2)
-    assert len(switch.received(0x5704)) >= 1, "PID assignment not forwarded"
-    assert len(switch.received(0x5706)) >= 1, "PID binding not forwarded"
-
-
-# ---------------------------------------------------------------------------
-# Phase 2 — Test 4: Read-only commands are NOT forwarded to the switch
-# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_readonly_commands_not_forwarded_to_switch(fm_with_switch):
-    """
-    Phase 2 — IDENTIFY (0x5700) and GET_DRT (0x5708) must NOT be forwarded.
+async def test_configure_pid_binding_forwarded(full_stack):
+    """CONFIGURE_PID_BINDING (0x5706) forwarded to switch."""
+    server, mock = full_stack
+    mock.send_raw_cci.return_value = (CCI_RETURN_CODE.BACKGROUND_COMMAND_STARTED, b"", True)
+    payload = ConfigurePidBindingRequestPayload(
+        operation=PidBindingOperation.BIND, target_vcs=0, target_vppb=0, pid=0x010,
+    )
+    req = ConfigurePidBindingCommand.create_cci_request(payload)
+    resp = await _round_trip(server, req.opcode, req.payload or b"")
+    assert resp.cci_msg_header.return_code == CCI_RETURN_CODE.BACKGROUND_COMMAND_STARTED
+    assert resp.cci_msg_header.background_operation == 1
+    assert mock.send_raw_cci.call_args[0][0] == CCI_FM_API_COMMAND_OPCODE.CONFIGURE_PID_BINDING
 
-    These commands read FM state only; programming the switch with them would
-    be incorrect and wasteful.
-    """
-    server, switch, _ = fm_with_switch
 
-    # Identify PBR Switch (read-only)
-    r1 = await _round_trip(server, IdentifyPbrSwitchCommand.create_cci_request())
-    assert r1.cci_msg_header.return_code == CCI_RETURN_CODE.SUCCESS
-
-    # Get DRT (read-only)
-    r2 = await _round_trip(server, GetDrtCommand.create_cci_request(
+@pytest.mark.asyncio
+async def test_get_drt_forwarded(full_stack):
+    """GET_DRT (0x5708) forwarded to switch."""
+    server, mock = full_stack
+    req = GetDrtCommand.create_cci_request(
         GetDrtRequestPayload(drt_index=0, start_entry=0, num_entries=1)
-    ))
+    )
+    resp = await _round_trip(server, req.opcode, req.payload or b"")
+    assert resp.cci_msg_header.return_code == CCI_RETURN_CODE.SUCCESS
+    assert mock.send_raw_cci.call_args[0][0] == CCI_FM_API_COMMAND_OPCODE.GET_DRT
+
+
+@pytest.mark.asyncio
+async def test_set_drt_forwarded(full_stack):
+    """SET_DRT (0x5709) forwarded to switch with payload bytes unchanged."""
+    server, mock = full_stack
+    entries = [DrtEntry(DrtEntryType.PHYSICAL_PORT, routing_target=1)]
+    req = SetDrtCommand.create_cci_request(
+        SetDrtRequestPayload(drt_index=0, start_entry=0x042, entries=entries)
+    )
+    resp = await _round_trip(server, req.opcode, req.payload or b"")
+    assert resp.cci_msg_header.return_code == CCI_RETURN_CODE.SUCCESS
+    call_opcode, call_payload = mock.send_raw_cci.call_args[0][:2]
+    assert call_opcode == CCI_FM_API_COMMAND_OPCODE.SET_DRT
+    assert call_payload == (req.payload or b"")
+
+
+# ===========================================================================
+# Tests — adapter behaviour
+# ===========================================================================
+
+@pytest.mark.asyncio
+async def test_no_switch_returns_unsupported(fm_no_switch):
+    """No mctp_client -> UNSUPPORTED for all PBR opcodes."""
+    server = fm_no_switch
+    for opcode in [
+        CCI_FM_API_COMMAND_OPCODE.IDENTIFY_PBR_SWITCH,
+        CCI_FM_API_COMMAND_OPCODE.SET_DRT,
+        CCI_FM_API_COMMAND_OPCODE.CONFIGURE_PID_ASSIGNMENT,
+        CCI_FM_API_COMMAND_OPCODE.GET_DRT,
+        CCI_FM_API_COMMAND_OPCODE.GET_PID_BINDING,
+        CCI_FM_API_COMMAND_OPCODE.CONFIGURE_PID_BINDING,
+    ]:
+        resp = await _round_trip(server, opcode)
+        assert resp.cci_msg_header.return_code == CCI_RETURN_CODE.UNSUPPORTED
+
+
+@pytest.mark.asyncio
+async def test_switch_error_forwarded(full_stack):
+    """Error rc from send_raw_cci() is forwarded verbatim in MCTP response."""
+    server, mock = full_stack
+    mock.send_raw_cci.return_value = (CCI_RETURN_CODE.INVALID_INPUT, b"", False)
+    resp = await _round_trip(server, CCI_FM_API_COMMAND_OPCODE.SET_DRT)
+    assert resp.cci_msg_header.return_code == CCI_RETURN_CODE.INVALID_INPUT
+
+
+@pytest.mark.asyncio
+async def test_response_bytes_forwarded(full_stack):
+    """Response bytes from send_raw_cci() appear in the MCTP response payload."""
+    server, mock = full_stack
+    resp_data = b"\xAA\xBB\xCC\xDD"
+    mock.send_raw_cci.return_value = (CCI_RETURN_CODE.SUCCESS, resp_data, False)
+    resp = await _round_trip(server, CCI_FM_API_COMMAND_OPCODE.IDENTIFY_PBR_SWITCH)
+    assert resp.cci_msg_header.return_code == CCI_RETURN_CODE.SUCCESS
+    assert resp.get_payload() == resp_data
+
+
+@pytest.mark.asyncio
+async def test_tag_echoed_in_response(full_stack):
+    """response.message_tag always equals request.message_tag."""
+    server, mock = full_stack
+    client = MctpCciTestClient("127.0.0.1", server.get_port())
+    await client.connect()
+    for tag in [0, 3, 15, 127, 255]:
+        resp = await client.send(CCI_FM_API_COMMAND_OPCODE.IDENTIFY_PBR_SWITCH, tag=tag)
+        assert resp.cci_msg_header.message_tag == tag
+    await client.close()
+
+
+@pytest.mark.asyncio
+async def test_opcode_echoed_in_response(full_stack):
+    """response.command_opcode always equals request.command_opcode."""
+    server, mock = full_stack
+    client = MctpCciTestClient("127.0.0.1", server.get_port())
+    await client.connect()
+    for opcode in [
+        CCI_FM_API_COMMAND_OPCODE.IDENTIFY_PBR_SWITCH,
+        CCI_FM_API_COMMAND_OPCODE.SET_DRT,
+        CCI_FM_API_COMMAND_OPCODE.GET_DRT,
+        CCI_FM_API_COMMAND_OPCODE.CONFIGURE_PID_ASSIGNMENT,
+    ]:
+        resp = await client.send(opcode)
+        assert resp.cci_msg_header.command_opcode == opcode
+    await client.close()
+
+
+@pytest.mark.asyncio
+async def test_payload_bytes_forwarded_verbatim(full_stack):
+    """Payload bytes in the MCTP request are passed unchanged to send_raw_cci."""
+    server, mock = full_stack
+    dummy = bytes(range(16))
+    await _round_trip(server, CCI_FM_API_COMMAND_OPCODE.SET_DRT, dummy)
+    call_payload = mock.send_raw_cci.call_args[0][1]
+    assert call_payload == dummy
+
+
+@pytest.mark.asyncio
+async def test_persistent_connection_multiple_commands(full_stack):
+    """Persistent TCP connection handles many sequential CCI commands."""
+    server, mock = full_stack
+    client = MctpCciTestClient("127.0.0.1", server.get_port())
+    await client.connect()
+    opcodes = [
+        CCI_FM_API_COMMAND_OPCODE.IDENTIFY_PBR_SWITCH,
+        CCI_FM_API_COMMAND_OPCODE.SET_DRT,
+        CCI_FM_API_COMMAND_OPCODE.CONFIGURE_PID_ASSIGNMENT,
+        CCI_FM_API_COMMAND_OPCODE.GET_DRT,
+        CCI_FM_API_COMMAND_OPCODE.GET_PID_BINDING,
+        CCI_FM_API_COMMAND_OPCODE.CONFIGURE_PID_BINDING,
+    ]
+    for tag, opcode in enumerate(opcodes, start=1):
+        resp = await client.send(opcode, tag=tag)
+        assert resp.cci_msg_header.return_code == CCI_RETURN_CODE.SUCCESS
+        assert resp.cci_msg_header.message_tag == tag
+    assert mock.send_raw_cci.await_count == len(opcodes)
+    await client.close()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_connections(full_stack):
+    """Two simultaneous clients both get correct independent responses."""
+    server, mock = full_stack
+
+    async def one_client(tag: int):
+        c = MctpCciTestClient("127.0.0.1", server.get_port())
+        await c.connect()
+        resp = await c.send(CCI_FM_API_COMMAND_OPCODE.IDENTIFY_PBR_SWITCH, tag=tag)
+        await c.close()
+        return resp
+
+    r1, r2 = await asyncio.gather(one_client(1), one_client(2))
+    assert r1.cci_msg_header.return_code == CCI_RETURN_CODE.SUCCESS
     assert r2.cci_msg_header.return_code == CCI_RETURN_CODE.SUCCESS
 
-    await asyncio.sleep(0.1)
-
-    # None of the recording slots for write opcodes should have been hit
-    assert len(switch.received(0x5709)) == 0, "SET_DRT slot should be empty"
-    assert len(switch.received(0x5704)) == 0, "PID_ASSIGN slot should be empty"
-    assert len(switch.received(0x5706)) == 0, "PID_BIND slot should be empty"
-
-
-# ---------------------------------------------------------------------------
-# Phase 2 — Test 5: Graceful degradation when switch not connected
-# ---------------------------------------------------------------------------
-
-@pytest_asyncio.fixture(loop_scope="function")
-async def fm_no_switch():
-    """FM server with no switch — pbr_service=None."""
-    pbr_mgr = _make_pbr_manager(label="no-switch-FM-PbrManager")
-    server = FmMctpCciServer(
-        host="127.0.0.1",
-        port=0,
-        cci_commands=_all_pbr_commands(pbr_mgr),
-        pbr_service=None,   # no switch
-    )
-    server_task = asyncio.create_task(server.run())
-    await server.wait_for_ready()
-    yield server, pbr_mgr
-    await server.stop()
-    try:
-        await asyncio.wait_for(server_task, timeout=3.0)
-    except Exception:
-        server_task.cancel()
-
 
 @pytest.mark.asyncio
-async def test_graceful_degradation_when_no_switch(fm_no_switch):
-    """
-    Phase 2 — Graceful degradation
-
-    When no switch_api_client is injected, write commands on port 8300 MUST
-    still return SUCCESS and update FM state.  No exception should propagate
-    to the client.
-    """
-    server, pbr_mgr = fm_no_switch
-
-    entries = [DrtEntry(DrtEntryType.PHYSICAL_PORT, routing_target=2)]
-    req = SetDrtCommand.create_cci_request(
-        SetDrtRequestPayload(drt_index=0, start_entry=0x100, entries=entries)
-    )
-    response = await _round_trip(server, req)
-
-    # FM must still respond SUCCESS even with no switch
-    assert response.cci_msg_header.return_code == CCI_RETURN_CODE.SUCCESS
-
-    # FM state must be updated
-    drt_entries, _ = pbr_mgr.get_drt(drt_index=0, start_entry=0x100, num_entries=1)
-    assert drt_entries[0].entry_type == DrtEntryType.PHYSICAL_PORT
-    assert drt_entries[0].routing_target == 2
-
-
-# ---------------------------------------------------------------------------
-# Phase 3 — Test 6: Shared PbrSwitchManager is the authoritative FM state
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_shared_pbr_manager_reflects_mctp_writes(fm_no_switch):
-    """
-    Phase 3 — Shared PbrSwitchManager
-
-    Commands sent to port 8300 update the manager that is also accessible
-    via get_fm_pbr_manager() (or directly in tests via pbr_mgr).
-
-    This verifies that port 8200 (CLI) and port 8300 (MCTP) share the
-    same authoritative state object.
-    """
-    server, pbr_mgr = fm_no_switch
-
-    # Send two DRT writes
-    for pid, port in [(0x010, 1), (0x020, 2)]:
-        entries = [DrtEntry(DrtEntryType.PHYSICAL_PORT, routing_target=port)]
-        req = SetDrtCommand.create_cci_request(
-            SetDrtRequestPayload(drt_index=0, start_entry=pid, entries=entries)
-        )
-        r = await _round_trip(server, req)
-        assert r.cci_msg_header.return_code == CCI_RETURN_CODE.SUCCESS
-
-    # Both entries must be visible through the same pbr_mgr reference
-    e1, _ = pbr_mgr.get_drt(drt_index=0, start_entry=0x010, num_entries=1)
-    e2, _ = pbr_mgr.get_drt(drt_index=0, start_entry=0x020, num_entries=1)
-
-    assert e1[0].routing_target == 1, "DRT[0][0x010] not updated"
-    assert e2[0].routing_target == 2, "DRT[0][0x020] not updated"
-
-
-# ---------------------------------------------------------------------------
-# Phase 3 — Test 7: Multiple clients see consistent state
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_concurrent_clients_share_state(fm_no_switch):
-    """
-    Phase 3 — State consistency across concurrent connections
-
-    Two simultaneous clients each program a different DRT entry.
-    Both updates must be visible through the shared PbrSwitchManager.
-    """
-    server, pbr_mgr = fm_no_switch
-
-    async def write_drt(pid: int, port: int):
-        entries = [DrtEntry(DrtEntryType.PHYSICAL_PORT, routing_target=port)]
-        req = SetDrtCommand.create_cci_request(
-            SetDrtRequestPayload(drt_index=0, start_entry=pid, entries=entries)
-        )
-        client = MctpCciTestClient("127.0.0.1", server.get_port())
-        await client.connect()
-        try:
-            r = await asyncio.wait_for(client.send_command(req), timeout=5.0)
-            assert r.cci_msg_header.return_code == CCI_RETURN_CODE.SUCCESS
-        finally:
-            await client.close()
-
-    # Fire both writes concurrently
-    await asyncio.gather(
-        write_drt(0x030, 1),
-        write_drt(0x040, 2),
-    )
-
-    # Both entries visible on shared manager
-    e1, _ = pbr_mgr.get_drt(drt_index=0, start_entry=0x030, num_entries=1)
-    e2, _ = pbr_mgr.get_drt(drt_index=0, start_entry=0x040, num_entries=1)
-
-    assert e1[0].routing_target == 1
-    assert e2[0].routing_target == 2
+async def test_send_raw_cci_called_once_per_command(full_stack):
+    """send_raw_cci() is invoked exactly once per incoming MCTP command."""
+    server, mock = full_stack
+    N = 5
+    client = MctpCciTestClient("127.0.0.1", server.get_port())
+    await client.connect()
+    for i in range(N):
+        await client.send(CCI_FM_API_COMMAND_OPCODE.IDENTIFY_PBR_SWITCH, tag=i)
+    await client.close()
+    assert mock.send_raw_cci.await_count == N
