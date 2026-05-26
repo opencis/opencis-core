@@ -27,13 +27,14 @@ Architectural note:
   This server owns a standalone FM-side CciExecutor and PbrSwitchManager.
   The FM is the authoritative control plane; it tracks its own routing state
   independently of the switch hardware emulation.  Commands sent here update
-  the FM's authoritative state; the FM separately programs the switch via the
-  existing MCTP connection on port 8100.
+  the FM's authoritative state.  An optional PbrCommandService handles
+  mirroring write commands to the physical switch — no switch-programming
+  logic lives in this file.
 """
 
 import asyncio
 from asyncio import create_task, gather
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional
 
 from opencis.util.component import RunnableComponent
 from opencis.util.logger import logger
@@ -47,11 +48,7 @@ from opencis.cxl.component.mctp.mctp_packet_processor import (
 from opencis.cxl.transport.cci_packets import CciMessagePacket, CciPayloadPacket
 from opencis.cxl.transport.packet_constants import CCI_MCTP_MESSAGE_CATEGORY
 from opencis.cxl.component.cci_executor import CciExecutor, CciRequest, CciResponse, CciCommand
-from opencis.cxl.cci.common import (
-    CCI_RETURN_CODE,
-    CCI_FM_API_COMMAND_OPCODE,
-    get_opcode_string,
-)
+from opencis.cxl.cci.common import CCI_RETURN_CODE, get_opcode_string
 from opencis.cxl.component.gae_manager import GaeManager
 from opencis.cxl.cci.fabric_manager.gae import (
     IdentifyGaeCommand,
@@ -60,14 +57,7 @@ from opencis.cxl.cci.fabric_manager.gae import (
     GetProxyThreadStatusCommand,
     CancelProxyThreadCommand,
 )
-from opencis.cxl.cci.fabric_manager.pbr_switch import (
-    ConfigurePidAssignmentRequestPayload,
-    ConfigurePidBindingRequestPayload,
-    SetDrtRequestPayload,
-)
-
-if TYPE_CHECKING:
-    from opencis.cxl.component.mctp.mctp_cci_api_client import MctpCciApiClient
+from opencis.cxl.component.fabric_manager.pbr_command_service import PbrCommandService
 
 
 
@@ -93,7 +83,7 @@ class FmMctpCciServer(RunnableComponent):
         port: int = 8300,
         cci_commands: Optional[List[CciCommand]] = None,
         gae_manager: Optional[GaeManager] = None,
-        switch_api_client: Optional["MctpCciApiClient"] = None,
+        pbr_service: Optional[PbrCommandService] = None,
         label: Optional[str] = None,
     ):
         super().__init__(label or "FmMctpCciServer")
@@ -101,10 +91,11 @@ class FmMctpCciServer(RunnableComponent):
         self._port = port
         self._gae_manager = gae_manager
 
-        # Phase 2: optional reference to the switch-side MCTP API client.
-        # When set, successfully-executed write commands are mirrored to the
-        # physical switch (port 8100) after updating the FM's own state.
-        self._switch_api_client: Optional["MctpCciApiClient"] = switch_api_client
+        # Shared PbrCommandService — when set, write commands received on
+        # port 8300 are automatically mirrored to the physical switch.
+        # All switch-programming logic lives in PbrCommandService; this
+        # server only calls pbr_service.forward(opcode, payload).
+        self._pbr_service: Optional[PbrCommandService] = pbr_service
 
         # Shared CCI executor — all registered commands land here
         self._cci_executor = CciExecutor(label="FmMctpCci")
@@ -140,17 +131,17 @@ class FmMctpCciServer(RunnableComponent):
         """Register an additional CCI command after construction."""
         self._cci_executor.register_command(command.get_opcode(), command)
 
-    def bind_switch_api_client(self, client: "MctpCciApiClient") -> None:
+    def bind_pbr_service(self, service: PbrCommandService) -> None:
         """
-        Phase 2 — Bind the switch-side MCTP CCI API client after construction.
+        Bind the shared PbrCommandService after construction (late binding).
 
-        Call this once the switch has connected on port 8100 and the
-        MctpCciApiClient is running.  Write commands received on port 8300
-        will then be automatically mirrored to the physical switch.
+        Call this once the switch has connected and the PbrCommandService
+        is ready.  Write commands received on port 8300 will then be
+        automatically mirrored to the physical switch via the service.
         """
-        self._switch_api_client = client
+        self._pbr_service = service
         logger.info(self._create_message(
-            "Switch API client bound — write commands will be mirrored to switch"
+            "PbrCommandService bound — write commands will be mirrored to switch"
         ))
 
     def set_gfd_executor(self, gfd_executor) -> None:
@@ -243,8 +234,9 @@ class FmMctpCciServer(RunnableComponent):
         CCI command through the executor, and sends the response back via
         ep_to_controller.
 
-        Phase 2: After a successful write command, the command is mirrored to
-        the physical switch via _forward_to_switch().
+        If a PbrCommandService is bound, write commands are forwarded to the
+        physical switch after successful local execution via
+        pbr_service.forward(opcode, raw_payload).
         """
         while True:
             raw = await conn.controller_to_ep.get()
@@ -268,12 +260,12 @@ class FmMctpCciServer(RunnableComponent):
             request  = CciRequest(opcode=opcode, payload=raw_payload)
             response: CciResponse = await self._cci_executor.execute_command(request)
 
-            # 2. Phase 2 — Mirror write commands to the physical switch
-            if response.return_code in (
+            # 2. Mirror write commands to the physical switch via PbrCommandService
+            if self._pbr_service is not None and response.return_code in (
                 CCI_RETURN_CODE.SUCCESS,
                 CCI_RETURN_CODE.BACKGROUND_COMMAND_STARTED,
             ):
-                await self._forward_to_switch(opcode, raw_payload)
+                await self._pbr_service.forward(opcode, raw_payload)
 
             # 3. Build and send the MCTP response back to the caller
             resp_msg = CciMessagePacket.create(
@@ -293,65 +285,6 @@ class FmMctpCciServer(RunnableComponent):
 
             resp_pkt = CciPayloadPacket.create(resp_msg)
             await conn.ep_to_controller.put(resp_pkt)
-
-    # ------------------------------------------------------------------
-    # Phase 2 — Switch mirroring
-    # ------------------------------------------------------------------
-
-    async def _forward_to_switch(self, opcode: int, payload: bytes) -> None:
-        """
-        Mirror a write command to the physical switch via port 8100.
-
-        Only the three write opcodes are forwarded:
-          0x5704  Configure PID Assignment
-          0x5706  Configure PID Binding
-          0x5709  Set DRT
-
-        Read-only commands (Identify, GetDRT, GetPidBinding) are skipped —
-        they read FM state only; no switch programming is needed.
-
-        Graceful degradation: if the switch client is not bound or not
-        running, a warning is logged and the FM returns normally.
-        """
-        if self._switch_api_client is None:
-            return  # switch mirroring not configured
-
-        if not self._switch_api_client.is_connected():
-            logger.warning(self._create_message(
-                f"Switch not connected; skipping mirror for opcode {opcode:#06x}. "
-                "FM state was updated."
-            ))
-            return
-
-        try:
-            if opcode == CCI_FM_API_COMMAND_OPCODE.CONFIGURE_PID_ASSIGNMENT:
-                req_payload = ConfigurePidAssignmentRequestPayload.parse(payload)
-                await self._switch_api_client.configure_pid_assignment(req_payload)
-                logger.debug(self._create_message(
-                    f"Mirrored CONFIGURE_PID_ASSIGNMENT to switch"
-                ))
-
-            elif opcode == CCI_FM_API_COMMAND_OPCODE.SET_DRT:
-                req_payload = SetDrtRequestPayload.parse(payload)
-                await self._switch_api_client.set_drt(req_payload)
-                logger.debug(self._create_message(
-                    f"Mirrored SET_DRT to switch"
-                ))
-
-            elif opcode == CCI_FM_API_COMMAND_OPCODE.CONFIGURE_PID_BINDING:
-                req_payload = ConfigurePidBindingRequestPayload.parse(payload)
-                await self._switch_api_client.configure_pid_binding(req_payload)
-                logger.debug(self._create_message(
-                    f"Mirrored CONFIGURE_PID_BINDING to switch"
-                ))
-
-            # All other opcodes (read-only or unrecognised) — no switch action
-
-        except Exception as exc:
-            # Non-fatal: FM state is already updated; log and continue
-            logger.warning(self._create_message(
-                f"Failed to mirror opcode {opcode:#06x} to switch: {exc}"
-            ))
 
     # ------------------------------------------------------------------
     # Lifecycle

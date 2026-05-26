@@ -42,6 +42,7 @@ from typing import Dict, List
 from opencis.cxl.component.mctp.fm_mctp_cci_server import FmMctpCciServer
 from opencis.cxl.component.mctp.mctp_connection_client import MctpConnectionClient
 from opencis.cxl.component.mctp.mctp_cci_api_client import MctpCciApiClient
+from opencis.cxl.component.fabric_manager.pbr_command_service import PbrCommandService
 from opencis.cxl.component.pbr_switch_manager import (
     PbrSwitchManager,
     PidTarget,
@@ -280,17 +281,20 @@ async def fm_with_switch():
     conn_task = asyncio.create_task(conn_client.run())
     await conn_client.wait_for_ready()
 
-    # 3. MctpCciApiClient owns the queue pair from the client
+    # 3. MctpCciApiClient owns the queue pair from the connection client
     api_client = MctpCciApiClient(conn_client.get_mctp_connection())
     api_task = asyncio.create_task(api_client.run())
     await api_client.wait_for_ready()
 
-    # 4. FmMctpCciServer with injected api_client (Phase 2)
+    # 4. PbrCommandService wraps api_client — mirrors the production path
+    pbr_svc = PbrCommandService(api_client=api_client, label="test-PbrService")
+
+    # 5. FmMctpCciServer with injected pbr_service
     server = FmMctpCciServer(
         host="127.0.0.1",
         port=0,
         cci_commands=_all_pbr_commands(pbr_mgr),
-        switch_api_client=api_client,
+        pbr_service=pbr_svc,
     )
     server_task = asyncio.create_task(server.run())
     await server.wait_for_ready()
@@ -456,13 +460,13 @@ async def test_readonly_commands_not_forwarded_to_switch(fm_with_switch):
 
 @pytest_asyncio.fixture(loop_scope="function")
 async def fm_no_switch():
-    """FM server with no switch connected — switch_api_client=None."""
+    """FM server with no switch — pbr_service=None."""
     pbr_mgr = _make_pbr_manager(label="no-switch-FM-PbrManager")
     server = FmMctpCciServer(
         host="127.0.0.1",
         port=0,
         cci_commands=_all_pbr_commands(pbr_mgr),
-        switch_api_client=None,   # no switch
+        pbr_service=None,   # no switch
     )
     server_task = asyncio.create_task(server.run())
     await server.wait_for_ready()

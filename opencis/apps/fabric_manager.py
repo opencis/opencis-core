@@ -37,6 +37,7 @@ from opencis.cxl.cci.fabric_manager.pbr_switch import (
     GetDrtCommand,
     SetDrtCommand,
 )
+from opencis.cxl.component.fabric_manager.pbr_command_service import PbrCommandService
 from opencis.util.component import RunnableComponent
 from opencis.util.logger import logger
 
@@ -120,18 +121,23 @@ class CxlFabricManager(RunnableComponent):
             SetDrtCommand(self._fm_pbr_manager),
         ]
 
-        # Phase 2: pass self._api_client so the FM automatically mirrors
-        # write commands (SetDRT, ConfigurePidAssignment, ConfigurePidBinding)
-        # received on port 8300 to the physical switch on port 8100.
+        # Shared PbrCommandService — single authoritative path to the switch.
+        # Both port 8300 (MCTP CCI) and port 8200 (Socket.IO CLI) use this
+        # so switch-programming logic is never duplicated.
+        self._pbr_service = PbrCommandService(
+            api_client=self._api_client,
+            label="FM-PbrService",
+        )
+
         self._fm_mctp_cci_server = FmMctpCciServer(
             host=mctp_host,
             port=fm_mctp_cci_port,
             cci_commands=pbr_commands,
-            switch_api_client=self._api_client,   # Phase 2 — switch mirroring
+            pbr_service=self._pbr_service,   # shared service — single switch path
         )
         logger.info(self._create_message(
             f"FM MCTP CCI server configured on port {fm_mctp_cci_port} "
-            "(switch mirroring enabled via api_client)"
+            "(switch mirroring via PbrCommandService)"
         ))
 
     # ------------------------------------------------------------------

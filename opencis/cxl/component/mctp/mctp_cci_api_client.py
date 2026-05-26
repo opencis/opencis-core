@@ -138,20 +138,6 @@ class MctpCciApiClient(RunnableComponent):
     async def _stop(self):
         await self._mctp_connection.ep_to_controller.put(None)
 
-    def is_connected(self) -> bool:
-        """
-        Phase 2 helper — returns True when the client has an active MCTP
-        connection and its receive loop is running.
-
-        FmMctpCciServer calls this before mirroring write commands to the
-        switch so that a missing switch causes a graceful warning rather than
-        an unhandled exception or hang.
-        """
-        from opencis.util.component import COMPONENT_STATUS
-        return (
-            self._mctp_connection is not None
-            and self._status == COMPONENT_STATUS.RUNNING
-        )
 
     async def _get_response(self, message_tag: int) -> CciMessagePacket:
         await self._condition.acquire()
