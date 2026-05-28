@@ -67,6 +67,14 @@ from opencis.cxl.cci.fabric_manager.pbr_switch import (
     GetDrtCommand,
     SetDrtCommand,
 )
+from opencis.cxl.cci.fabric_manager.gae import (
+    IdentifyGaeCommand,
+    GetPidAccessVectorsCommand,
+    ProxyGfdMgmtCommand,
+    GetProxyThreadStatusCommand,
+    CancelProxyThreadCommand,
+)
+from opencis.cxl.component.gae_manager import GaeManager
 from opencis.cxl.component.pbr_switch_manager import PbrSwitchManager
 from opencis.cxl.component.pbr_switch_router import PbrSwitchRouter
 from opencis.cxl.component.hdm_decoder import (
@@ -144,6 +152,12 @@ class CxlSwitch(RunnableComponent):
         self._pbr_switch_router = None
         self._enable_pbr = switch_config.enable_pbr
 
+        # GAE Manager — one per switch, tracks proxy threads and vPPB list
+        # Instantiated alongside PbrSwitchManager so GAE CCI commands can be registered.
+        self._gae_manager = (
+            GaeManager(vppbs=[], label="Switch0:GAE") if switch_config.enable_pbr else None
+        )
+
         if switch_config.enable_pbr and self._pbr_switch_manager is not None:
             # Gap 3 — HDM decoder manager: maps Host Physical Address → DPID at ingress.
             # Initialised with a single decoder slot; the FM CLI programs it via
@@ -213,15 +227,25 @@ class CxlSwitch(RunnableComponent):
             UnfreezeVppbCommand(self._virtual_switch_manager),
             SetLdAllocationsCommand(self._virtual_switch_manager),
         ]
-        # Register PBR commands only if the switch is in PBR mode
+        # Register PBR + GAE commands only if the switch is in PBR mode
         if self._enable_pbr and self._pbr_switch_manager:
             commands.extend([
+                # PBR Switch control plane (0x5700–0x5709)
                 IdentifyPbrSwitchCommand(self._pbr_switch_manager),
                 ConfigurePidAssignmentCommand(self._pbr_switch_manager),
                 GetPidBindingCommand(self._pbr_switch_manager),
                 ConfigurePidBindingCommand(self._pbr_switch_manager),
                 GetDrtCommand(self._pbr_switch_manager),
                 SetDrtCommand(self._pbr_switch_manager),
+            ])
+        if self._enable_pbr and self._gae_manager:
+            commands.extend([
+                # GAE control plane (0x5800–0x580B) — §7.7.14
+                IdentifyGaeCommand(self._gae_manager),
+                GetPidAccessVectorsCommand(self._gae_manager),
+                ProxyGfdMgmtCommand(self._gae_manager),
+                GetProxyThreadStatusCommand(self._gae_manager),
+                CancelProxyThreadCommand(self._gae_manager),
             ])
         self._mctp_cci_executor.register_cci_commands(commands)
 
@@ -234,6 +258,15 @@ class CxlSwitch(RunnableComponent):
                 payload = NotifyDeviceUpdateRequestPayload()
                 request = payload.create_request()
                 await self._mctp_cci_executor.send_notification(request)
+                # Bind GFD DSP CCI tunnel to GaeManager so proxy commands can
+                # be forwarded to the GFD's CciExecutor over the switch cci_fifo.
+                if event.connected and self._gae_manager is not None:
+                    tunnel = self._mctp_cci_executor.get_tunnel(event.port_id)
+                    if tunnel is not None:
+                        self._gae_manager.set_gfd_tunnel(tunnel)
+                elif not event.connected and self._gae_manager is not None:
+                    # GFD disconnected — clear the tunnel binding
+                    self._gae_manager.set_gfd_tunnel(None)
 
         async def handle_switch_event(event: SwitchUpdateEvent):
             payload = NotifySwitchUpdateRequestPayload(
