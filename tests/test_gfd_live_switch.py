@@ -188,6 +188,13 @@ class PbrLiveSwitchHarness:
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         return future.result(timeout=timeout)
 
+    def stop(self, timeout: float = 3.0):
+        """Gracefully stop the background event loop and join the thread."""
+        if self._loop is not None and not self._loop.is_closed():
+            self._loop.call_soon_threadsafe(self._loop.stop)
+        if self._thread is not None:
+            self._thread.join(timeout=timeout)
+
     # ── background thread ─────────────────────────────────────────────────
 
     def _thread_main(self):
@@ -261,6 +268,7 @@ def harness():
     h = PbrLiveSwitchHarness()
     h.start()
     yield h
+    h.stop()  # release sockets before next test
 
 
 @pytest.fixture
@@ -269,6 +277,7 @@ def harness_with_targets():
     h = PbrLiveSwitchHarness(pid_targets=_make_simple_pid_targets())
     h.start()
     yield h
+    h.stop()  # release sockets before next test
 
 
 # ---------------------------------------------------------------------------

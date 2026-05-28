@@ -7,8 +7,9 @@ from opencis.cxl.component.hdm_decoder import (
     HdmDecoderManagerBase,
     HdmDecoderCapabilities,
     DecoderInfo,
+    INTERLEAVE_GRANULARITY,
+    INTERLEAVE_WAYS,
 )
-from opencis.cxl.device.cxl_type3_device import INTERLEAVE_GRANULARITY, INTERLEAVE_WAYS
 from opencis.cxl.device.cxl_type3_device import CXL_DEVICE_TYPE
 
 

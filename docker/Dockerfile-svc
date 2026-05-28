@@ -19,4 +19,9 @@ RUN find /opencis-core -name "*.so" -delete && \
 
 RUN poetry env use 3.11 && poetry install
 
+# Verify all control-plane + data-plane modules import cleanly
+# in pure-Python mode (no Cython .so required).
+# Fails the Docker build early if any import is broken.
+RUN poetry run python docker/smoke_test_imports.py
+
 ENTRYPOINT ["/bin/bash", "-c" , "poetry env info && ./cxl-util --help"]

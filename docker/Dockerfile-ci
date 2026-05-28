@@ -4,3 +4,10 @@ RUN apt update && \
     apt install git python3-pip python3.11-dev libpcap-dev -y
 
 RUN pip install uv==0.6.3
+
+# Remove any pre-compiled .so / .pyd files that may have been built on a
+# different OS, architecture, or Python version.  The repo ships
+# packet_structs.py — a pure-Python drop-in — so no Cython compiler is needed.
+# This step runs after COPY in CI, but is listed here as documentation.
+# The actual COPY + clean is done in CI scripts using:
+#   docker build --target ci ...
