@@ -118,6 +118,11 @@ def _menu() -> None:
         ("[a]", "Run All",                 "full workflow 1→g"),
         ("[c]", "Clear PID 0x100",         "pbr:configurePid CLEAR"),
         ("[z]", "Reset Memory Files",      "zero-fill both"),
+        ("[e]", "Identify GAE (GFA)",      "gae:identify"),
+        ("[v]", "Get PID Access Vectors",   "gae:getPidAccessVectors  PID=0x200"),
+        ("[p]", "Proxy GFD Mgmt Command",   "gae:proxyGfdMgmt (Forward Identify to GFD)"),
+        ("[t]", "Get Proxy Thread Status",  "gae:getProxyStatus  Thread ID"),
+        ("[y]", "Cancel Proxy Thread",      "gae:cancelProxy  Thread ID"),
         ("[0]", "Quit",                    ""),
     ]
     for key, label, note in items:
@@ -272,6 +277,77 @@ async def cmd_clear_pid(
     return True
 
 
+async def cmd_identify_gae(sio: socketio.AsyncSimpleClient) -> bool:
+    _section("Identify GAE  [gae:identify]")
+    resp = await _call(sio, "gae:identify")
+    if not _check(resp, "gae:identify"):
+        return False
+    r = resp.get("result", {})
+    _ok(f"Num vPPBs with Global Memory : {r.get('numVppbsWithGlobalMemory', '?')}")
+    for e in r.get("vppbEntries", []):
+        _ok(f"  vPPB[{e.get('vppbId')}]  globalMemorySupport={e.get('globalMemorySupport')}")
+    return True
+
+
+async def cmd_get_pid_access_vectors(
+    sio: socketio.AsyncSimpleClient, pid: int
+) -> bool:
+    _section(f"Get PID Access Vectors  [gae:getPidAccessVectors]  PID={pid:#05x}")
+    resp = await _call(sio, "gae:getPidAccessVectors", {"pid": pid})
+    if not _check(resp, "gae:getPidAccessVectors"):
+        return False
+    r = resp.get("result", {})
+    _ok(f"PID           : {r.get('pid', 0):#05x}")
+    _ok(f"GMV (Memory)  : {r.get('gmv', 0)}")
+    _ok(f"VTV (Virtual) : {r.get('vtv', 0)}")
+    return True
+
+
+async def cmd_proxy_gfd_mgmt(
+    sio: socketio.AsyncSimpleClient, gfd_opcode: int = 0x0001, gfd_payload: bytes = b""
+) -> Optional[int]:
+    _section(f"Proxy GFD Mgmt Command  [gae:proxyGfdMgmt]  Opcode={gfd_opcode:#06x}")
+    data = {
+        "gfdOpcode": gfd_opcode,
+        "gfdPayload": list(gfd_payload) if gfd_payload else []
+    }
+    resp = await _call(sio, "gae:proxyGfdMgmt", data)
+    if not _check(resp, "gae:proxyGfdMgmt"):
+        return None
+    r = resp.get("result", {})
+    tid = r.get("threadId", 0)
+    _ok(f"Started proxy thread ID: {tid}")
+    return tid
+
+
+async def cmd_get_proxy_status(
+    sio: socketio.AsyncSimpleClient, thread_id: int
+) -> bool:
+    _section(f"Get Proxy Thread Status  [gae:getProxyStatus]  Thread ID={thread_id}")
+    resp = await _call(sio, "gae:getProxyStatus", {"threadId": thread_id})
+    if not _check(resp, "gae:getProxyStatus"):
+        return False
+    r = resp.get("result", {})
+    _ok(f"Thread ID   : {r.get('threadId', '?')}")
+    _ok(f"Completed   : {r.get('completed', '?')}")
+    _ok(f"Return Code : {r.get('gfdReturnCode', '?')}")
+    raw_payload = r.get("gfdResponsePayload", [])
+    hex_payload = bytes(raw_payload).hex().upper() if raw_payload else "None"
+    _ok(f"GFD Payload : {hex_payload}")
+    return True
+
+
+async def cmd_cancel_proxy(
+    sio: socketio.AsyncSimpleClient, thread_id: int
+) -> bool:
+    _section(f"Cancel Proxy Thread  [gae:cancelProxy]  Thread ID={thread_id}")
+    resp = await _call(sio, "gae:cancelProxy", {"threadId": thread_id})
+    if not _check(resp, "gae:cancelProxy"):
+        return False
+    _ok(f"Cancelled thread {thread_id}  → {resp.get('result')}")
+    return True
+
+
 async def cmd_run_all(sio: socketio.AsyncSimpleClient, sld_mem: str, gfd_mem: str) -> None:
     results = []
     results.append(("Identify PBR Switch",    await cmd_identify(sio)))
@@ -283,6 +359,17 @@ async def cmd_run_all(sio: socketio.AsyncSimpleClient, sld_mem: str, gfd_mem: st
     results.append(("Get DRT GFD",            await cmd_get_drt(sio, PID_GFD, "GFD")))
     results.append(("Get PID Binding (VCS=0 vPPB=0)",          await cmd_get_pid_binding(sio, vcs=0, vppb=0)))
     results.append(("Configure PID Binding (Bind PID_SLD→VCS0)", await cmd_configure_pid_binding(sio, operation=0, target_vcs=0, target_vppb=0, pid=PID_SLD)))
+    results.append(("Identify GAE (GFA)",     await cmd_identify_gae(sio)))
+    results.append(("Get PID Access Vectors", await cmd_get_pid_access_vectors(sio, PID_GFD)))
+    
+    # GAE Proxy workflow
+    tid = await cmd_proxy_gfd_mgmt(sio, gfd_opcode=0x0001)
+    results.append(("Proxy GFD Mgmt (Start)", tid is not None))
+    if tid:
+        await asyncio.sleep(0.1)
+        results.append(("Get Proxy Thread Status", await cmd_get_proxy_status(sio, tid)))
+        results.append(("Cancel Proxy Thread (Idempotent)", await cmd_cancel_proxy(sio, tid)))
+
     results.append(("Mem-Write (SLD)",        cmd_mem_write(sld_mem)))
     results.append(("Mem-Read  (SLD)",        cmd_mem_read(sld_mem)))
     results.append(("Mem-Write (GFD)",        cmd_mem_write(gfd_mem)))
@@ -424,6 +511,23 @@ async def _main(args: argparse.Namespace) -> None:
             elif choice == "z": 
                 cmd_reset_mem(args.sld_mem, args.mem_size)
                 cmd_reset_mem(args.gfd_mem, args.mem_size)
+            elif choice == "e": await cmd_identify_gae(sio)
+            elif choice == "v": await cmd_get_pid_access_vectors(sio, PID_GFD)
+            elif choice == "p": await cmd_proxy_gfd_mgmt(sio, gfd_opcode=0x0001)
+            elif choice == "t":
+                print("Enter Thread ID:")
+                try:
+                    t_val = int((await _ainput("> ")).strip())
+                    await cmd_get_proxy_status(sio, t_val)
+                except ValueError:
+                    print("Invalid Thread ID")
+            elif choice == "y":
+                print("Enter Thread ID to cancel:")
+                try:
+                    t_val = int((await _ainput("> ")).strip())
+                    await cmd_cancel_proxy(sio, t_val)
+                except ValueError:
+                    print("Invalid Thread ID")
             elif choice == "0":
                 print(f"\n{BOLD}[FM CLI] Disconnecting…{RESET}")
                 break

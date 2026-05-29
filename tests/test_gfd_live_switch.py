@@ -89,6 +89,30 @@ from opencis.cxl.cci.fabric_manager.pbr_switch import (
     SetDrtRequestPayload,
 )
 from opencis.cxl.cci.common import CCI_RETURN_CODE
+from opencis.cxl.component.gae_manager import GaeManager
+from opencis.cxl.cci.fabric_manager.gae import (
+    IdentifyGaeCommand,
+    GetPidAccessVectorsCommand,
+    ProxyGfdMgmtCommand,
+    GetProxyThreadStatusCommand,
+    CancelProxyThreadCommand,
+)
+from opencis.cxl.cci.fabric_manager.gae.proxy_gfd_mgmt import (
+    ProxyGfdMgmtRequestPayload,
+    ProxyGfdMgmtResponsePayload,
+)
+from opencis.cxl.cci.fabric_manager.gae.get_proxy_thread_status import (
+    GetProxyThreadStatusRequestPayload,
+    GetProxyThreadStatusResponsePayload,
+)
+from opencis.cxl.cci.fabric_manager.gae.cancel_proxy_thread import (
+    CancelProxyThreadRequestPayload,
+)
+from opencis.cxl.cci.fabric_manager.gae.identify_gae import (
+    IdentifyGaeResponsePayload,
+)
+from unittest.mock import AsyncMock, MagicMock
+from opencis.cxl.component.cci_executor import CciExecutor, CciResponse
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +184,8 @@ class PbrLiveSwitchHarness:
         self._start_error: Optional[Exception] = None
         self.api: Optional[MctpCciApiClient] = None
         self.pbr_mgr: Optional[PbrSwitchManager] = None
+        self.gae_mgr: Optional[GaeManager] = None
+        self.mock_gfd_executor: Optional[MagicMock] = None
 
     # ── public API ────────────────────────────────────────────────────────
 
@@ -230,7 +256,7 @@ class PbrLiveSwitchHarness:
         await mctp_client.run_wait_ready()
         sw_mctp_conn = mctp_client.get_mctp_connection()
 
-        # ── CCI executor + PbrSwitchManager ──────────────────────────────
+        # ── CCI executor + PbrSwitchManager + GaeManager ──────────────────
         port_configs = [PortConfig(PORT_TYPE.USP), PortConfig(PORT_TYPE.DSP)]
         sw_conn_mgr = SwitchConnectionManager(
             port_configs=port_configs, host="127.0.0.1", port=0
@@ -238,6 +264,17 @@ class PbrLiveSwitchHarness:
         self.pbr_mgr = PbrSwitchManager(
             pid_targets=self._pid_targets  # None → no targets (DRT-only tests)
         )
+        self.gae_mgr = GaeManager(vppbs=[], label="Harness:GAE")
+
+        # Mock the GFD's CciExecutor so that proxied GFD commands succeed
+        self.mock_gfd_executor = MagicMock(spec=CciExecutor)
+        resp = CciResponse()
+        resp.return_code = CCI_RETURN_CODE.SUCCESS
+        resp.payload = b"\x11\x22\x33\x44"
+        self.mock_gfd_executor.execute_command = AsyncMock(return_value=resp)
+        self.mock_gfd_executor.wait_for_ready = AsyncMock()
+        self.gae_mgr.set_gfd_executor(self.mock_gfd_executor)
+
         executor = MctpCciExecutor(
             mctp_connection=sw_mctp_conn,
             switch_connection_manager=sw_conn_mgr,
@@ -250,6 +287,12 @@ class PbrLiveSwitchHarness:
             ConfigurePidBindingCommand(self.pbr_mgr),
             GetDrtCommand(self.pbr_mgr),
             SetDrtCommand(self.pbr_mgr),
+            # GAE (GFA) commands
+            IdentifyGaeCommand(self.gae_mgr),
+            GetPidAccessVectorsCommand(self.gae_mgr),
+            ProxyGfdMgmtCommand(self.gae_mgr),
+            GetProxyThreadStatusCommand(self.gae_mgr),
+            CancelProxyThreadCommand(self.gae_mgr),
         ])
         await executor.run_wait_ready()
 
@@ -532,3 +575,76 @@ def test_gfd_live_full_fm_workflow(harness_with_targets: PbrLiveSwitchHarness):
     assert resp.pid == GFD_PID, (
         f"After bind: expected pid={GFD_PID:#05x}, got {resp.pid:#05x}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 7 — Identify GAE  (0x5800)
+# ---------------------------------------------------------------------------
+
+def test_gfd_live_fm_identify_gae(harness: PbrLiveSwitchHarness):
+    """
+    Identify GAE (opcode 0x5800) must return SUCCESS with 0 vPPBs by default.
+    """
+    rc, resp = harness.call(harness.api.identify_gae())
+    _assert_success(rc, "Identify GAE")
+    assert resp is not None
+    assert resp.num_vppbs_with_gm_support == 0
+    assert resp.vppb_entries == []
+
+
+# ---------------------------------------------------------------------------
+# Test 8 — Get PID Access Vectors  (0x5802)
+# ---------------------------------------------------------------------------
+
+def test_gfd_live_fm_get_pid_access_vectors(harness: PbrLiveSwitchHarness):
+    """
+    Get PID Access Vectors (opcode 0x5802) for a given PID.
+    """
+    rc, resp = harness.call(harness.api.get_pid_access_vectors(pid=0x200))
+    _assert_success(rc, "Get PID Access Vectors")
+    assert resp is not None
+    assert resp.pid == 0x200
+    assert resp.gmv == 0
+    assert resp.vtv == 0
+
+
+# ---------------------------------------------------------------------------
+# Test 9 — Proxy GFD Mgmt Flow (0x5809 / 0x580A / 0x580B)
+# ---------------------------------------------------------------------------
+
+def test_gfd_live_fm_proxy_gfd_mgmt_flow(harness: PbrLiveSwitchHarness):
+    """
+    E2E flow:
+    1. Proxy a management command to GFD → returns thread_id.
+    2. Wait and query thread status → returns completed=True with mock response payload.
+    """
+    # 1. Start proxy thread
+    rc, resp = harness.call(harness.api.proxy_gfd_mgmt(gfd_opcode=0x0001, gfd_payload=b"\xaa\xbb"))
+    _assert_success(rc, "Proxy GFD Mgmt")
+    assert resp is not None
+    tid = resp.thread_id
+    assert tid > 0
+
+    # 2. Get status (allow short sleep for background task to resolve)
+    import time
+    time.sleep(0.05)
+    rc2, resp2 = harness.call(harness.api.get_proxy_thread_status(thread_id=tid))
+    _assert_success(rc2, "Get Proxy Thread Status")
+    assert resp2 is not None
+    assert resp2.completed is True
+    assert resp2.gfd_return_code == int(CCI_RETURN_CODE.SUCCESS)
+    assert resp2.gfd_response_payload == b"\x11\x22\x33\x44"
+
+
+def test_gfd_live_fm_cancel_proxy_thread(harness: PbrLiveSwitchHarness):
+    """
+    Cancel an active/completed proxy thread → SUCCESS.
+    """
+    # 1. Start proxy thread
+    rc, resp = harness.call(harness.api.proxy_gfd_mgmt(gfd_opcode=0x0001))
+    _assert_success(rc, "Proxy GFD Mgmt")
+    tid = resp.thread_id
+
+    # 2. Cancel it
+    rc2, _ = harness.call(harness.api.cancel_proxy_thread(thread_id=tid))
+    _assert_success(rc2, "Cancel Proxy Thread")
