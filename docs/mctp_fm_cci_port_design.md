@@ -613,7 +613,9 @@ TLPs themselves never flow through port 8300.
 
 ## 7. CCI Commands Supported
 
-All six PBR CCI opcodes are forwarded verbatim through `send_raw_cci()` to the switch:
+All PBR and GAE (GFA) CCI opcodes are forwarded verbatim through `send_raw_cci()` to the switch:
+
+### 7.1 PBR Switch Command Set (CXL 4.0 §7.7.13)
 
 | Opcode   | Name                         | Description                                           | Background? |
 |----------|------------------------------|-------------------------------------------------------|-------------|
@@ -624,7 +626,17 @@ All six PBR CCI opcodes are forwarded verbatim through `send_raw_cci()` to the s
 | `0x5708` | `GET_DRT`                    | Read the Device Routing Table                         | No          |
 | `0x5709` | `SET_DRT`                    | Write/update the Device Routing Table                 | No          |
 
-### 7.1 Background Commands
+### 7.2 GAE / GFA Command Set (CXL 4.0 §7.7.14)
+
+| Opcode   | Name                         | Description                                           | Background? |
+|----------|------------------------------|-------------------------------------------------------|-------------|
+| `0x5800` | `IDENTIFY_GAE`               | Query GAE capabilities and vPPB list                  | No          |
+| `0x5802` | `GET_PID_ACCESS_VECTORS`     | Query access control vectors for a PID                | No          |
+| `0x5809` | `PROXY_GFD_MGMT`             | Proxy management commands to GFD device               | No          |
+| `0x580A` | `GET_PROXY_THREAD_STATUS`    | Query background proxy thread execution state         | No          |
+| `0x580B` | `CANCEL_PROXY_THREAD`        | Cancel pending background proxy thread                | No          |
+
+### 7.3 Background Commands
 
 `CONFIGURE_PID_BINDING` (0x5706) is a background command. When `is_background=True` is returned
 from `send_raw_cci()`, the response packet's `background_operation` field is set to `1`, signaling
@@ -633,7 +645,7 @@ to the external client that the operation will complete asynchronously.
 The external client is responsible for polling or waiting for completion using whatever mechanism
 the switch supports (typically a separate GET command or interrupt).
 
-### 7.2 CCI Enum Reference
+### 7.4 CCI Enum Reference
 
 ```python
 from opencis.cxl.cci.common import CCI_FM_API_COMMAND_OPCODE
@@ -645,6 +657,13 @@ GET_PID_BINDING         = CCI_FM_API_COMMAND_OPCODE(0x5705)
 CONFIGURE_PID_BINDING   = CCI_FM_API_COMMAND_OPCODE(0x5706)
 GET_DRT                 = CCI_FM_API_COMMAND_OPCODE(0x5708)
 SET_DRT                 = CCI_FM_API_COMMAND_OPCODE(0x5709)
+
+# GAE / GFA opcodes
+IDENTIFY_GAE            = CCI_FM_API_COMMAND_OPCODE(0x5800)
+GET_PID_ACCESS_VECTORS  = CCI_FM_API_COMMAND_OPCODE(0x5802)
+PROXY_GFD_MGMT          = CCI_FM_API_COMMAND_OPCODE(0x5809)
+GET_PROXY_THREAD_STATUS = CCI_FM_API_COMMAND_OPCODE(0x580A)
+CANCEL_PROXY_THREAD     = CCI_FM_API_COMMAND_OPCODE(0x580B)
 ```
 
 ---
