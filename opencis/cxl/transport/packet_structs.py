@@ -5126,3 +5126,10 @@ class _GenPbrBasePacket:
 
 PbrBasePacket = _GenPbrBasePacket
 
+# ---------------------------------------------------------------------------
+# Override with compiled Cython extension if available
+# ---------------------------------------------------------------------------
+try:
+    from opencis.cxl.transport._packet_structs_cython import *
+except ImportError:
+    pass

@@ -25,6 +25,7 @@ log_date_format    = "%H:%M:%S"
 [tool.pylint.main]
 extension-pkg-whitelist = [
   "opencis.cxl.transport.packet_structs",
+  "opencis.cxl.transport._packet_structs_cython",
 ]
 disable = [
   "broad-exception-caught",

@@ -15,4 +15,4 @@ $(GENERATED_STAMP): $(GENERATOR_SCRIPT)
 
 # Clean up build artifacts
 clean:
-	rm -rf *.so *.c __pycache__ packet_structs* build $(GENERATED_STAMP)
+	rm -rf *.so *.c __pycache__ packet_structs* _packet_structs_cython* build $(GENERATED_STAMP)

@@ -299,6 +299,15 @@ def main():
             f.write(emit_packet_class(packet_name, descriptor, field_sizes))
             f.write("\n")
 
+        # Try to import compiled Cython module to override pure-Python implementation
+        f.write("# ---------------------------------------------------------------------------\n")
+        f.write("# Override with compiled Cython extension if available\n")
+        f.write("# ---------------------------------------------------------------------------\n")
+        f.write("try:\n")
+        f.write("    from opencis.cxl.transport._packet_structs_cython import *\n")
+        f.write("except ImportError:\n")
+        f.write("    pass\n")
+
     print(f"Generated: {out_file}")
 
 
