@@ -23,7 +23,7 @@ from opencis.cxl.component.fabric_manager.socketio_server import (
     HostFMMsg,
 )
 from opencis.cxl.component.short_msg_conn import ShortMsgConn
-from opencis.cxl.component.mctp.fm_mctp_cci_server import FmMctpCciServer
+from opencis.cxl.component.mctp.fm_smbus_mctp_server import FmSmbusMctpServer
 from opencis.util.component import RunnableComponent
 from opencis.util.logger import logger
 
@@ -37,6 +37,8 @@ class CxlFabricManager(RunnableComponent):
         socketio_port: int = 8200,
         host_fm_conn_port: int = 8700,
         fm_mctp_cci_port: int = 8300,
+        fm_smbus_i2c_addr: int = 0x10,
+        fm_smbus_verify_pec: bool = False,
         use_test_runner: bool = False,
         config_file: str = None,  # Add config file parameter
     ):
@@ -79,17 +81,21 @@ class CxlFabricManager(RunnableComponent):
         self._host_fm_conn_server.register_general_handler(HostFMMsg.CONFIRM, self._host_callback())
         self._use_test_runner = use_test_runner
 
-        # Port 8300 — pure MCTP adapter.
-        # Receives MCTP CCI packets, forwards them via the same MctpCciApiClient
-        # that FabricManagerSocketIoServer (port 8200) uses to talk to the switch.
-        # Zero local state — all command processing happens in the switch.
-        self._fm_mctp_cci_server = FmMctpCciServer(
+        # Port 8300 — SMBus+MCTP adapter (DMTF DSP0237).
+        # Accepts standard MCTP-over-SMBus packets from QEMU SMBus Slave.
+        # Extracts CCI opcode+payload, forwards via the shared MctpCciApiClient
+        # to the switch (same path as port 8200 CLI).
+        # Wraps response in SMBus+MCTP frame and sends to QEMU SMBus Master.
+        self._fm_mctp_cci_server = FmSmbusMctpServer(
             host=mctp_host,
             port=fm_mctp_cci_port,
-            mctp_client=self._api_client,   # reuse FM CLI path (port 8100)
+            mctp_client=self._api_client,
+            fm_i2c_addr=fm_smbus_i2c_addr,
+            verify_pec=fm_smbus_verify_pec,
         )
         logger.info(self._create_message(
-            f"FM MCTP CCI server (port {fm_mctp_cci_port}) "
+            f"FM SMBus+MCTP CCI server (port {fm_mctp_cci_port}, "
+            f"i2c_addr=0x{fm_smbus_i2c_addr:02X}) "
             "bridged to FM CLI path via shared MctpCciApiClient"
         ))
 
