@@ -181,6 +181,194 @@ async def unfreeze(vcs: int, vppb: int):
     await sio.disconnect()
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# PBR Switch (GFD) commands — §7.7.13
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def pbr_identify():
+    """Identify PBR Switch (5700h) — returns num_drts, num_rgts, routing_caps."""
+    await sio.connect("http://0.0.0.0:8200")
+    await send("pbr:identify")
+    await sio.disconnect()
+
+
+async def pbr_configure_pid(
+    pid: int,
+    target_id: int,
+    instance_id: int = 0,
+    operation: int = 0,
+):
+    """Configure PID Assignment (5704h).
+    operation: 0=Assign, 1=Clear
+    """
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "pbr:configurePid",
+        {
+            "operation": operation,
+            "entries": [
+                {"pid": pid, "targetId": target_id, "instanceId": instance_id}
+            ],
+        },
+    )
+    await sio.disconnect()
+
+
+async def pbr_get_pid_binding(vcs_id: int, vppb_id: int):
+    """Get PID Binding (5705h) — returns PID bound to (vcs, vppb)."""
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "pbr:getPidBinding",
+        {"vcsId": vcs_id, "vppbId": vppb_id},
+    )
+    await sio.disconnect()
+
+
+async def pbr_configure_pid_binding(
+    vcs_id: int,
+    vppb_id: int,
+    pid: int,
+    operation: int = 0,
+    latency_base: int = 0,
+    latency_entry: int = 0,
+    bw_base: int = 0,
+    bw_entry: int = 0,
+):
+    """Configure PID Binding (5706h) — background command.
+    operation: 0=Bind, 1=Unbind
+    """
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "pbr:configurePidBinding",
+        {
+            "operation": operation,
+            "vcsId": vcs_id,
+            "vppbId": vppb_id,
+            "pid": pid,
+            "latencyEntryBaseUnit": latency_base,
+            "latencyEntry": latency_entry,
+            "bwEntryBaseUnit": bw_base,
+            "bwEntry": bw_entry,
+        },
+    )
+    await sio.disconnect()
+
+
+async def pbr_get_drt(
+    drt_index: int = 0,
+    start_entry: int = 0,
+    num_entries: int = 16,
+):
+    """Get DRT (5708h) — reads DRT entries mapping DPID → egress port."""
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "pbr:getDrt",
+        {
+            "drtIndex": drt_index,
+            "startEntry": start_entry,
+            "numEntries": num_entries,
+        },
+    )
+    await sio.disconnect()
+
+
+async def pbr_set_drt(
+    drt_index: int,
+    start_entry: int,
+    entries: list,
+):
+    """Set DRT (5709h) — programs DPID→port routing entries.
+
+    entries: list of dicts like:
+      [{"entryType": "PHYSICAL_PORT", "routingTarget": 1}, ...]
+    entryType values: "PHYSICAL_PORT", "RGT_INDEX", "INVALID"
+    """
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "pbr:setDrt",
+        {
+            "drtIndex": drt_index,
+            "startEntry": start_entry,
+            "entries": entries,
+        },
+    )
+    await sio.disconnect()
+
+
+async def pbr_fabric_crawl_out(
+    target_port: int,
+    gfd_opcode: int,
+    gfd_payload: list = None,
+):
+    """Fabric Crawl Out (5701h) — tunnel a CCI command to a GFD via DSP port."""
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "pbr:fabricCrawlOut",
+        {
+            "targetPort": target_port,
+            "gfdOpcode": gfd_opcode,
+            "gfdPayload": gfd_payload or [],
+        },
+    )
+    await sio.disconnect()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GAE (Generic Access Endpoint) commands — §7.7.14
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def gae_identify():
+    """Identify GAE (5800h) — returns vPPB G-FAM support list."""
+    await sio.connect("http://0.0.0.0:8200")
+    await send("gae:identify")
+    await sio.disconnect()
+
+
+async def gae_get_pid_access_vectors(pid: int):
+    """Get PID Access Vectors (5802h) — returns GMV and VTV bitmasks for a PID."""
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "gae:getPidAccessVectors",
+        {"pid": pid},
+    )
+    await sio.disconnect()
+
+
+async def gae_proxy_gfd_mgmt(gfd_opcode: int, gfd_payload: list = None):
+    """Proxy GFD Management Command (5809h) — forward CCI command to GFD via GAE.
+    Returns thread_id for status polling.
+    """
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "gae:proxyGfdMgmt",
+        {
+            "gfdOpcode": gfd_opcode,
+            "gfdPayload": gfd_payload or [],
+        },
+    )
+    await sio.disconnect()
+
+
+async def gae_get_proxy_status(thread_id: int):
+    """Get Proxy Thread Status (580Ah) — poll completion of a proxy GFD command."""
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "gae:getProxyStatus",
+        {"threadId": thread_id},
+    )
+    await sio.disconnect()
+
+
+async def gae_cancel_proxy(thread_id: int):
+    """Cancel Proxy Thread (580Bh) — cancel an in-progress proxy GFD command."""
+    await sio.connect("http://0.0.0.0:8200")
+    await send(
+        "gae:cancelProxy",
+        {"threadId": thread_id},
+    )
+    await sio.disconnect()
+
+
 # Main asynchronous function to start the client
 async def start_client():
     await sio.connect("http://0.0.0.0:8200")

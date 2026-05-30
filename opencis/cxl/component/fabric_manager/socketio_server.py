@@ -259,6 +259,8 @@ class FabricManagerSocketIoServer(RunnableComponent):
                 response = await self._pbr_get_drt(data)
             elif event_type == "pbr:setDrt":
                 response = await self._pbr_set_drt(data)
+            elif event_type == "pbr:fabricCrawlOut":
+                response = await self._pbr_fabric_crawl_out(data)
             # GAE commands
             elif event_type == "gae:identify":
                 response = await self._gae_identify()
@@ -1316,6 +1318,46 @@ class FabricManagerSocketIoServer(RunnableComponent):
         if response is not None:
             return CommandResponse(error="", result=return_code.name)
         return CommandResponse(error=return_code.name)
+
+    async def _pbr_fabric_crawl_out(self, data) -> CommandResponse:
+        """
+        Fabric Crawl Out (5701h) — tunnel a CCI command to a GFD via DSP port.
+
+        Expected data:
+          {
+            "targetPort": 1,          # DSP port index on the switch
+            "gfdOpcode":  0x0001,     # CCI opcode to forward to the GFD
+            "gfdPayload": [0x00, ...] # optional byte list for the GFD command
+          }
+
+        Response:
+          {
+            "gfdReturnCode":    N,       # CCI return code from the GFD
+            "gfdResponsePayload": [...]  # raw response bytes from GFD
+          }
+        """
+        data = data or {}
+        target_port = data.get("targetPort", 0)
+        gfd_opcode  = data.get("gfdOpcode", 0)
+        raw         = data.get("gfdPayload", [])
+        gfd_payload = bytes(raw) if raw else b""
+
+        (return_code, response) = await self._mctp_client.fabric_crawl_out(
+            target_port=target_port,
+            gfd_opcode=gfd_opcode,
+            gfd_payload=gfd_payload,
+        )
+        if return_code.name not in ("SUCCESS",):
+            return CommandResponse(error=return_code.name)
+        if response is None:
+            return CommandResponse(error="No response payload from GFD")
+        return CommandResponse(
+            error="",
+            result={
+                "gfdReturnCode": response.embedded_resp.return_code,
+                "gfdResponsePayload": list(response.embedded_resp.payload),
+            },
+        )
 
 
     async def _send_update_virtual_cxl_switches_notification(self):
