@@ -85,6 +85,12 @@ def _parse_args() -> argparse.Namespace:
         default=8300,
         help="FM MCTP CCI port that the SMBus bridge connects to (default 8300).",
     )
+    p.add_argument(
+        "--smbus-port",
+        type=int,
+        default=8301,
+        help="FM SMBus+MCTP server port for QEMU SMBus Slave/Master (default 8301).",
+    )
     return p.parse_args()
 
 
@@ -111,7 +117,8 @@ async def _run(args: argparse.Namespace) -> None:
     print(f"{CYAN}{'━' * 62}{RESET}")
     print(f"  FM MCTP (switch) : {args.fm_host}:{args.fm_port}   ← switch connects here")
     print(f"  FM Socket.IO     : {args.sio_host}:{args.sio_port}  ← pbr_fm_cli.py connects here")
-    print(f"  FM MCTP CCI      : {args.fm_host}:{args.smbus_fm_port}  ← MCTP clients / SMBus bridge")
+    print(f"  FM MCTP CCI      : {args.fm_host}:{args.smbus_fm_port}  ← MCTP clients (CciPayloadPacket format)")
+    print(f"  FM SMBus+MCTP    : {args.fm_host}:{args.smbus_port}  ← QEMU SMBus Slave / Master (DSP0237)")
     print(f"  Switch devices   : {args.switch_host}:{args.switch_port}")
     print(f"    Port 0 : USP")
     print(f"    Port 1 : DSP  ← SLD  (memory: {sld_mem.name})")
@@ -121,7 +128,8 @@ async def _run(args: argparse.Namespace) -> None:
     if args.smbus_bridge:
         print(f"  SMBus-MCTP bridge: {args.smbus_bridge} → :{args.smbus_fm_port}")
     print(f"{CYAN}{'━' * 62}{RESET}")
-    print(f"\n{YELLOW}Tip: Run  python pbr_fm_cli.py  in another terminal.{RESET}\n")
+    print(f"\n{YELLOW}Tip: Run  python pbr_fm_cli.py  in another terminal.{RESET}")
+    print(f"{YELLOW}Tip: Run  python tests/test_smbus_8301_client.py  to test SMBus server.{RESET}\n")
 
     # ── Fabric Manager (MCTP server — switch connects to this) ───────────────
     fm = CxlFabricManager(
@@ -129,6 +137,7 @@ async def _run(args: argparse.Namespace) -> None:
         mctp_port=args.fm_port,
         socketio_host=args.sio_host,
         socketio_port=args.sio_port,
+        fm_smbus_port=args.smbus_port,   # port 8301 — QEMU SMBus Slave/Master
     )
 
     # ── PBR Switch (client → FM, server ← devices) ──────────────────────────
