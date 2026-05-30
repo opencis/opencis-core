@@ -3,6 +3,7 @@
 run_pbr_env.py — Single-script PBR test environment.
 
 Launches EVERYTHING in one process — no startup ordering issues:
+  • SmbusToMctpBridge (optional) — Unix socket ↔ FM MCTP :8300 adapter
   • CxlFabricManager  (FM MCTP server on :8100, switch connects here)
   • CxlSwitch         (PBR mode, connects to FM on :8100, devices on :8000)
                        Port 0: USP | Port 1: DSP (SLD) | Port 2: DSP (GFD)
@@ -67,6 +68,23 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--mem-size",    type=int, default=DEFAULT_MEM_SIZE, help="Memory size per device (bytes)")
     # Legacy alias
     p.add_argument("--mem-file",    default=None, help="Legacy alias for --sld-mem")
+    # ── SMBus-MCTP bridge (optional) ─────────────────────────────────────────
+    p.add_argument(
+        "--smbus-bridge",
+        default=None,
+        metavar="SOCKET_PATH",
+        help=(
+            "If set, start the SMBus-MCTP bridge on this Unix socket path "
+            "(e.g. /tmp/smbus_mctp.sock).  QEMU SMBus Slave connects here; "
+            "bridge forwards raw MCTP CciPayloadPackets to FM port 8300."
+        ),
+    )
+    p.add_argument(
+        "--smbus-fm-port",
+        type=int,
+        default=8300,
+        help="FM MCTP CCI port that the SMBus bridge connects to (default 8300).",
+    )
     return p.parse_args()
 
 
@@ -93,12 +111,15 @@ async def _run(args: argparse.Namespace) -> None:
     print(f"{CYAN}{'━' * 62}{RESET}")
     print(f"  FM MCTP (switch) : {args.fm_host}:{args.fm_port}   ← switch connects here")
     print(f"  FM Socket.IO     : {args.sio_host}:{args.sio_port}  ← pbr_fm_cli.py connects here")
+    print(f"  FM MCTP CCI      : {args.fm_host}:{args.smbus_fm_port}  ← MCTP clients / SMBus bridge")
     print(f"  Switch devices   : {args.switch_host}:{args.switch_port}")
     print(f"    Port 0 : USP")
     print(f"    Port 1 : DSP  ← SLD  (memory: {sld_mem.name})")
     print(f"    Port 2 : DSP  ← SLD2 (memory: {gfd_mem.name})")
     print(f"  SLD memory file  : {sld_mem.resolve()}")
     print(f"  GFD memory file  : {gfd_mem.resolve()}")
+    if args.smbus_bridge:
+        print(f"  SMBus-MCTP bridge: {args.smbus_bridge} → :{args.smbus_fm_port}")
     print(f"{CYAN}{'━' * 62}{RESET}")
     print(f"\n{YELLOW}Tip: Run  python pbr_fm_cli.py  in another terminal.{RESET}\n")
 
@@ -173,6 +194,20 @@ async def _run(args: argparse.Namespace) -> None:
     await fm.wait_for_ready()
     print(f"{GREEN}[Env] FM server ready on :{args.fm_port}{RESET}")
 
+    # ── Optional SMBus-MCTP bridge ────────────────────────────────────────────
+    bridge      = None
+    bridge_task = None
+    if args.smbus_bridge:
+        from opencis.cxl.component.smbus.smbus_mctp_bridge import SmbusToMctpBridge
+        bridge = SmbusToMctpBridge(
+            unix_socket_path=args.smbus_bridge,
+            fm_host="127.0.0.1",
+            fm_port=args.smbus_fm_port,
+        )
+        bridge_task = asyncio.create_task(bridge.run())
+        await bridge.wait_for_ready()
+        print(f"{GREEN}[Env] SMBus-MCTP bridge ready on {args.smbus_bridge}{RESET}")
+
     # ── Start switch — connects to FM, listens for devices ───────────────────
     sw_task     = asyncio.create_task(switch.run())
     await switch.wait_for_ready()
@@ -198,9 +233,14 @@ async def _run(args: argparse.Namespace) -> None:
     print(f"{GREEN}[Env] GFD ready (port 2){RESET}")
 
     print(f"\n{BOLD}{GREEN}All components up. Run pbr_data_plane_injector.py to test host.{RESET}")
+    if args.smbus_bridge:
+        print(f"{GREEN}SMBus bridge active on {args.smbus_bridge}{RESET}")
     print(f"{CYAN}Press Ctrl+C to stop.{RESET}\n")
 
-    await asyncio.gather(fm_task, sw_task, host_task, sld_task, gfd_task)
+    tasks = [fm_task, sw_task, host_task, sld_task, gfd_task]
+    if bridge_task is not None:
+        tasks.append(bridge_task)
+    await asyncio.gather(*tasks)
 
 
 def main() -> None:

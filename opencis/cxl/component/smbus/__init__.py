@@ -1,0 +1,1 @@
+# SMBus ↔ MCTP bridge package
