@@ -91,6 +91,7 @@ class CxlFabricManager(RunnableComponent):
             port=fm_mctp_cci_port,
             mctp_client=self._api_client,
         )
+        print(f"[FabricManager] FM MCTP CCI server     : port {fm_mctp_cci_port}  (CciPayloadPacket format)")
         logger.info(self._create_message(
             f"FM MCTP CCI server (port {fm_mctp_cci_port}) "
             "bridged to FM CLI path via shared MctpCciApiClient"
@@ -106,6 +107,7 @@ class CxlFabricManager(RunnableComponent):
             fm_i2c_addr=fm_smbus_i2c_addr,
             verify_pec=fm_smbus_verify_pec,
         )
+        print(f"[FabricManager] FM SMBus+MCTP server    : port {fm_smbus_port}  (DSP0237 QEMU SMBus Slave/Master)")
         logger.info(self._create_message(
             f"FM SMBus+MCTP server (port {fm_smbus_port}, "
             f"i2c_addr=0x{fm_smbus_i2c_addr:02X}) "
