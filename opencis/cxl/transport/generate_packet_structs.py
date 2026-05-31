@@ -473,7 +473,7 @@ def main():
     packets = load_module(base / "packets.py", "packets")
 
     out_file = base / "packet_structs.pyx"
-    with open(out_file, "w") as f:
+    with open(out_file, "w", encoding="utf-8") as f:
         f.write(TOP_CONTENT)
 
         field_sizes = {
@@ -491,7 +491,7 @@ def main():
             f.write("\n")
 
         py_shim = base / "packet_structs.pyi"
-        with py_shim.open("w") as s:
+        with open(py_shim, "w", encoding="utf-8") as s:
             s.write(
                 "# Auto-generated shim. Do NOT edit.\n\n"
                 "# pylint: disable=missing-module-docstring\n\n"

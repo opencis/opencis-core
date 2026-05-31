@@ -19,14 +19,27 @@ from opencis.cxl.component.cxl_component import PORT_TYPE
 from opencis.cxl.device.config.logical_device import (
     LogicalDeviceConfig,
     SingleLogicalDeviceConfig,
+    GenericFabricDeviceConfig,
     MultiLogicalDeviceConfig,
 )
 
+
+from opencis.cxl.component.hdm_decoder import (
+    HDM_DECODER_COUNT,
+    HDM_COUNT_TO_NUM,
+)
+
+def int_to_hdm_decoder_count(count: int) -> HDM_DECODER_COUNT:
+    for enum_val in HDM_DECODER_COUNT:
+        if HDM_COUNT_TO_NUM.calc(enum_val) == count:
+            return enum_val
+    raise ValueError(f"Invalid HDM decoder count: {count}")
 
 @dataclass
 class CxlEnvironment:
     switch_config: CxlSwitchConfig
     single_logical_device_configs: List[SingleLogicalDeviceConfig] = field(default_factory=list)
+    generic_fabric_device_configs: List[GenericFabricDeviceConfig] = field(default_factory=list)
     multi_logical_device_configs: List[MultiLogicalDeviceConfig] = field(default_factory=list)
     logical_device_configs: List[LogicalDeviceConfig] = field(default_factory=list)
 
@@ -69,6 +82,31 @@ def parse_switch_config(config_data) -> CxlSwitchConfig:
         except KeyError as e:
             raise ValueError(f"Missing {e.args[0]} for 'virtual_switch_config' entry.") from e
 
+    if "hdm_decoder_capabilities" in config_data:
+        raw_caps = config_data["hdm_decoder_capabilities"]
+        try:
+            # We must convert the integer count to the correct Enum
+            decoder_count_enum = int_to_hdm_decoder_count(raw_caps.get("decoder_count", 1))
+            
+            # Map raw dictionary to HdmDecoderCapabilities TypedDict
+            # Default missing fields to 0 or False
+            hdm_caps = {
+                "decoder_count": decoder_count_enum,
+                "target_count": raw_caps.get("target_count", 1),
+                "a11to8_interleave_capable": raw_caps.get("a11to8_interleave_capable", 0),
+                "a14to12_interleave_capable": raw_caps.get("a14to12_interleave_capable", 0),
+                "poison_on_decoder_error_capability": raw_caps.get("poison_on_decoder_error_capability", 0),
+                "three_six_twelve_way_interleave_capable": raw_caps.get("three_six_twelve_way_interleave_capable", 0),
+                "sixteen_way_interleave_capable": raw_caps.get("sixteen_way_interleave_capable", 0),
+                "uio_capable": raw_caps.get("uio_capable", 0),
+                "uio_capable_decoder_count": raw_caps.get("uio_capable_decoder_count", 0),
+                "mem_data_nxm_capable": raw_caps.get("mem_data_nxm_capable", 0),
+                "bi_capable": raw_caps.get("bi_capable", False),
+            }
+            switch_config.hdm_decoder_capabilities = hdm_caps
+        except Exception as e:
+            raise ValueError(f"Failed to parse 'hdm_decoder_capabilities': {e}") from e
+
     return switch_config
 
 
@@ -108,6 +146,33 @@ def parse_single_logical_device_configs(
             )
         )
     return single_logical_device_configs
+
+
+def parse_generic_fabric_device_configs(
+    devices_data,
+) -> List[GenericFabricDeviceConfig]:
+    if not isinstance(devices_data, list):
+        raise ValueError("Invalid 'devices' configuration, expected a list.")
+
+    gfd_configs = []
+    for device in devices_data:
+        try:
+            port_index = device["port_index"]
+        except KeyError as exc:
+            raise ValueError("Missing 'port_index' for 'device' entry.") from exc
+
+        try:
+            serial_number = device["serial_number"]
+        except KeyError as exc:
+            raise ValueError("Missing 'serial_number' for 'device' entry.") from exc
+
+        gfd_configs.append(
+            GenericFabricDeviceConfig(
+                port_index=port_index,
+                serial_number=serial_number,
+            )
+        )
+    return gfd_configs
 
 
 def parse_multi_logical_device_configs(
@@ -203,13 +268,22 @@ def parse_cxl_environment(yaml_path: str) -> CxlEnvironment:
     single_logical_device_configs = parse_single_logical_device_configs(
         config_data.get("devices", {}).get("single_logical_devices", [])
     )
+    generic_fabric_device_configs = parse_generic_fabric_device_configs(
+        config_data.get("devices", {}).get("generic_fabric_devices", [])
+    )
     multi_logical_device_configs = parse_multi_logical_device_configs(
         config_data.get("devices", {}).get("multi_logical_devices", [])
     )
 
+    all_logical_devices = []
+    all_logical_devices.extend(single_logical_device_configs)
+    all_logical_devices.extend(generic_fabric_device_configs)
+    all_logical_devices.extend(multi_logical_device_configs)
+
     return CxlEnvironment(
         switch_config=switch_config,
         single_logical_device_configs=single_logical_device_configs,
+        generic_fabric_device_configs=generic_fabric_device_configs,
         multi_logical_device_configs=multi_logical_device_configs,
-        logical_device_configs=single_logical_device_configs + multi_logical_device_configs,
+        logical_device_configs=all_logical_devices,
     )

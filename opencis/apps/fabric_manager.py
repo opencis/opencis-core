@@ -23,6 +23,8 @@ from opencis.cxl.component.fabric_manager.socketio_server import (
     HostFMMsg,
 )
 from opencis.cxl.component.short_msg_conn import ShortMsgConn
+from opencis.cxl.component.mctp.fm_mctp_cci_server import FmMctpCciServer
+from opencis.cxl.component.mctp.fm_smbus_mctp_server import FmSmbusMctpServer
 from opencis.util.component import RunnableComponent
 from opencis.util.logger import logger
 
@@ -35,6 +37,10 @@ class CxlFabricManager(RunnableComponent):
         socketio_host: str = "0.0.0.0",
         socketio_port: int = 8200,
         host_fm_conn_port: int = 8700,
+        fm_mctp_cci_port: int = 8300,
+        fm_smbus_port: int = 8301,
+        fm_smbus_i2c_addr: int = 0x10,
+        fm_smbus_verify_pec: bool = False,
         use_test_runner: bool = False,
         config_file: str = None,  # Add config file parameter
     ):
@@ -76,6 +82,46 @@ class CxlFabricManager(RunnableComponent):
 
         self._host_fm_conn_server.register_general_handler(HostFMMsg.CONFIRM, self._host_callback())
         self._use_test_runner = use_test_runner
+
+        # Port 8300 — original pure MCTP adapter (CciPayloadPacket format).
+        # For existing external MCTP tools / test scripts.
+        # Bug fixes applied: readexactly(), size==0 guard, queue deadlock fix.
+        self._fm_mctp_cci_server = FmMctpCciServer(
+            host=mctp_host,
+            port=fm_mctp_cci_port,
+            mctp_client=self._api_client,
+        )
+        print(f"[FabricManager] FM MCTP CCI server     : port {fm_mctp_cci_port}  (CciPayloadPacket format)")
+        logger.info(self._create_message(
+            f"FM MCTP CCI server (port {fm_mctp_cci_port}) "
+            "bridged to FM CLI path via shared MctpCciApiClient"
+        ))
+
+        # Port 8301 — SMBus+MCTP adapter (DMTF DSP0237).
+        # For QEMU SMBus Slave / Master — speaks standard MCTP-over-SMBus.
+        # Prints every received packet before execution.
+        self._fm_smbus_mctp_server = FmSmbusMctpServer(
+            host=mctp_host,
+            port=fm_smbus_port,
+            mctp_client=self._api_client,
+            fm_i2c_addr=fm_smbus_i2c_addr,
+            verify_pec=fm_smbus_verify_pec,
+        )
+        print(f"[FabricManager] FM SMBus+MCTP server    : port {fm_smbus_port}  (DSP0237 QEMU SMBus Slave/Master)")
+        logger.info(self._create_message(
+            f"FM SMBus+MCTP server (port {fm_smbus_port}, "
+            f"i2c_addr=0x{fm_smbus_i2c_addr:02X}) "
+            "bridged to FM CLI path via shared MctpCciApiClient"
+        ))
+
+    def get_fm_mctp_cci_port(self) -> int:
+        """Return the actual TCP port used by FmMctpCciServer (port 8300)."""
+        return self._fm_mctp_cci_server.get_port()
+
+    def get_fm_smbus_port(self) -> int:
+        """Return the actual TCP port used by FmSmbusMctpServer (port 8301)."""
+        return self._fm_smbus_mctp_server.get_port()
+
 
     def get_host_fm_port(self):
         return self._host_fm_conn_server.get_port()
@@ -127,12 +173,16 @@ class CxlFabricManager(RunnableComponent):
             create_task(self._socketio_server.run()),
             create_task(self._api_client.run()),
             create_task(self._host_fm_conn_server.run()),
+            create_task(self._fm_mctp_cci_server.run()),
+            create_task(self._fm_smbus_mctp_server.run()),
         ]
         wait_tasks = [
             create_task(self._connection_manager.wait_for_ready()),
             create_task(self._socketio_server.wait_for_ready()),
             create_task(self._api_client.wait_for_ready()),
             create_task(self._host_fm_conn_server.wait_for_ready()),
+            create_task(self._fm_mctp_cci_server.wait_for_ready()),
+            create_task(self._fm_smbus_mctp_server.wait_for_ready()),
         ]
         if self._use_test_runner:
             tasks.append(create_task(self._run_test()))
@@ -148,6 +198,8 @@ class CxlFabricManager(RunnableComponent):
             except Exception as e:
                 logger.warning(f"Error disconnecting from MLD process: {e}")
 
+        await self._fm_smbus_mctp_server.stop()
+        await self._fm_mctp_cci_server.stop()
         await self._host_fm_conn_server.stop()
         await self._connection_manager.stop()
         await self._socketio_server.stop()

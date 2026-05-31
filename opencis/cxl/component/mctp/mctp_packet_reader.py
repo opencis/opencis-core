@@ -5,6 +5,7 @@ This software is licensed under the terms of the Revised BSD License.
 See LICENSE for details.
 """
 
+import asyncio
 from asyncio import StreamReader, create_task
 from typing import Optional
 
@@ -80,7 +81,17 @@ class MctpPacketReader(LabeledComponent):
         return message_header
 
     async def _read_payload(self, size: int) -> bytes:
-        payload = await self._reader.read(size)
-        if not payload:
-            raise Exception("Connection disconnected")
-        return payload
+        # Bug fix: use readexactly() not read().
+        # read(n) returns UP TO n bytes (whatever is buffered), which causes
+        # the parser to work on truncated packets and send garbage to the switch.
+        # readexactly(n) waits until exactly n bytes are received.
+        #
+        # Bug fix: treat size==0 as an empty read, not a disconnect.
+        # read(0) returns b"" (falsy) immediately and was incorrectly raising
+        # Exception("Connection disconnected") for header-only packets.
+        if size == 0:
+            return b""
+        try:
+            return await self._reader.readexactly(size)
+        except asyncio.IncompleteReadError as exc:
+            raise Exception("Connection disconnected") from exc

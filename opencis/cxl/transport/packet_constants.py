@@ -14,6 +14,7 @@ class SYSTEM_PAYLOAD_TYPE(IntEnum):
     CXL_MEM = 2  # Custom packet for CXL.mem
     CXL_CACHE = 3  # Custom packet for CXL.cache
     CCI_MCTP = 4  # Custom packet for CCI MCTP
+    PBR = 5  # Custom packet for PBR wrapped TLPs
     SIDEBAND = 15
 
 

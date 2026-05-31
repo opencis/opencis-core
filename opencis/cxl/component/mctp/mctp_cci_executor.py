@@ -22,6 +22,11 @@ from opencis.cxl.component.cxl_component import (
     PORT_TYPE,
     PortConfig,
 )
+from opencis.cxl.component.dsp_cci_tunnel import DspCciTunnel
+from opencis.cxl.cci.fabric_manager.gae.fabric_crawl_out import (
+    DspTunnelRegistry,
+    FabricCrawlOutCommand,
+)
 from opencis.cxl.transport.cci_packets import (
     CciMessagePacket,
     CciPayloadPacket,
@@ -54,16 +59,41 @@ class MctpCciExecutor(RunnableComponent):
         self._switch_connection_manager = switch_connection_manager
         self._virtual_switch_manager = virtual_switch_manager
         self._downstream_port_connections = {}
+        # DSP CCI tunnel registry — one DspCciTunnel per DSP port
+        self._tunnel_registry = DspTunnelRegistry()
+        self._dsp_tunnels: List[DspCciTunnel] = []
 
         for port_index, port_config in enumerate(port_configs):
             if port_config.type == PORT_TYPE.DSP:
-                self._downstream_port_connections[port_index] = (
-                    self._switch_connection_manager.get_cxl_connection(port_index)
+                cxl_conn = self._switch_connection_manager.get_cxl_connection(port_index)
+                self._downstream_port_connections[port_index] = cxl_conn
+                # Build a DspCciTunnel for this DSP port
+                tunnel = DspCciTunnel(
+                    cci_fifo=cxl_conn.cci_fifo,
+                    port_index=port_index,
+                    label=f"DspCciTunnel:Port{port_index}",
                 )
+                self._tunnel_registry.register(port_index, tunnel)
+                self._dsp_tunnels.append(tunnel)
+
+        # Register FabricCrawlOut so the FM can tunnel CCI to any DSP device
+        crawl_out_cmd = FabricCrawlOutCommand(self._tunnel_registry)
+        self._cci_executor.register_command(crawl_out_cmd.get_opcode(), crawl_out_cmd)
 
     def register_cci_commands(self, commands: List[CciCommand]):
         for command in commands:
             self._cci_executor.register_command(command.get_opcode(), command)
+
+    def get_tunnel_registry(self) -> DspTunnelRegistry:
+        """
+        Return the DspTunnelRegistry so callers (e.g. FmMctpCciServer) can
+        bind individual tunnel instances into a GaeManager.
+        """
+        return self._tunnel_registry
+
+    def get_tunnel(self, port_index: int) -> Optional[DspCciTunnel]:
+        """Return the DspCciTunnel for a specific DSP port, or None."""
+        return self._tunnel_registry.get(port_index)
 
     def _packet_to_request(self, packet: CciMessagePacket) -> CciRequest:
         return CciRequest(opcode=packet.cci_msg_header.command_opcode, payload=packet.get_payload())
@@ -220,6 +250,10 @@ class MctpCciExecutor(RunnableComponent):
             await self._mctp_connection.ep_to_controller.put(cci_packet_tmc)
 
     async def _run(self):
+        # Start all DSP CCI tunnel drain tasks
+        for tunnel in self._dsp_tunnels:
+            tunnel.start()
+
         tasks = [
             create_task(self._process_incoming_requests()),
             create_task(self._cci_executor.run()),
@@ -230,6 +264,9 @@ class MctpCciExecutor(RunnableComponent):
         await gather(*tasks)
 
     async def _stop(self):
+        # Stop DSP CCI tunnel drain tasks
+        for tunnel in self._dsp_tunnels:
+            await tunnel.stop()
         # Stop the executor
         await self._mctp_connection.controller_to_ep.put(None)
         for downstream_connection in self._downstream_port_connections.values():

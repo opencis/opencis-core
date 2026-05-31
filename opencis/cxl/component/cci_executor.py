@@ -162,8 +162,12 @@ class CciExecutor(RunnableComponent):
     async def _process_background_command(self):
         while self._running:
             await self._condition.acquire()
-            while self._background_command_slot.command is None:
+            while self._background_command_slot.command is None and self._running:
                 await self._condition.wait()
+
+            if not self._running:
+                self._condition.release()
+                break
 
             command = self._background_command_slot.command
             request = self._background_command_slot.request
@@ -187,3 +191,8 @@ class CciExecutor(RunnableComponent):
 
     async def _stop(self):
         self._running = False
+        # Wake up any coroutine waiting on self._condition.wait()
+        # inside _process_background_command so it can exit the loop.
+        await self._condition.acquire()
+        self._condition.notify_all()
+        self._condition.release()

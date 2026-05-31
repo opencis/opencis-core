@@ -25,6 +25,7 @@ from opencis.bin import (
     get_info,
     mem,
     multi_logical_device as mld,
+    generic_fabric_device as gfd,
     packet_runner,
     single_logical_device as sld,
 )
@@ -164,9 +165,10 @@ def validate_component(ctx, param, components):
         "host-group",
         "sld-group",
         "mld-group",
+        "gfd-group",
     ]
     if "all" in components:
-        return ("fm", "switch", "host-group", "sld-group", "mld-group")
+        return ("fm", "switch", "host-group", "sld-group", "mld-group", "gfd-group")
     for c in components:
         if c not in valid_components:
             raise click.BadParameter(f"Please select from {list(valid_components)}")
@@ -179,7 +181,7 @@ def validate_log_level(ctx, param, level):
     if level:
         level = level.upper()
         if level not in valid_levels:
-            raise click.BadParameter(f"Please select from {", ".join(valid_levels)}")
+            raise click.BadParameter(f"Please select from {', '.join(valid_levels)}")
     return level
 
 
@@ -218,7 +220,7 @@ def start(
     """Start components"""
 
     log_level = log_level if not None else "INFO"
-    config_components = ["switch", "sld-group", "mld-group", "host-group"]
+    config_components = ["switch", "sld-group", "mld-group", "host-group", "gfd-group"]
     comp = list(comp)
 
     # Validate config
@@ -249,6 +251,7 @@ def start(
         "switch": lambda: ctx.invoke(cxl_switch.start, config_file=config_file),
         "sld-group": lambda: ctx.invoke(sld.start_group, config_file=config_file),
         "mld-group": lambda: ctx.invoke(mld.start_group, config_file=config_file),
+        "gfd-group": lambda: ctx.invoke(gfd.start_group, config_file=config_file),
         "host-group": lambda: ctx.invoke(
             cxl_host.start_group, config_file=config_file, ig=ig, iw=iw
         ),

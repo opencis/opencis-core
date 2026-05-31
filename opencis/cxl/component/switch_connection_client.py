@@ -36,7 +36,7 @@ class SwitchConnectionClient(RunnableComponent):
         component_type: CXL_COMPONENT_TYPE,
         ld_count: int = 0,
         mld_config=None,
-        host: str = "0.0.0.0",
+        host: str = "127.0.0.1",
         port: int = 8000,
         retry: bool = True,
         parent_name: Optional[str] = None,

@@ -50,6 +50,12 @@ class MctpPacketProcessor(RunnableComponent):
                 await self._incoming.put(packet)
             except Exception as e:
                 logger.debug(self._create_message(str(e)))
+                # Bug fix: put None into BOTH queues.
+                # _stop_outgoing_processor() only signals ep_to_controller
+                # (stops _process_outgoing_packets).
+                # But _process_client() blocks on controller_to_ep.get() and
+                # would hang forever without this None sentinel.
+                await self._incoming.put(None)   # unblocks _process_client()
                 await self._stop_outgoing_processor()
                 break
         logger.debug(self._create_message("Stopped incoming packet processor"))

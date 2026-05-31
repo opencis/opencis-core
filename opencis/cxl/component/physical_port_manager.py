@@ -89,6 +89,20 @@ class PhysicalPortManager(RunnableComponent):
     def get_ppb_binds(self) -> List[PpbDspBindProcessor]:
         return self._ppb_binds
 
+    def get_port_fifos(self):
+        """Return the cxl_mem_fifo for every physical port (indexed by port number).
+
+        Used by PbrSwitchRouter to attach its per-port ingress/egress loops to
+        the same FIFO pairs that CxlPacketProcessor populates from the TCP stream.
+        The returned list is parallel to port_configs: index 0 is the first port, etc.
+        """
+        from opencis.pci.component.fifo_pair import FifoPair  # local import avoids circularity
+        fifos: List[FifoPair] = []
+        for port_device in self._port_devices:
+            conn = port_device.get_transport_connection()
+            fifos.append(conn.cxl_mem_fifo)
+        return fifos
+
     def get_usp_hdm_decoder_count(self) -> int:
         hdm_decoder_count = 0
         for port in self._port_devices:

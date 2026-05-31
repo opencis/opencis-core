@@ -409,4 +409,15 @@ PACKETS = {
         ],
         "create_args": {},
     },
+    # PBR
+    "PbrBasePacket": {
+        "layout": [
+            ("SystemHeader", "system_header"),
+            ("PbrHeader", "pbr_header"),
+        ],
+        "create_args": {
+            "SystemHeader": ["payload_type"],
+            "PbrHeader": ["spid", "dpid"],
+        },
+    },
 }

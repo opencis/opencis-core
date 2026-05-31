@@ -52,6 +52,9 @@ class BasePacketMixin:
     def is_sideband(self) -> bool:
         return self.system_header.payload_type == SYSTEM_PAYLOAD_TYPE.SIDEBAND
 
+    def is_pbr(self) -> bool:
+        return self.system_header.payload_type == SYSTEM_PAYLOAD_TYPE.PBR
+
     def get_type(self) -> str:
         return self.__class__.__name__
 

@@ -102,11 +102,34 @@ class CCI_FM_API_COMMAND_OPCODE(IntEnum):
     GET_DC_REGION_EXTENT_LISTS = 0x5603
     INITIATE_DYNAMIC_CAPACITY_ADD = 0x5604
     INITIATE_DYNAMIC_CAPACITY_RELEASE = 0x5605
+    IDENTIFY_PBR_SWITCH = 0x5700
+    FABRIC_CRAWL_OUT = 0x5701
+    CONFIGURE_PID_ASSIGNMENT = 0x5704
+    GET_PID_BINDING = 0x5705
+    CONFIGURE_PID_BINDING = 0x5706
+    GET_DRT = 0x5708
+    SET_DRT = 0x5709
     # Custom commands added by Eeum.
     # As per CXL spec's "Table 8-215. CXL FM API Command Opcodes",
     # 52h is for VCS and currently only used till 03h.
     FREEZE_VPPB = 0x5215
     UNFREEZE_VPPB = 0x5216
+
+
+class CCI_GAE_COMMAND_OPCODE(IntEnum):
+    """GAE command opcodes — §7.7.14, CXL Spec Rev 4.0."""
+    IDENTIFY_GAE              = 0x5800
+    GET_PID_INTERRUPT_VECTOR  = 0x5801
+    GET_PID_ACCESS_VECTORS    = 0x5802
+    GET_FAST_IDT_CAPABILITIES = 0x5803
+    SET_FAST_IDT_CONFIGURATION= 0x5804
+    GET_FAST_SEGMENT_ENTRIES  = 0x5805
+    SET_FAST_SEGMENT_ENTRIES  = 0x5806
+    GET_IDT_DPID_ENTRIES      = 0x5807
+    SET_IDT_DPID_ENTRIES      = 0x5808
+    PROXY_GFD_MGMT_CMD        = 0x5809
+    GET_PROXY_THREAD_STATUS   = 0x580A
+    CANCEL_PROXY_THREAD       = 0x580B
 
 
 class CCI_VENDOR_SPECIFIC_OPCODE(IntEnum):
@@ -128,16 +151,32 @@ def get_opcode_string(opcode: int) -> str:
     if (
         CCI_FM_API_COMMAND_OPCODE.IDENTIFY_SWITCH_DEVICE
         <= opcode
-        <= CCI_FM_API_COMMAND_OPCODE.INITIATE_DYNAMIC_CAPACITY_RELEASE
+        <= CCI_FM_API_COMMAND_OPCODE.SET_DRT
     ):
-        return CCI_FM_API_COMMAND_OPCODE(opcode).name
+        try:
+            return CCI_FM_API_COMMAND_OPCODE(opcode).name
+        except ValueError:
+            pass
+
+    if (
+        CCI_GAE_COMMAND_OPCODE.IDENTIFY_GAE
+        <= opcode
+        <= CCI_GAE_COMMAND_OPCODE.CANCEL_PROXY_THREAD
+    ):
+        try:
+            return CCI_GAE_COMMAND_OPCODE(opcode).name
+        except ValueError:
+            pass
 
     if (
         CCI_VENDOR_SPECIFIC_OPCODE.NOTIFY_PORT_UPDATE
         <= opcode
         <= CCI_VENDOR_SPECIFIC_OPCODE.TUNNEL_MANAGEMENT_COMMAND
     ):
-        return CCI_VENDOR_SPECIFIC_OPCODE(opcode).name
+        try:
+            return CCI_VENDOR_SPECIFIC_OPCODE(opcode).name
+        except ValueError:
+            pass
 
     return "Unknown Command"
 

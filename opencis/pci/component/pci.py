@@ -22,6 +22,7 @@ SW_USP_DID = 0xF002
 SW_DSP_DID = 0xF003
 SW_EP_DID = 0xF004
 SW_MLD_DID = 0xF005
+SW_GFD_DID = 0xF006  # Generic Fabric Device (CXL 4.0 PBR)
 
 
 class PCI_CLASS(IntEnum):

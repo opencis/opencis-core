@@ -128,7 +128,14 @@ class CxlIoMemWrPacket(
         last_dw_be = (
             (bytes_enabled_with_offset >> ((length_dword - 1) * 4)) & 0xF if length_dword > 1 else 0
         )
-        data = data.to_bytes(length, byteorder="little")
+        if isinstance(data, int):
+            data = data.to_bytes(length, byteorder="little")
+        else:
+            # Already bytes — validate and zero-pad to the expected length if needed
+            assert len(data) <= length, (
+                f"data length {len(data)} exceeds declared length {length}"
+            )
+            data = data.ljust(length, b"\x00")
         packet = super().create(
             SYSTEM_PAYLOAD_TYPE.CXL_IO,  # system_header__payload_type,
             ld_id,  # tlp_prefix__ld_id,

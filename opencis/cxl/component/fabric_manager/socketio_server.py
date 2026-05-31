@@ -27,6 +27,15 @@ from opencis.cxl.component.mctp.mctp_cci_api_client import (
     FreezeVppbRequestPayload,
     UnfreezeVppbRequestPayload,
 )
+from opencis.cxl.cci.fabric_manager.pbr_switch import (
+    ConfigurePidAssignmentRequestPayload,
+    PidAssignmentEntry,
+    GetPidBindingRequestPayload,
+    ConfigurePidBindingRequestPayload,
+    GetDrtRequestPayload,
+    SetDrtRequestPayload,
+)
+from opencis.cxl.component.pbr_switch_manager import DrtEntry, DrtEntryType
 from opencis.cxl.cci.common import (
     CCI_VENDOR_SPECIFIC_OPCODE,
     get_opcode_string,
@@ -178,6 +187,19 @@ class FabricManagerSocketIoServer(RunnableComponent):
         self._register_handler("mld:getAllocation")
         self._register_handler("mld:setAllocation")
         self._register_handler("background:getStatus")
+        # PBR switch FM commands
+        self._register_handler("pbr:identify")
+        self._register_handler("pbr:configurePid")
+        self._register_handler("pbr:getPidBinding")
+        self._register_handler("pbr:configurePidBinding")
+        self._register_handler("pbr:getDrt")
+        self._register_handler("pbr:setDrt")
+        # GAE commands
+        self._register_handler("gae:identify")
+        self._register_handler("gae:getPidAccessVectors")
+        self._register_handler("gae:proxyGfdMgmt")
+        self._register_handler("gae:getProxyStatus")
+        self._register_handler("gae:cancelProxy")
         self._mctp_client.register_notification_handler(self._handle_notifications)
 
     def _register_handler(self, event):
@@ -224,6 +246,34 @@ class FabricManagerSocketIoServer(RunnableComponent):
                 response = await self._freeze_vppb(data)
             elif event_type == "vcs:unfreeze":
                 response = await self._unfreeze_vppb(data)
+            # PBR commands
+            elif event_type == "pbr:identify":
+                response = await self._pbr_identify()
+            elif event_type == "pbr:configurePid":
+                response = await self._pbr_configure_pid(data)
+            elif event_type == "pbr:getPidBinding":
+                response = await self._pbr_get_pid_binding(data)
+            elif event_type == "pbr:configurePidBinding":
+                response = await self._pbr_configure_pid_binding(data)
+            elif event_type == "pbr:getDrt":
+                response = await self._pbr_get_drt(data)
+            elif event_type == "pbr:setDrt":
+                response = await self._pbr_set_drt(data)
+            elif event_type == "pbr:fabricCrawlOut":
+                response = await self._pbr_fabric_crawl_out(data)
+            # GAE commands
+            elif event_type == "gae:identify":
+                response = await self._gae_identify()
+            elif event_type == "gae:getPidAccessVectors":
+                response = await self._gae_get_pid_access_vectors(data)
+            elif event_type == "gae:proxyGfdMgmt":
+                response = await self._gae_proxy_gfd_mgmt(data)
+            elif event_type == "gae:getProxyStatus":
+                response = await self._gae_get_proxy_status(data)
+            elif event_type == "gae:cancelProxy":
+                response = await self._gae_cancel_proxy(data)
+            else:
+                response = CommandResponse(error=f"Unknown event: {event_type}")
             logger.info(self._create_message(f"Response: {pformat(response)}"))
             logger.debug(self._create_message("Completed SocketIO Request"))
             return response
@@ -1029,6 +1079,286 @@ class FabricManagerSocketIoServer(RunnableComponent):
     async def _send_update_physical_ports_notification(self):
         # Emitting event without arguments
         await self._sio.emit("port:updated")
+
+    # -------------------------------------------------------------------------
+    # PBR Switch FM command handlers
+    # Called from _handle_event for pbr:* Socket.IO events.
+    # The data dict keys mirror the CXL spec field names in camelCase.
+    # -------------------------------------------------------------------------
+
+    async def _pbr_identify(self) -> CommandResponse:
+        (return_code, response) = await self._mctp_client.identify_pbr_switch()
+        if response:
+            return CommandResponse(error="", result={
+                "gaeSupportMap": response.gae_support_map,
+                "numDrts": response.num_drts,
+                "numRgts": response.num_rgts,
+                "routingCaps": response.routing_caps,
+            })
+        return CommandResponse(error=return_code.name)
+
+    async def _pbr_configure_pid(self, data) -> CommandResponse:
+        """
+        Expected data:
+          {
+            "operation": 0,   # 0=Assign, 1=Clear
+            "entries": [
+              {"pid": 0x123, "targetId": 2, "instanceId": 0},
+              ...
+            ]
+          }
+        """
+        entries = [
+            PidAssignmentEntry(
+                pid=e["pid"],
+                target_id=e["targetId"],
+                instance_id=e.get("instanceId", 0),
+            )
+            for e in data.get("entries", [])
+        ]
+        request = ConfigurePidAssignmentRequestPayload(
+            operation=data.get("operation", 0),
+            entries=entries,
+        )
+        (return_code, response) = await self._mctp_client.configure_pid_assignment(request)
+        if response is not None:
+            return CommandResponse(error="", result=return_code.name)
+        return CommandResponse(error=return_code.name)
+
+    async def _pbr_get_pid_binding(self, data) -> CommandResponse:
+        """
+        Expected data: {"targetVcs": 0, "targetVppb": 0}
+        Returns the PID currently bound to the given (vcs, vppb) pair.
+        """
+        request = GetPidBindingRequestPayload(
+            target_vcs=data.get("targetVcs", 0),
+            target_vppb=data.get("targetVppb", 0),
+        )
+        (return_code, response) = await self._mctp_client.get_pid_binding(request)
+        if response:
+            return CommandResponse(error="", result={
+                "pid": response.pid,
+                "latencyEntryBaseUnit": response.latency_entry_base_unit,
+                "latencyEntry": response.latency_entry,
+                "bwEntryBaseUnit": response.bw_entry_base_unit,
+                "bwEntry": response.bw_entry,
+            })
+        return CommandResponse(error=return_code.name)
+
+    async def _pbr_configure_pid_binding(self, data) -> CommandResponse:
+        """
+        Expected data:
+          {
+            "operation": 0,       # 0=Bind, 1=Unbind
+            "targetVcs": 0,       # VCS ID
+            "targetVppb": 0,      # vPPB index
+            "pid": 0x123,         # PID of remote binding target
+            "latencyEntryBaseUnit": 0,
+            "latencyEntry": 0,
+            "bwEntryBaseUnit": 0,
+            "bwEntry": 0
+          }
+        """
+        request = ConfigurePidBindingRequestPayload(
+            operation=data.get("operation", 0),
+            target_vcs=data.get("targetVcs", 0),
+            target_vppb=data.get("targetVppb", 0),
+            pid=data.get("pid", 0xFFF),
+            latency_entry_base_unit=data.get("latencyEntryBaseUnit", 0),
+            latency_entry=data.get("latencyEntry", 0),
+            bw_entry_base_unit=data.get("bwEntryBaseUnit", 0),
+            bw_entry=data.get("bwEntry", 0),
+        )
+        (return_code, response) = await self._mctp_client.configure_pid_binding(request)
+        if response is not None:
+            return CommandResponse(error="", result=return_code.name)
+        return CommandResponse(error=return_code.name)
+
+    async def _pbr_get_drt(self, data) -> CommandResponse:
+        """
+        Expected data:
+          {"drtIndex": 0, "startEntry": 0, "numEntries": 16}
+        """
+        request = GetDrtRequestPayload(
+            drt_index=data.get("drtIndex", 0),
+            start_entry=data.get("startEntry", 0),
+            num_entries=data.get("numEntries", 16),
+        )
+        (return_code, response) = await self._mctp_client.get_drt(request)
+        if response:
+            entries = [
+                {"entryType": e.entry_type.name, "routingTarget": e.routing_target}
+                for e in response.entries
+            ]
+            return CommandResponse(error="", result={
+                "drtIndex": response.drt_index,
+                "startEntry": response.start_entry,
+                "associatedRgtIndex": response.associated_rgt_index,
+                "entries": entries,
+            })
+        return CommandResponse(error=return_code.name)
+
+    async def _pbr_set_drt(self, data) -> CommandResponse:
+        """
+        Expected data:
+          {
+            "drtIndex": 0,
+            "startEntry": 0x123,
+            "entries": [
+              {"entryType": "PHYSICAL_PORT", "routingTarget": 2},
+              ...
+            ]
+          }
+        """
+        type_map = {
+            "PHYSICAL_PORT": DrtEntryType.PHYSICAL_PORT,
+            "RGT_INDEX": DrtEntryType.RGT_INDEX,
+            "INVALID": DrtEntryType.INVALID,
+        }
+        entries = [
+            DrtEntry(
+                entry_type=type_map.get(e.get("entryType", "INVALID"), DrtEntryType.INVALID),
+                routing_target=e.get("routingTarget", 0),
+            )
+            for e in data.get("entries", [])
+        ]
+        request = SetDrtRequestPayload(
+            drt_index=data.get("drtIndex", 0),
+            start_entry=data.get("startEntry", 0),
+            entries=entries,
+        )
+        (return_code, response) = await self._mctp_client.set_drt(request)
+        if response is not None:
+            return CommandResponse(error="", result=return_code.name)
+        return CommandResponse(error=return_code.name)
+
+    # -------------------------------------------------------------------------
+    # GAE command handlers (Socket.IO gae:* events)
+    # -------------------------------------------------------------------------
+
+    async def _gae_identify(self) -> CommandResponse:
+        """Identify GAE (5800h) — returns vPPB G-FAM support list."""
+        (return_code, response) = await self._mctp_client.identify_gae()
+        if response:
+            return CommandResponse(error="", result={
+                "numVppbsWithGlobalMemory": response.num_vppbs_with_gm_support,
+                "vppbEntries": [
+                    {
+                        "vppbId": e.vppb_id,
+                        "globalMemorySupport": e.global_memory_support,
+                    }
+                    for e in response.vppb_entries
+                ],
+            })
+        return CommandResponse(error=return_code.name)
+
+    async def _gae_get_pid_access_vectors(self, data) -> CommandResponse:
+        """
+        Get PID Access Vectors (5802h).
+        Expected data: {"pid": 0x042}
+        """
+        pid = (data or {}).get("pid", 0)
+        (return_code, response) = await self._mctp_client.get_pid_access_vectors(pid=pid)
+        if response:
+            return CommandResponse(error="", result={
+                "pid": response.pid,
+                "gmv": response.gmv,
+                "vtv": response.vtv,
+            })
+        return CommandResponse(error=return_code.name)
+
+    async def _gae_proxy_gfd_mgmt(self, data) -> CommandResponse:
+        """
+        Proxy GFD Management Command (5809h).
+        Expected data:
+          {
+            "gfdOpcode": 0x0001,   # CCI opcode to forward to GFD
+            "gfdPayload": []       # optional list of ints (byte values)
+          }
+        Returns: {"threadId": N}
+        """
+        data = data or {}
+        gfd_opcode = data.get("gfdOpcode", 0)
+        raw = data.get("gfdPayload", [])
+        gfd_payload = bytes(raw) if raw else b""
+        (return_code, response) = await self._mctp_client.proxy_gfd_mgmt(
+            gfd_opcode=gfd_opcode, gfd_payload=gfd_payload
+        )
+        if response:
+            return CommandResponse(error="", result={"threadId": response.thread_id})
+        return CommandResponse(error=return_code.name)
+
+    async def _gae_get_proxy_status(self, data) -> CommandResponse:
+        """
+        Get Proxy Thread Status (580Ah).
+        Expected data: {"threadId": N}
+        """
+        thread_id = (data or {}).get("threadId", 0)
+        (return_code, response) = await self._mctp_client.get_proxy_thread_status(
+            thread_id=thread_id
+        )
+        if response:
+            return CommandResponse(error="", result={
+                "threadId": response.thread_id,
+                "completed": response.completed,
+                "gfdReturnCode": response.gfd_return_code,
+                "gfdResponsePayload": list(response.gfd_response_payload),
+            })
+        return CommandResponse(error=return_code.name)
+
+    async def _gae_cancel_proxy(self, data) -> CommandResponse:
+        """
+        Cancel Proxy Thread (580Bh).
+        Expected data: {"threadId": N}
+        """
+        thread_id = (data or {}).get("threadId", 0)
+        (return_code, response) = await self._mctp_client.cancel_proxy_thread(
+            thread_id=thread_id
+        )
+        if response is not None:
+            return CommandResponse(error="", result=return_code.name)
+        return CommandResponse(error=return_code.name)
+
+    async def _pbr_fabric_crawl_out(self, data) -> CommandResponse:
+        """
+        Fabric Crawl Out (5701h) — tunnel a CCI command to a GFD via DSP port.
+
+        Expected data:
+          {
+            "targetPort": 1,          # DSP port index on the switch
+            "gfdOpcode":  0x0001,     # CCI opcode to forward to the GFD
+            "gfdPayload": [0x00, ...] # optional byte list for the GFD command
+          }
+
+        Response:
+          {
+            "gfdReturnCode":    N,       # CCI return code from the GFD
+            "gfdResponsePayload": [...]  # raw response bytes from GFD
+          }
+        """
+        data = data or {}
+        target_port = data.get("targetPort", 0)
+        gfd_opcode  = data.get("gfdOpcode", 0)
+        raw         = data.get("gfdPayload", [])
+        gfd_payload = bytes(raw) if raw else b""
+
+        (return_code, response) = await self._mctp_client.fabric_crawl_out(
+            target_port=target_port,
+            gfd_opcode=gfd_opcode,
+            gfd_payload=gfd_payload,
+        )
+        if return_code.name not in ("SUCCESS",):
+            return CommandResponse(error=return_code.name)
+        if response is None:
+            return CommandResponse(error="No response payload from GFD")
+        return CommandResponse(
+            error="",
+            result={
+                "gfdReturnCode": response.embedded_resp.return_code,
+                "gfdResponsePayload": list(response.embedded_resp.payload),
+            },
+        )
+
 
     async def _send_update_virtual_cxl_switches_notification(self):
         # Emitting event without arguments

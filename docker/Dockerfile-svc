@@ -1,13 +1,27 @@
 FROM ubuntu:22.04
 
-EXPOSE 8000 8100 8200
+EXPOSE 8000 8100 8200 8300
 
 RUN apt update && \
     apt install -y python3-pip python3.11-dev libpcap-dev
+
 RUN pip install poetry==1.8.0
 
 WORKDIR /opencis-core
 COPY . /opencis-core
+
+# Remove any pre-compiled .so / .pyd files that may have been built on a
+# different OS, architecture, or Python version.  The repo ships
+# packet_structs.py — a pure-Python drop-in — so no Cython compiler is needed.
+RUN find /opencis-core -name "*.so" -delete && \
+    find /opencis-core -name "*.pyd" -delete && \
+    echo "Pure-Python mode: stale binaries removed, using packet_structs.py"
+
 RUN poetry env use 3.11 && poetry install
+
+# Verify all control-plane + data-plane modules import cleanly
+# in pure-Python mode (no Cython .so required).
+# Fails the Docker build early if any import is broken.
+RUN poetry run python docker/smoke_test_imports.py
 
 ENTRYPOINT ["/bin/bash", "-c" , "poetry env info && ./cxl-util --help"]

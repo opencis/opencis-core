@@ -64,7 +64,7 @@ class IdentifyResponsePayload:
         data[2:4] = self.device_id.to_bytes(2, "little")
         data[4:6] = self.sub_system_vendor_id.to_bytes(2, "little")
         data[6:8] = self.sub_system_id.to_bytes(2, "little")
-        data[8:16] = self.serial_number.to_bytes(2, "little")
+        data[8:16] = self.serial_number.to_bytes(8, "little")
         data[16:17] = self.max_supported_msg_size.to_bytes(1, "little")
         data[17:18] = self.component_type.value.to_bytes(1, "little")
         return bytes(data)

@@ -294,17 +294,28 @@ async def test_cxl_host_type3_ete():
     fabric_manager = CxlFabricManager(mctp_port=0, host_fm_conn_port=0)
     host_manager = HostManager(host_port=0, util_port=0)
 
-    # 256B / No interleave
+    # ig = 256B / No interleave, iw = no interleave
     ig = 0
     iw = 0
 
-    start_tasks = [
-        await fabric_manager.run_wait_ready(),
-        await sw_conn_manager.run_wait_ready(),
-        await physical_port_manager.run_wait_ready(),
-        await virtual_switch_manager.run_wait_ready(),
-        await host_manager.run_wait_ready(),
+    # ── Start all infrastructure components concurrently ──────────────────────
+    # Sequential run_wait_ready() calls deadlock because each component's
+    # wait_for_ready() blocks the event loop, preventing other components from
+    # completing their own startup handshakes.
+    infra_tasks = [
+        asyncio.create_task(fabric_manager.run()),
+        asyncio.create_task(sw_conn_manager.run()),
+        asyncio.create_task(physical_port_manager.run()),
+        asyncio.create_task(virtual_switch_manager.run()),
+        asyncio.create_task(host_manager.run()),
     ]
+    await asyncio.gather(
+        fabric_manager.wait_for_ready(),
+        sw_conn_manager.wait_for_ready(),
+        physical_port_manager.wait_for_ready(),
+        virtual_switch_manager.wait_for_ready(),
+        host_manager.wait_for_ready(),
+    )
 
     sld = SingleLogicalDevice(
         port_index=1,
@@ -313,7 +324,8 @@ async def test_cxl_host_type3_ete():
         serial_number="DDDDDDDDDDDDDDDD",
         port=sw_conn_manager.get_port(),
     )
-    start_tasks += [await sld.run_wait_ready()]
+    sld_task = asyncio.create_task(sld.run())
+    await sld.wait_for_ready()
 
     print(f"irq_port: {virtual_switch_manager.get_port(0)}")
     cxl_host_config = CxlHostConfig(
@@ -329,7 +341,8 @@ async def test_cxl_host_type3_ete():
         enable_hm=False,
     )
     host = CxlHost(cxl_host_config)
-    start_tasks += [await host.run_wait_ready()]
+    host_task = asyncio.create_task(host.run())
+    await host.wait_for_ready()
 
     data = 0xA5A5
     valid_addr = 0x40
@@ -352,7 +365,7 @@ async def test_cxl_host_type3_ete():
         asyncio.create_task(fabric_manager.stop()),
     ]
     await asyncio.gather(*stop_tasks)
-    await asyncio.gather(*start_tasks)
+    await asyncio.gather(*infra_tasks, sld_task, host_task, return_exceptions=True)
 
 
 def get_trace_ports(file_name):

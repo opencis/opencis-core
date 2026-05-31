@@ -20,6 +20,12 @@ class LogicalDeviceConfig:
 
 
 @dataclass(kw_only=True)
+class GenericFabricDeviceConfig(LogicalDeviceConfig):
+    serial_number: str
+    device_id: int = SW_SLD_DID
+
+
+@dataclass(kw_only=True)
 class SingleLogicalDeviceConfig(LogicalDeviceConfig):
     memory_size: int  # in bytes
     memory_file: str

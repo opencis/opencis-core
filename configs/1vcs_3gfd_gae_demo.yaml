@@ -1,0 +1,111 @@
+# =============================================================================
+# GFD + GAE Demo Config — 1 Host + 3 GFDs on a PBR switch
+# =============================================================================
+#
+# Port layout:
+#   Port 0 : USP  — host connects here (GAE lives on this USP)
+#   Port 1 : DSP  — GFD-1  (will be assigned PID 0x010)
+#   Port 2 : DSP  — GFD-2  (will be assigned PID 0x020)
+#   Port 3 : DSP  — GFD-3  (will be assigned PID 0x030)
+#
+# VCS-0 has 3 vPPBs, all UNBOUND at startup so you can watch
+# the FM commissioning workflow step by step.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# HOW TO RUN
+# ─────────────────────────────────────────────────────────────────────────────
+#
+#   Terminal 1 — start everything from this config:
+#       python -m opencis start --config-file configs/1vcs_3gfd_gae_demo.yaml
+#
+#   Terminal 2 — watch the FM commission the GFDs one by one:
+#
+#   STEP 1: Identify the PBR switch
+#       python -m opencis fm pbr-identify
+#       # → num_drts=1  num_rgts=0  gae_support_map=0x0000000000000001
+#
+#   STEP 2: Assign PIDs to GFD ports
+#       python -m opencis fm pbr-configure-pid 0x010 1
+#       python -m opencis fm pbr-configure-pid 0x020 2
+#       python -m opencis fm pbr-configure-pid 0x030 3
+#
+#   STEP 3: Program the DRT (DPID → egress port)
+#       python -m opencis fm pbr-set-drt 0 0x010 1
+#       python -m opencis fm pbr-set-drt 0 0x020 2
+#       python -m opencis fm pbr-set-drt 0 0x030 3
+#
+#   STEP 4: Read back DRT to verify programming
+#       python -m opencis fm pbr-get-drt --drt-index 0 --start-entry 0x010 --num-entries 3
+#       # → [0x010] PHYSICAL_PORT→1  [0x011] INVALID  [0x012] INVALID
+#
+#   STEP 5: Check vPPB bindings (all unbound before binding)
+#       python -m opencis fm pbr-get-pid-binding 0 0   # → pid: 0xfff (unbound)
+#       python -m opencis fm pbr-get-pid-binding 0 1   # → pid: 0xfff (unbound)
+#       python -m opencis fm pbr-get-pid-binding 0 2   # → pid: 0xfff (unbound)
+#
+#   STEP 6: Bind PIDs to vPPBs (background commands — link state transition)
+#       python -m opencis fm pbr-bind-pid 0 0 0x010
+#       python -m opencis fm background-status          # poll completion
+#       python -m opencis fm pbr-bind-pid 0 1 0x020
+#       python -m opencis fm background-status
+#       python -m opencis fm pbr-bind-pid 0 2 0x030
+#       python -m opencis fm background-status
+#
+#   STEP 7: Verify bindings are active
+#       python -m opencis fm pbr-get-pid-binding 0 0   # → pid: 0x010 ✓
+#       python -m opencis fm pbr-get-pid-binding 0 1   # → pid: 0x020 ✓
+#       python -m opencis fm pbr-get-pid-binding 0 2   # → pid: 0x030 ✓
+#
+#   GAE COMMANDS (host-edge USP):
+#       python -m opencis fm gae-identify
+#       # → num_vppbs_with_gm_support: 0  (GFDs have no G-FAM by default)
+#
+#       python -m opencis fm gae-get-pid-vectors 0x010
+#       # → pid: 0x010  gmv: 0x0  vtv: 0x0
+#
+#       python -m opencis fm gae-proxy-gfd 0x0001
+#       # → thread_id: 1  (proxy started to GFD)
+#       python -m opencis fm gae-proxy-status 1
+#       # → completed: true  gfd_return_code: 0
+#
+#   FABRIC CRAWL OUT (tunnel CCI directly to a GFD via DSP port):
+#       python -m opencis fm pbr-fabric-crawl-out 1 0x0001
+#       # Sends opcode 0x0001 to GFD at DSP port 1, returns GFD response
+#
+#   HOST MEM ACCESS (after binding is active):
+#       python -m opencis host mem-write 0 0x1000 0xDEADBEEF
+#       python -m opencis host mem-read  0 0x1000
+#
+#   GET SWITCH STATE:
+#       python -m opencis host get-port     # all 4 port states
+#       python -m opencis host get-vcs      # VCS-0 vPPB binding states
+#       python -m opencis host get-device   # all 3 GFDs listed
+# =============================================================================
+
+port_configs:
+  - type: USP         # Port 0 — Host / GAE endpoint
+  - type: DSP         # Port 1 — GFD-1
+  - type: DSP         # Port 2 — GFD-2
+  - type: DSP         # Port 3 — GFD-3
+
+virtual_switch_configs:
+  - upstream_port_index: 0
+    vppb_counts: 3
+    initial_bounds: []    # All vPPBs UNBOUND at startup
+                          # FM must run pbr-bind-pid to activate each GFD
+
+hdm_decoder_capabilities:
+  decoder_count: 3        # One HDM decoder per GFD port
+  target_count: 3
+  bi_capable: False
+
+devices:
+  generic_fabric_devices:
+    - port_index: 1
+      serial_number: "AABBCCDD00000001"   # GFD-1
+
+    - port_index: 2
+      serial_number: "AABBCCDD00000002"   # GFD-2
+
+    - port_index: 3
+      serial_number: "AABBCCDD00000003"   # GFD-3

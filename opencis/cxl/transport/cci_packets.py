@@ -224,6 +224,10 @@ class CciRequestPacket(
 ):
     def __init__(self, buf: bytes | None = None) -> None:
         # pylint: disable=unused-argument
+        # Call super().__init__ first so _GenCciRequestPacket sets up
+        # _cci_header, _system_header, _cci_msg_header before any subclass
+        # code (e.g. initialize_common_headers) tries to access them.
+        super().__init__(buf)
         self.payload = None
         if hasattr(self, "_fields"):
             self.init_cci_payload()
@@ -442,6 +446,10 @@ class CciResponsePacket(
 ):
     def __init__(self, buf: bytes | None = None) -> None:
         # pylint: disable=unused-argument
+        # Call super().__init__ first so _GenCciResponsePacket sets up
+        # _cci_header, _system_header, _cci_msg_header before any subclass
+        # code tries to access them.
+        super().__init__(buf)
         self.payload = None
         if hasattr(self, "_fields"):
             self.init_cci_payload()

@@ -50,6 +50,35 @@ from opencis.cxl.cci.vendor_specfic import (
     GetConnectedDevicesCommand,
     GetConnectedDevicesResponsePayload,
 )
+from opencis.cxl.cci.fabric_manager.pbr_switch import (
+    IdentifyPbrSwitchCommand,
+    IdentifyPbrSwitchResponsePayload,
+    ConfigurePidAssignmentCommand,
+    ConfigurePidAssignmentRequestPayload,
+    GetPidBindingCommand,
+    GetPidBindingRequestPayload,
+    GetPidBindingResponsePayload,
+    ConfigurePidBindingCommand,
+    ConfigurePidBindingRequestPayload,
+    GetDrtCommand,
+    GetDrtRequestPayload,
+    GetDrtResponsePayload,
+    SetDrtCommand,
+    SetDrtRequestPayload,
+)
+from opencis.cxl.cci.fabric_manager.gae import (
+    IdentifyGaeCommand,
+    IdentifyGaeResponsePayload,
+    GetPidAccessVectorsCommand,
+    GetPidAccessVectorsResponsePayload,
+    ProxyGfdMgmtCommand,
+    ProxyGfdMgmtResponsePayload,
+    GetProxyThreadStatusCommand,
+    GetProxyThreadStatusResponsePayload,
+    CancelProxyThreadCommand,
+    FabricCrawlOutCommand,
+    FabricCrawlOutResponsePayload,
+)
 from opencis.cxl.cci.common import CCI_RETURN_CODE
 from opencis.cxl.component.cci_executor import CciRequest
 from opencis.util.component import RunnableComponent
@@ -108,6 +137,7 @@ class MctpCciApiClient(RunnableComponent):
 
     async def _stop(self):
         await self._mctp_connection.ep_to_controller.put(None)
+
 
     async def _get_response(self, message_tag: int) -> CciMessagePacket:
         await self._condition.acquire()
@@ -176,6 +206,39 @@ class MctpCciApiClient(RunnableComponent):
         cci_request = create_request_func() if request is None else create_request_func(request)
         request_message_packet = self._create_request_packet(cci_request)
         return await self._send_request(request_message_packet, port_index, ld_id)
+
+    async def send_raw_cci(
+        self,
+        opcode: int,
+        payload: bytes = b"",
+        port_index: int = 0,
+    ) -> "Tuple[CCI_RETURN_CODE, bytes, bool]":
+        """
+        FM CLI path raw passthrough — used by FmMctpCciServer (port 8300).
+
+        Sends a CCI command to the switch using raw opcode + payload bytes
+        and returns the raw response bytes without any struct parsing.
+
+        Returns:
+            (return_code, response_bytes, is_background)
+            - return_code    : CCI_RETURN_CODE from the switch response header
+            - response_bytes : raw payload bytes from the switch response
+            - is_background  : True when switch replied BACKGROUND_COMMAND_STARTED
+
+        FmMctpCciServer calls this once per incoming MCTP request and
+        forwards response_bytes verbatim in the MCTP response — no struct
+        parsing, no local state, no duplicated switch-programming logic.
+        """
+        request_message_packet = self._create_request_packet(
+            CciRequest(opcode=opcode, payload=payload or b"")
+        )
+        response_message_packet = await self._send_request(
+            request_message_packet, port_index
+        )
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
+        response_bytes = response_message_packet.get_payload() or b""
+        is_background = bool(response_message_packet.cci_msg_header.background_operation)
+        return (return_code, response_bytes, is_background)
 
     def register_notification_handler(self, notification_handler: AsyncEventHandlerType):
         self._notification_handler = notification_handler
@@ -371,3 +434,199 @@ class MctpCciApiClient(RunnableComponent):
         ):
             return (return_code, None)
         return (return_code, return_code)
+
+    # -------------------------------------------------------------------------
+    # PBR Switch FM API commands (CXL Spec Rev 4.0 §7.7.13)
+    # -------------------------------------------------------------------------
+
+    async def identify_pbr_switch(
+        self,
+    ) -> Tuple[CCI_RETURN_CODE, Optional[IdentifyPbrSwitchResponsePayload]]:
+        response_message_packet = await self._send_cci_command(
+            IdentifyPbrSwitchCommand.create_cci_request
+        )
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
+        if return_code != CCI_RETURN_CODE.SUCCESS:
+            return (return_code, None)
+        response = IdentifyPbrSwitchCommand.parse_response_payload(
+            response_message_packet.get_payload()
+        )
+        logger.debug(self._create_message(response.get_pretty_print()))
+        return (return_code, response)
+
+    async def configure_pid_assignment(
+        self, request: ConfigurePidAssignmentRequestPayload
+    ) -> Tuple[CCI_RETURN_CODE, Optional[CCI_RETURN_CODE]]:
+        response_message_packet = await self._send_cci_command(
+            ConfigurePidAssignmentCommand.create_cci_request, request
+        )
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
+        if return_code != CCI_RETURN_CODE.SUCCESS:
+            return (return_code, None)
+        return (return_code, return_code)
+
+    async def get_pid_binding(
+        self, request: GetPidBindingRequestPayload
+    ) -> Tuple[CCI_RETURN_CODE, Optional[GetPidBindingResponsePayload]]:
+        response_message_packet = await self._send_cci_command(
+            GetPidBindingCommand.create_cci_request, request
+        )
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
+        if return_code != CCI_RETURN_CODE.SUCCESS:
+            return (return_code, None)
+        response = GetPidBindingCommand.parse_response_payload(
+            response_message_packet.get_payload()
+        )
+        return (return_code, response)
+
+    async def configure_pid_binding(
+        self, request: ConfigurePidBindingRequestPayload, wait_for_completion: bool = False
+    ) -> Tuple[CCI_RETURN_CODE, Optional[CCI_RETURN_CODE]]:
+        response_message_packet = await self._send_cci_command(
+            ConfigurePidBindingCommand.create_cci_request, request
+        )
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
+        if wait_for_completion:
+            return_code = await self._wait_for_background_operation()
+        if return_code not in (
+            CCI_RETURN_CODE.SUCCESS,
+            CCI_RETURN_CODE.BACKGROUND_COMMAND_STARTED,
+        ):
+            return (return_code, None)
+        return (return_code, return_code)
+
+    async def get_drt(
+        self, request: GetDrtRequestPayload
+    ) -> Tuple[CCI_RETURN_CODE, Optional[GetDrtResponsePayload]]:
+        response_message_packet = await self._send_cci_command(
+            GetDrtCommand.create_cci_request, request
+        )
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
+        if return_code != CCI_RETURN_CODE.SUCCESS:
+            return (return_code, None)
+        response = GetDrtCommand.parse_response_payload(
+            response_message_packet.get_payload()
+        )
+        logger.debug(self._create_message(response.get_pretty_print()))
+        return (return_code, response)
+
+    async def set_drt(
+        self, request: SetDrtRequestPayload
+    ) -> Tuple[CCI_RETURN_CODE, Optional[CCI_RETURN_CODE]]:
+        response_message_packet = await self._send_cci_command(
+            SetDrtCommand.create_cci_request, request
+        )
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
+        if return_code != CCI_RETURN_CODE.SUCCESS:
+            return (return_code, None)
+        return (return_code, return_code)
+
+    # -------------------------------------------------------------------------
+    # GAE Command Set (CXL Spec Rev 4.0 §7.7.14)
+    # -------------------------------------------------------------------------
+
+    async def identify_gae(
+        self,
+    ) -> Tuple[CCI_RETURN_CODE, Optional[IdentifyGaeResponsePayload]]:
+        """Identify GAE (Opcode 5800h) — §7.7.14.1."""
+        response_message_packet = await self._send_cci_command(
+            IdentifyGaeCommand.create_cci_request
+        )
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
+        if return_code != CCI_RETURN_CODE.SUCCESS:
+            return (return_code, None)
+        response = IdentifyGaeCommand.parse_response_payload(
+            response_message_packet.get_payload()
+        )
+        logger.debug(self._create_message(response.get_pretty_print()))
+        return (return_code, response)
+
+    async def get_pid_access_vectors(
+        self, pid: int = 0
+    ) -> Tuple[CCI_RETURN_CODE, Optional[GetPidAccessVectorsResponsePayload]]:
+        """Get PID Access Vectors (Opcode 5802h) — §7.7.14.3."""
+        response_message_packet = await self._send_cci_command(
+            lambda: GetPidAccessVectorsCommand.create_cci_request(pid=pid)
+        )
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
+        if return_code != CCI_RETURN_CODE.SUCCESS:
+            return (return_code, None)
+        response = GetPidAccessVectorsCommand.parse_response_payload(
+            response_message_packet.get_payload()
+        )
+        logger.debug(self._create_message(response.get_pretty_print()))
+        return (return_code, response)
+
+    async def proxy_gfd_mgmt(
+        self, gfd_opcode: int, gfd_payload: bytes = b""
+    ) -> Tuple[CCI_RETURN_CODE, Optional[ProxyGfdMgmtResponsePayload]]:
+        """Proxy GFD Management Command (Opcode 5809h) — §7.7.14.10."""
+        response_message_packet = await self._send_cci_command(
+            lambda: ProxyGfdMgmtCommand.create_cci_request(
+                gfd_opcode=gfd_opcode, gfd_payload=gfd_payload
+            )
+        )
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
+        if return_code != CCI_RETURN_CODE.SUCCESS:
+            return (return_code, None)
+        response = ProxyGfdMgmtCommand.parse_response_payload(
+            response_message_packet.get_payload()
+        )
+        logger.debug(self._create_message(response.get_pretty_print()))
+        return (return_code, response)
+
+    async def get_proxy_thread_status(
+        self, thread_id: int
+    ) -> Tuple[CCI_RETURN_CODE, Optional[GetProxyThreadStatusResponsePayload]]:
+        """Get Proxy Thread Status (Opcode 580Ah) — §7.7.14.11."""
+        response_message_packet = await self._send_cci_command(
+            lambda: GetProxyThreadStatusCommand.create_cci_request(thread_id=thread_id)
+        )
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
+        if return_code != CCI_RETURN_CODE.SUCCESS:
+            return (return_code, None)
+        response = GetProxyThreadStatusCommand.parse_response_payload(
+            response_message_packet.get_payload()
+        )
+        logger.debug(self._create_message(response.get_pretty_print()))
+        return (return_code, response)
+
+    async def cancel_proxy_thread(
+        self, thread_id: int
+    ) -> Tuple[CCI_RETURN_CODE, Optional[CCI_RETURN_CODE]]:
+        """Cancel Proxy Thread (Opcode 580Bh) — §7.7.14.12."""
+        response_message_packet = await self._send_cci_command(
+            lambda: CancelProxyThreadCommand.create_cci_request(thread_id=thread_id)
+        )
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
+        if return_code != CCI_RETURN_CODE.SUCCESS:
+            return (return_code, None)
+        return (return_code, return_code)
+
+    async def fabric_crawl_out(
+        self,
+        target_port: int,
+        gfd_opcode: int,
+        gfd_payload: bytes = b"",
+    ) -> Tuple[CCI_RETURN_CODE, Optional[FabricCrawlOutResponsePayload]]:
+        """
+        Fabric Crawl Out (Opcode 5701h) — §7.7.13.2.
+
+        Tunnels a CCI command to a GFD device through the switch DSP port
+        cci_fifo transport.  The GFD's CCI response is embedded in the reply.
+        """
+        response_message_packet = await self._send_cci_command(
+            lambda: FabricCrawlOutCommand.create_cci_request(
+                target_port=target_port,
+                gfd_opcode=gfd_opcode,
+                gfd_payload=gfd_payload,
+            )
+        )
+        return_code = CCI_RETURN_CODE(response_message_packet.cci_msg_header.return_code)
+        if return_code != CCI_RETURN_CODE.SUCCESS:
+            return (return_code, None)
+        response = FabricCrawlOutCommand.parse_response_payload(
+            response_message_packet.get_payload()
+        )
+        logger.debug(self._create_message(response.get_pretty_print()))
+        return (return_code, response)
