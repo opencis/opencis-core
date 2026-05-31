@@ -4,25 +4,27 @@ GENERATOR_SCRIPT = generate_packet_structs.py
 GENERATED_STAMP = .generated
 BUILD_SCRIPT = setup.py
 
-# Use uv if available, otherwise fall back to plain python.
-# This makes the Makefile work both locally (uv installed) and in
-# Docker containers where only plain python3/python may be present.
+# generate_packet_structs.py only uses Python stdlib (pathlib, importlib, sys).
+# It does NOT need the uv venv — plain python3 works everywhere including
+# fresh Docker containers before 'uv sync' has been run.
+#
+# setup.py (Cython build) DOES need the venv (needs Cython package).
+# Use 'uv run --no-sync' for that step — venv must already exist.
 UV_BIN := $(shell command -v uv 2>/dev/null)
 ifdef UV_BIN
-    PYRUN = uv run --no-sync
+    CYTHON_RUN = uv run --no-sync
 else
-    PYRUN = python3
+    CYTHON_RUN = python3
 endif
 
 # Default target
 packets: $(GENERATED_STAMP)
-	$(PYRUN) setup.py build_ext --inplace
+	$(CYTHON_RUN) setup.py build_ext --inplace
 
-# Regenerate packet_structs.pyx if the generator script changed.
-# NOTE: uv run --no-sync requires the venv to already exist.
-#   Run 'uv sync' (or 'make sync') from the project root before 'make packets'.
+# Regenerate packet_structs.pyx whenever the generator script changes.
+# Runs with plain python3 — no venv needed.
 $(GENERATED_STAMP): $(GENERATOR_SCRIPT)
-	$(PYRUN) generate_packet_structs.py
+	python3 $(GENERATOR_SCRIPT)
 	@touch $(GENERATED_STAMP)
 
 # Clean up build artifacts

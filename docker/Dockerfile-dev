@@ -1,12 +1,57 @@
 FROM ubuntu:22.04
 
-EXPOSE 8000 8100 8200
+# Expose FM (8200), switch (8100), MCTP (8300), SMBus (8301/8302)
+EXPOSE 8000 8100 8200 8300 8301 8302
 
-RUN apt update && \
-    apt install -y git python3-pip python3.11-dev libpcap-dev iproute2
-RUN pip install poetry==1.8.0
+# ── System packages ───────────────────────────────────────────────────────────
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git \
+        curl \
+        python3-pip \
+        python3.11 \
+        python3.11-dev \
+        python3.11-venv \
+        libpcap-dev \
+        iproute2 \
+        build-essential \
+        make && \
+    rm -rf /var/lib/apt/lists/*
 
+# ── uv (replaces poetry) ──────────────────────────────────────────────────────
+# Install uv via pip so it's available system-wide in the container.
+# Match the version used in Dockerfile-ci for consistency.
+RUN pip install --no-cache-dir uv==0.6.3
 
+# ── Project setup ─────────────────────────────────────────────────────────────
 WORKDIR /opencis-core
 
-ENTRYPOINT ["/bin/bash", "-c" , "poetry env use 3.11 && poetry install && sleep infinity"]
+# Copy project files (for standalone image builds).
+# When using 'docker run -v $(pwd):/opencis-core' this COPY is overridden
+# by the bind mount, so changes are reflected immediately without rebuild.
+COPY . /opencis-core
+
+# Remove any pre-compiled .so / .pyd files that were built on a different
+# OS/arch. The repo ships packet_structs.py as a pure-Python fallback.
+RUN find /opencis-core -name "*.so" -delete && \
+    find /opencis-core -name "*.pyd" -delete && \
+    echo "Stale binaries removed — using pure-Python packet_structs.py"
+
+# ── Python environment ────────────────────────────────────────────────────────
+# Pin Python 3.11 (matches what's installed above) and sync all dependencies
+# into a .venv inside the project directory.
+# This is done at IMAGE BUILD TIME so 'docker run' starts immediately.
+# When using bind-mount dev mode, re-run 'uv sync' if pyproject.toml changes.
+RUN uv python pin 3.11 && uv sync
+
+# Generate packet_structs.pyx (uses only stdlib — works without venv).
+# The Cython .so build is skipped here; pure-Python fallback is used instead.
+RUN python3 opencis/cxl/transport/generate_packet_structs.py && \
+    touch opencis/cxl/transport/.generated
+
+# ── Entry point ───────────────────────────────────────────────────────────────
+# Drops into a shell with the uv venv activated so all commands work:
+#   uv run python -m opencis --help
+#   uv run pytest
+#   make test
+ENTRYPOINT ["/bin/bash", "-c", "source /opencis-core/.venv/bin/activate && exec bash"]
